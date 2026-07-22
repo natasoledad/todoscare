@@ -7,18 +7,29 @@ Implementado a partir del handoff de diseño en `design_handoff_todoscare/`
 (prototipo + specs funcionales por rol). Ver ese README para tokens de
 diseño, pantallas y el detalle de cada rol.
 
-## Estado — Fase 1 (andamiaje)
+## Estado
 
-✅ Backend: estructura, esquema de base de datos (39 tablas), migración
-Alembic aplicada, auth JWT, motor RBAC/tenant multi-clínica.
-⏳ Frontend, CRUDs de negocio por rol: fases siguientes.
+✅ **Fase 1** — andamiaje backend: esquema de base de datos (39 tablas),
+migración Alembic aplicada, auth JWT, motor RBAC/tenant multi-clínica.
+
+✅ **Fase 2** — Rol Paciente completo: registro (5 campos + T&C
+versionados), onboarding (5 preguntas + dependientes + gamificación),
+agenda (disponibilidad real, reserva con anti doble-reserva real,
+cancelar), salud (ficha editable, exámenes con subida de archivo real,
+odontograma, hospitalizaciones, QR de emergencia real y auditado),
+farmacia, billetera — backend + frontend PWA (React+Vite+TS+Tailwind),
+verificado end-to-end contra Postgres real y en navegador.
+
+⏳ **Fases siguientes** — Médico, Empresa/Cliente, Administrador, CRM
+financiero, Aseguradora/Prestador, integraciones (WhatsApp/IA,
+laboratorio, farmacia, pagos, mapas, push).
 
 ## Stack
 
 - **Backend**: Python 3.11 + FastAPI (async) + SQLAlchemy 2.0 (async) +
   PostgreSQL 16 (pgcrypto, btree_gist) + Alembic + JWT (python-jose) +
   bcrypt (passlib).
-- **Frontend**: React + Vite + TypeScript + Tailwind (PWA) — fase 2+.
+- **Frontend**: React + Vite + TypeScript + Tailwind (PWA), en `frontend/`.
 
 ## Backend — desarrollo local
 
@@ -39,11 +50,25 @@ docker compose up -d db
 .venv/bin/uvicorn app.main:app --reload
 ```
 
-Prueba de humo (RBAC + aislamiento multi-tenant, end-to-end contra la BD real):
+Pruebas de humo end-to-end contra la BD real (sin mocks):
 
 ```bash
-.venv/bin/python -m tests.test_rbac_smoke
+.venv/bin/python -m tests.test_rbac_smoke       # RBAC + aislamiento multi-tenant (Fase 1)
+.venv/bin/python -m tests.test_paciente_smoke   # flujo completo Rol Paciente (Fase 2)
 ```
+
+## Frontend — desarrollo local
+
+```bash
+cd frontend
+npm install
+npm run dev   # proxya /auth, /patients, /agenda, /salud, /farmacia, /billetera, /clinics, /tyc, /files -> localhost:8000
+```
+
+Requiere el backend corriendo en `localhost:8000` (ver arriba). Usuarios demo
+(password `Demo1234!`): `paciente.a@todoscare.dev` (perfil ya establecido,
+con exámenes/receta/wallet seedeados) o crea una cuenta nueva desde
+"Crear cuenta nueva".
 
 ## Estructura
 
@@ -55,11 +80,17 @@ backend/
     rbac/        # permisos, matriz por rol (transcrita de cada spec), require()
     models/      # SQLAlchemy — un módulo por dominio
     schemas/     # Pydantic (request/response)
-    routers/     # endpoints FastAPI
+    routers/     # endpoints FastAPI (auth, patients, agenda, salud, farmacia, wallet)
+    services/    # gamification (puntos/nivel), scheduling (generación de slots)
     seed.py      # datos demo idempotentes
   alembic/       # migraciones
-  tests/
-frontend/        # fase 2+
+  tests/         # smoke tests end-to-end contra la BD real
+frontend/
+  src/
+    api/         # cliente tipado real (fetch) + tipos
+    components/  # sistema de diseño (Button, TabBar, ListRow, ...)
+    context/      # AuthContext (JWT + perfil del paciente)
+    routes/       # pantallas — patient/ (tabs), salud/ (submenú Mi salud)
 docker-compose.yml
 design_handoff_todoscare/   # bundle de diseño original (prototipo + specs)
 ```

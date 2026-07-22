@@ -1,32 +1,35 @@
-# React + TypeScript + Vite
+# TODOSCARE — frontend (Rol Paciente)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+PWA React + Vite + TypeScript + Tailwind CSS implementando el Rol Paciente
+(Spec Paciente): registro, onboarding, agenda, mi salud (ficha, exámenes,
+dental, hospitalizaciones, agendamientos, QR de emergencia, subir info),
+farmacia, perfil y billetera.
 
-Currently, two official plugins are available:
+Sin datos simulados — `src/api/client.ts` es un cliente real contra el
+backend FastAPI (ver `../backend`); en desarrollo, Vite proxya las rutas de
+API a `localhost:8000` (ver `vite.config.ts`).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Desarrollo
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Requiere el backend corriendo (`cd ../backend && .venv/bin/uvicorn app.main:app --reload`),
+con la base de datos migrada y sembrada (`.venv/bin/python -m app.seed`).
+
+## Estructura
+
+- `src/api/` — cliente tipado (`client.ts`) y tipos (`types.ts`) para cada endpoint del backend.
+- `src/context/AuthContext.tsx` — sesión (JWT + perfil del paciente), login/registro/logout.
+- `src/components/` — sistema de diseño compartido (Button, TabBar, ListRow, BottomSheet, ...).
+- `src/routes/patient/` — App shell + pestañas Inicio/Agenda/Farmacia/Perfil/Billetera.
+- `src/routes/salud/` — submenú "Mi salud" (ficha, exámenes, dental, hospitalizaciones, agendamientos, QR, subir).
+- `src/routes/QrResolve.tsx` — página `/qr/:token` a la que apunta el QR de emergencia (requiere login de un usuario con rol médico).
+
+## Build
+
+```bash
+npm run build
+```
