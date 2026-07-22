@@ -15,7 +15,7 @@ from app.models.catalog import CatalogItem, Specialty
 from app.models.clinical import ExamOrder, ExamResult, Hospitalization, MedicalRecord, Odontogram, Prescription
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient, TycVersion
-from app.models.scheduling import AvailabilityBlock
+from app.models.scheduling import Appointment, AvailabilityBlock
 from app.models.tenant import Branch, Clinic
 from app.models.wallet import WalletAccount
 from app.rbac.permissions import RoleCode
@@ -162,6 +162,10 @@ async def main() -> None:
         admin_a = await get_or_create_user(db, "admin.a@todoscare.dev", "Admin Clínica A")
         admin_b = await get_or_create_user(db, "admin.b@todoscare.dev", "Admin Clínica B")
         medico_a = await get_or_create_user(db, "medico.a@todoscare.dev", "Dra. Nátaly")
+        # A second médico in the same clinic with NO appointments — exists so
+        # the "solo pacientes que atiende" isolation (Spec Médico §3) is
+        # actually testable: he must be denied Camila's ficha.
+        medico_b = await get_or_create_user(db, "medico.b@todoscare.dev", "Dr. Fuentes")
         empresa_a = await get_or_create_user(db, "empresa.a@todoscare.dev", "Clínica Demo A (portal)")
         paciente_a = await get_or_create_user(db, "paciente.a@todoscare.dev", "Camila Rodríguez")
         aseguradora_x = await get_or_create_user(db, "aseguradora.x@todoscare.dev", "Aseguradora X")
@@ -170,6 +174,7 @@ async def main() -> None:
         await assign_role(db, admin_a.id, roles[RoleCode.CLINIC_ADMIN.value].id, clinic_id=clinic_a.id)
         await assign_role(db, admin_b.id, roles[RoleCode.CLINIC_ADMIN.value].id, clinic_id=clinic_b.id)
         await assign_role(db, medico_a.id, roles[RoleCode.MEDICO.value].id, clinic_id=clinic_a.id, branch_id=branch_a1.id)
+        await assign_role(db, medico_b.id, roles[RoleCode.MEDICO.value].id, clinic_id=clinic_a.id, branch_id=branch_a1.id)
         await assign_role(db, empresa_a.id, roles[RoleCode.EMPRESA.value].id, clinic_id=clinic_a.id)
         await assign_role(db, paciente_a.id, roles[RoleCode.PACIENTE.value].id, clinic_id=clinic_a.id)
         # Simplification for Fase 1: aseguradora scoped to the one clinic it
@@ -180,8 +185,9 @@ async def main() -> None:
         specialties = {}
         for nombre, icono in SPECIALTIES:
             specialties[nombre] = await get_or_create_specialty(db, nombre, icono)
+        catalog = {}
         for nombre, precio, duracion_min in SERVICIOS_CLINICA_A:
-            await get_or_create_catalog_item(db, clinic_a.id, specialties[nombre].id, nombre, precio, duracion_min)
+            catalog[nombre] = await get_or_create_catalog_item(db, clinic_a.id, specialties[nombre].id, nombre, precio, duracion_min)
 
         # medico_a is available all day today, at branch_a1, for any
         # specialty (specialty_id=None) — a real deployment would seed one
@@ -283,13 +289,31 @@ async def main() -> None:
                 )
             )
 
+            # A confirmed appointment today so Dra. Nátaly's agenda isn't
+            # empty and the médico flow has a real cita to attend. This is
+            # what establishes the care relationship the ficha access checks
+            # against (Spec Médico §3).
+            servicio_general = catalog["Médico general"]
+            db.add(
+                Appointment(
+                    clinic_id=clinic_a.id,
+                    branch_id=branch_a1.id,
+                    professional_id=medico_a.id,
+                    patient_id=patient.id,
+                    service_id=servicio_general.id,
+                    slot=Range(today + timedelta(hours=10), today + timedelta(hours=10, minutes=30)),
+                    estado="confirmada",
+                )
+            )
+
         await db.commit()
 
     print("Seed OK. Demo password for every user:", DEMO_PASSWORD)
     print("  super@todoscare.dev        -> super_admin (global)")
     print("  admin.a@todoscare.dev      -> clinic_admin @ Clínica Demo A")
     print("  admin.b@todoscare.dev      -> clinic_admin @ Clínica Demo B")
-    print("  medico.a@todoscare.dev     -> medico @ Clínica Demo A / Sucursal A1")
+    print("  medico.a@todoscare.dev     -> medico @ Clínica Demo A / Sucursal A1 (atiende a Camila)")
+    print("  medico.b@todoscare.dev     -> medico @ Clínica Demo A / Sucursal A1 (sin citas)")
     print("  empresa.a@todoscare.dev    -> empresa @ Clínica Demo A")
     print("  paciente.a@todoscare.dev   -> paciente @ Clínica Demo A")
     print("  aseguradora.x@todoscare.dev-> aseguradora @ Clínica Demo A")

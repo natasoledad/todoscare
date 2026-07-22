@@ -20,7 +20,17 @@ odontograma, hospitalizaciones, QR de emergencia real y auditado),
 farmacia, billetera — backend + frontend PWA (React+Vite+TS+Tailwind),
 verificado end-to-end contra Postgres real y en navegador.
 
-⏳ **Fases siguientes** — Médico, Empresa/Cliente, Administrador, CRM
+✅ **Fase 3** — Rol Médico completo: agenda del día, ficha del paciente
+con aislamiento clínico real (solo pacientes que atiende, cada acceso
+auditado en `audit_logs`), prontuario JSONB con enmienda auditada
+(nunca borrado), prescripción con firma inmutable + reemisión
+(anula+reemite) + bloqueo por alerta de alergia antes de firmar, órdenes
+de examen (que aparecen en la app del paciente), odontograma editable, y
+cierre de atención que genera ingreso en el ledger + split de pago al
+profesional (liquidaciones). Auth del frontend ahora es multi-rol
+(`/auth/me`): paciente → `/app`, médico → `/medico`.
+
+⏳ **Fases siguientes** — Empresa/Cliente, Administrador, CRM
 financiero, Aseguradora/Prestador, integraciones (WhatsApp/IA,
 laboratorio, farmacia, pagos, mapas, push).
 
@@ -55,7 +65,12 @@ Pruebas de humo end-to-end contra la BD real (sin mocks):
 ```bash
 .venv/bin/python -m tests.test_rbac_smoke       # RBAC + aislamiento multi-tenant (Fase 1)
 .venv/bin/python -m tests.test_paciente_smoke   # flujo completo Rol Paciente (Fase 2)
+.venv/bin/python -m tests.test_medico_smoke     # flujo completo Rol Médico (Fase 3)
 ```
+
+Usuarios demo médicos (password `Demo1234!`): `medico.a@todoscare.dev`
+(Dra. Nátaly, con una cita hoy con Camila) y `medico.b@todoscare.dev`
+(Dr. Fuentes, sin citas — sirve para probar el aislamiento clínico).
 
 ## Frontend — desarrollo local
 

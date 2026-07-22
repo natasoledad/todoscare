@@ -1,17 +1,25 @@
 import type {
   AuthOut,
+  Cierre,
   Cita,
+  CitaMedico,
   ClinicPublic,
   Dependent,
   EmergencyQr,
   Examen,
+  FichaPaciente,
   FichaUpdateInput,
   Hospitalizacion,
+  Liquidacion,
+  Me,
   Medicamento,
   Movimiento,
   Odontograma,
   OnboardingInput,
+  Orden,
   PatientMe,
+  PrescripcionResult,
+  Prontuario,
   QrAccessLog,
   RegisterInput,
   ReservaInput,
@@ -80,6 +88,7 @@ export const api = {
   },
   auth: {
     login: (correo: string, password: string) => post<AuthOut>('/auth/login', { email: correo, password }),
+    me: () => get<Me>('/auth/me'),
   },
   patients: {
     register: (input: RegisterInput) => post<AuthOut>('/patients/register', input),
@@ -115,6 +124,22 @@ export const api = {
     movimientos: () => get<Movimiento[]>('/billetera/movimientos'),
     pagarCashback: (monto: number) => post<Wallet>('/billetera/pagar-cashback', { monto }),
     canjearPuntos: (puntos: number) => post<Wallet>('/billetera/canjear-puntos', { puntos }),
+  },
+  medico: {
+    agenda: (fecha?: string) => get<CitaMedico[]>(`/medico/agenda${fecha ? `?fecha=${fecha}` : ''}`),
+    ficha: (patientId: string) => get<FichaPaciente>(`/medico/pacientes/${patientId}/ficha`),
+    prontuario: (citaId: string) => get<Prontuario[]>(`/medico/citas/${citaId}/prontuario`),
+    registrarAtencion: (citaId: string, body: { motivo: string; evolucion?: string; diagnostico?: string }) =>
+      post<Prontuario>(`/medico/citas/${citaId}/atencion`, body),
+    enmendar: (recordId: string, nota: string) => patch<Prontuario>(`/medico/prontuario/${recordId}/enmienda`, { nota }),
+    prescribir: (citaId: string, items: { medicamento: string; cantidad?: string; indicaciones?: string }[], confirmarAlertas: boolean) =>
+      post<PrescripcionResult>(`/medico/citas/${citaId}/prescripcion`, { items, confirmar_alertas: confirmarAlertas }),
+    ordenExamen: (citaId: string, tipo: 'laboratorio' | 'imagenes') => post<Orden>(`/medico/citas/${citaId}/orden-examen`, { tipo }),
+    odontograma: (patientId: string, piezas: Record<string, { estado: string }>) =>
+      request<{ piezas: Record<string, { estado: string }> }>(`/medico/pacientes/${patientId}/odontograma`, { method: 'PUT', body: JSON.stringify({ piezas }) }),
+    cerrar: (citaId: string) => post<Cierre>(`/medico/citas/${citaId}/cerrar`),
+    noShow: (citaId: string) => patch<Cierre>(`/medico/citas/${citaId}/no-show`),
+    liquidaciones: () => get<Liquidacion[]>('/medico/liquidaciones'),
   },
 };
 

@@ -16,8 +16,8 @@ export function Login() {
     setSubmitting(true);
     setError(null);
     try {
-      await login(correo, password);
-      navigate('/app');
+      const role = await login(correo, password);
+      navigate(role === 'medico' ? '/medico' : '/app');
     } catch (e) {
       setError(e instanceof ApiError ? String(e.detail) : 'No se pudo iniciar sesión');
     } finally {
