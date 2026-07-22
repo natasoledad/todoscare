@@ -11,8 +11,9 @@ from sqlalchemy.dialects.postgresql import Range
 
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
-from app.models.catalog import CatalogItem, Specialty
+from app.models.catalog import CatalogItem, Promotion, Specialty
 from app.models.clinical import ExamOrder, ExamResult, Hospitalization, MedicalRecord, Odontogram, Prescription
+from app.models.finance import Company, CompanyEmployee, LedgerEntry
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient, TycVersion
 from app.models.scheduling import Appointment, AvailabilityBlock
@@ -305,6 +306,25 @@ async def main() -> None:
                     estado="confirmada",
                 )
             )
+
+        # ── Empresa (Fase 4) demo data for Clínica Demo A ──
+        # Promotions the empresa portal manages and the paciente app shows.
+        existing_promo = (await db.execute(select(Promotion).where(Promotion.clinic_id == clinic_a.id))).scalars().first()
+        if not existing_promo:
+            db.add(Promotion(clinic_id=clinic_a.id, nombre="Chequeo preventivo -20%", descuento="-20%", segmento="Todos", estado="Activa"))
+            db.add(Promotion(clinic_id=clinic_a.id, nombre="Odontología familiar 2x1", descuento="2x1", segmento="Odontología", estado="Activa"))
+            db.add(Promotion(clinic_id=clinic_a.id, nombre="Primera telemedicina gratis", descuento="100%", segmento="Nuevos", estado="Borrador"))
+
+        # A couple of ingresos so the empresa KPIs (ingresos del mes) aren't flat.
+        existing_ledger = (await db.execute(select(LedgerEntry).where(LedgerEntry.clinic_id == clinic_a.id))).scalars().first()
+        if not existing_ledger:
+            for monto in (450, 600, 320):
+                db.add(LedgerEntry(clinic_id=clinic_a.id, tipo="ingreso", monto=monto, ref="seed"))
+
+        # The clinic also operates as a B2B contratante (empresa portal §Funcionarios).
+        existing_company = (await db.execute(select(Company).where(Company.clinic_id == clinic_a.id))).scalars().first()
+        if not existing_company:
+            db.add(Company(clinic_id=clinic_a.id, razon_social="Corporativo Demo S.A."))
 
         await db.commit()
 

@@ -1,15 +1,20 @@
 import type {
   AuthOut,
+  Bloque,
+  Branch,
   Cierre,
   Cita,
   CitaMedico,
   ClinicPublic,
   Dependent,
   EmergencyQr,
+  EmpresaKpis,
   Examen,
   FichaPaciente,
   FichaUpdateInput,
+  Funcionario,
   Hospitalizacion,
+  InfoEmpresa,
   Liquidacion,
   Me,
   Medicamento,
@@ -19,11 +24,14 @@ import type {
   Orden,
   PatientMe,
   PrescripcionResult,
+  Profesional,
+  Promocion,
   Prontuario,
   QrAccessLog,
   RegisterInput,
   ReservaInput,
   Servicio,
+  ServicioAdmin,
   Slot,
   TycVersion,
   Wallet,
@@ -78,6 +86,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 const get = <T>(path: string) => request<T>(path);
 const post = <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
 const patch = <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined });
+const del = (path: string) => request<void>(path, { method: 'DELETE' });
 
 export const api = {
   clinics: {
@@ -140,6 +149,28 @@ export const api = {
     cerrar: (citaId: string) => post<Cierre>(`/medico/citas/${citaId}/cerrar`),
     noShow: (citaId: string) => patch<Cierre>(`/medico/citas/${citaId}/no-show`),
     liquidaciones: () => get<Liquidacion[]>('/medico/liquidaciones'),
+  },
+  empresa: {
+    inicio: () => get<EmpresaKpis>('/empresa/inicio'),
+    profesionales: () => get<Profesional[]>('/empresa/profesionales'),
+    sucursales: () => get<Branch[]>('/empresa/sucursales'),
+    agendas: (professionalId?: string) => get<Bloque[]>(`/empresa/agendas${professionalId ? `?professional_id=${professionalId}` : ''}`),
+    crearBloque: (body: { professional_id: string; branch_id: string; inicio: string; fin: string; reglas?: Record<string, unknown> }) =>
+      post<Bloque>('/empresa/agendas', body),
+    eliminarBloque: (id: string) => del(`/empresa/agendas/${id}`),
+    servicios: () => get<ServicioAdmin[]>('/empresa/servicios'),
+    crearServicio: (body: { nombre: string; precio: number; duracion_min: number; specialty_id?: string }) => post<ServicioAdmin>('/empresa/servicios', body),
+    editarServicio: (id: string, body: { nombre?: string; precio?: number; duracion_min?: number; activo?: boolean }) => patch<ServicioAdmin>(`/empresa/servicios/${id}`, body),
+    eliminarServicio: (id: string) => del(`/empresa/servicios/${id}`),
+    promociones: () => get<Promocion[]>('/empresa/promociones'),
+    crearPromo: (body: { nombre: string; descuento?: string; segmento?: string; estado?: string }) => post<Promocion>('/empresa/promociones', body),
+    editarPromo: (id: string, body: { estado?: string; nombre?: string; descuento?: string }) => patch<Promocion>(`/empresa/promociones/${id}`, body),
+    eliminarPromo: (id: string) => del(`/empresa/promociones/${id}`),
+    info: () => get<InfoEmpresa>('/empresa/info'),
+    editarInfo: (body: { razon_social?: string; responsable_sanitario?: string }) => patch<InfoEmpresa>('/empresa/info', body),
+    funcionarios: () => get<Funcionario[]>('/empresa/funcionarios'),
+    altaFuncionario: (correo: string) => post<Funcionario>('/empresa/funcionarios', { correo }),
+    bajaFuncionario: (id: string) => del(`/empresa/funcionarios/${id}`),
   },
 };
 

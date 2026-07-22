@@ -27,6 +27,12 @@ import { Cita as MedicoCita } from './routes/medico/Cita';
 import { Ficha as MedicoFicha } from './routes/medico/Ficha';
 import { Liquidaciones as MedicoLiquidaciones } from './routes/medico/Liquidaciones';
 import { Perfil as MedicoPerfil } from './routes/medico/Perfil';
+import { Inicio as EmpresaInicio } from './routes/empresa/Inicio';
+import { Servicios as EmpresaServicios } from './routes/empresa/Servicios';
+import { Promociones as EmpresaPromociones } from './routes/empresa/Promociones';
+import { Agendas as EmpresaAgendas } from './routes/empresa/Agendas';
+import { Info as EmpresaInfo } from './routes/empresa/Info';
+import { Funcionarios as EmpresaFuncionarios } from './routes/empresa/Funcionarios';
 
 function App() {
   return (
@@ -70,6 +76,16 @@ function App() {
                 <Route path="cita/:citaId" element={<MedicoCita />} />
                 <Route path="ficha/:patientId" element={<MedicoFicha />} />
               </Route>
+            </Route>
+
+            {/* ── Empresa / Cliente ── */}
+            <Route element={<RequireRole role="empresa" />}>
+              <Route path="/empresa" element={<EmpresaInicio />} />
+              <Route path="/empresa/agendas" element={<EmpresaAgendas />} />
+              <Route path="/empresa/servicios" element={<EmpresaServicios />} />
+              <Route path="/empresa/promociones" element={<EmpresaPromociones />} />
+              <Route path="/empresa/info" element={<EmpresaInfo />} />
+              <Route path="/empresa/funcionarios" element={<EmpresaFuncionarios />} />
             </Route>
           </Route>
 

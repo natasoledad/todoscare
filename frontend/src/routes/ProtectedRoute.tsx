@@ -10,11 +10,13 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
+const HOME_BY_ROLE: Record<string, string> = { medico: '/medico', empresa: '/empresa' };
+
 /** Gate a subtree to a single role; bounce others to their own home. */
-export function RequireRole({ role }: { role: 'paciente' | 'medico' }) {
+export function RequireRole({ role }: { role: 'paciente' | 'medico' | 'empresa' }) {
   const { primaryRole, loading } = useAuth();
   if (loading) return <Loading />;
-  if (primaryRole !== role) return <Navigate to={primaryRole === 'medico' ? '/medico' : '/app'} replace />;
+  if (primaryRole !== role) return <Navigate to={HOME_BY_ROLE[primaryRole ?? ''] ?? '/app'} replace />;
   return <Outlet />;
 }
 

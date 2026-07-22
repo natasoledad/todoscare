@@ -91,6 +91,70 @@ export interface Liquidacion {
   ref: string | null;
 }
 
+// ---- empresa ----
+export interface EmpresaKpis {
+  clinic_nombre: string;
+  citas_hoy: number;
+  ingresos_mes: number;
+  servicios_activos: number;
+  promos_activas: number;
+  mas_vendidos: { nombre: string; cantidad: number }[];
+}
+
+export interface Profesional {
+  id: string;
+  nombre: string;
+}
+
+export interface Branch {
+  id: string;
+  nombre: string;
+}
+
+export interface Bloque {
+  id: string;
+  professional_id: string;
+  professional_nombre: string;
+  branch_nombre: string;
+  inicio: string;
+  fin: string;
+  reglas: Record<string, unknown> | null;
+}
+
+export interface ServicioAdmin {
+  id: string;
+  nombre: string;
+  precio: number;
+  duracion_min: number | null;
+  activo: boolean;
+  specialty_nombre: string | null;
+}
+
+export interface Promocion {
+  id: string;
+  nombre: string;
+  descuento: string | null;
+  vigencia_inicio: string | null;
+  vigencia_fin: string | null;
+  segmento: string | null;
+  estado: 'Activa' | 'Borrador';
+}
+
+export interface InfoEmpresa {
+  clinic_id: string;
+  razon_social: string;
+  responsable_sanitario: string | null;
+  pais: string;
+  sucursales: Branch[];
+}
+
+export interface Funcionario {
+  id: string;
+  nombre: string;
+  correo: string;
+  estado: string;
+}
+
 export interface TycVersion {
   id: string;
   pais: string;

@@ -27,12 +27,22 @@ auditado en `audit_logs`), prontuario JSONB con enmienda auditada
 (anula+reemite) + bloqueo por alerta de alergia antes de firmar, órdenes
 de examen (que aparecen en la app del paciente), odontograma editable, y
 cierre de atención que genera ingreso en el ledger + split de pago al
-profesional (liquidaciones). Auth del frontend ahora es multi-rol
-(`/auth/me`): paciente → `/app`, médico → `/medico`.
+profesional (liquidaciones).
 
-⏳ **Fases siguientes** — Empresa/Cliente, Administrador, CRM
-financiero, Aseguradora/Prestador, integraciones (WhatsApp/IA,
-laboratorio, farmacia, pagos, mapas, push).
+✅ **Fase 4** — Rol Empresa/Cliente completo: portal con KPIs de la
+clínica (citas hoy, ingresos del mes, servicios más vendidos, promos
+activas), configurar agendas (bloques de disponibilidad reales que se
+vuelven horarios para el paciente), catálogo de servicios con precios
+(alta/edición/baja lógica que se refleja en el catálogo del paciente),
+promociones (crear/activar/pausar), información de la empresa, y
+funcionarios B2B (alta/baja de nómina). Todo acotado a su `clinic_id`.
+
+Auth del frontend es multi-rol (`/auth/me`): paciente → `/app`, médico →
+`/medico`, empresa → `/empresa`.
+
+⏳ **Fases siguientes** — Administrador, CRM financiero,
+Aseguradora/Prestador, integraciones (WhatsApp/IA, laboratorio, farmacia,
+pagos, mapas, push).
 
 ## Stack
 
@@ -66,6 +76,7 @@ Pruebas de humo end-to-end contra la BD real (sin mocks):
 .venv/bin/python -m tests.test_rbac_smoke       # RBAC + aislamiento multi-tenant (Fase 1)
 .venv/bin/python -m tests.test_paciente_smoke   # flujo completo Rol Paciente (Fase 2)
 .venv/bin/python -m tests.test_medico_smoke     # flujo completo Rol Médico (Fase 3)
+.venv/bin/python -m tests.test_empresa_smoke    # flujo completo Rol Empresa (Fase 4)
 ```
 
 Usuarios demo médicos (password `Demo1234!`): `medico.a@todoscare.dev`

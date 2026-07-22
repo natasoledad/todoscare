@@ -30,7 +30,12 @@ async def list_servicios(
         await db.execute(
             select(CatalogItem, Specialty.icono)
             .join(Specialty, Specialty.id == CatalogItem.specialty_id, isouter=True)
-            .where(CatalogItem.clinic_id == patient.clinic_id, CatalogItem.tipo == "servicio", CatalogItem.activo.is_(True))
+            .where(
+                CatalogItem.clinic_id == patient.clinic_id,
+                CatalogItem.tipo == "servicio",
+                CatalogItem.activo.is_(True),
+                CatalogItem.deleted_at.is_(None),
+            )
         )
     ).all()
     return [ServicioOut(id=item.id, nombre=item.nombre, icono=icono, precio=float(item.precio), duracion_min=item.duracion_min or 30) for item, icono in rows]
