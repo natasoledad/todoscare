@@ -1,0 +1,15 @@
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+import app.core.audit  # noqa: F401  (registers the soft-delete before_flush listener)
+from app.core.config import settings
+
+engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+
+AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        yield session

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  body{margin:0;background:#4a5551}
+  h1,h2,h3{font-family:'Manrope',sans-serif;color:#0F2A24;text-wrap:balance}
+  h1{font-size:30px;line-height:1.15;font-weight:800;margin:0 0 6px}
+  h2{font-size:19px;font-weight:800;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid #0E7C6B}
+  h3{font-size:14.5px;font-weight:700;margin:20px 0 8px;color:#0A5D50}
+  p,li,td,th{font-family:'Inter',sans-serif;color:#233B35;font-size:12.5px;line-height:1.6}
+  p{margin:0 0 10px;text-wrap:pretty}
+  ul{margin:0 0 10px;padding-left:18px}
+  li{margin:0 0 5px}
+  strong{color:#0F2A24;font-weight:700}
+  table{width:100%;border-collapse:collapse;margin:6px 0 14px}
+  th{background:#E4F2EF;color:#0A5D50;font-weight:700;font-size:11px;text-align:left;padding:8px 10px;border:1px solid #CFE4DE}
+  td{padding:8px 10px;border:1px solid #E1E9E6;vertical-align:top}
+  tr:nth-child(even) td{background:#F7FAF9}
+  .kicker{margin-top:24px;font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#0E7C6B;margin-bottom:8px}
+  .lead{font-size:13.5px;color:#42564F;margin-bottom:4px}
+  .meta{font-size:11px;color:#7A8A85;font-family:'Manrope',sans-serif;margin-top:2px}
+  .callout{background:#F1F7F5;border-left:3px solid #0E7C6B;border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0;break-inside:avoid}
+  .callout .t{font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;color:#0A5D50;margin-bottom:4px}
+  .pill{display:inline-block;font-family:'Manrope',sans-serif;font-weight:700;font-size:10px;padding:2px 8px;border-radius:20px;background:#E4F2EF;color:#0A5D50}
+  .flow-step{break-inside:avoid;margin:0 0 8px;padding:10px 14px;background:#fff;border:1px solid #E1E9E6;border-radius:10px;display:flex;gap:12px;align-items:flex-start}
+  .flow-num{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:#0E7C6B;color:#fff;font-family:'Manrope',sans-serif;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .flow-step .b{font-size:12px}
+  section.blk{break-inside:avoid-page}
+  a{color:#0E7C6B}
+  a:hover{color:#0A5D50}
+</style>
+<script src="./doc-page.js"></script>
+</helmet>
+
+<doc-page margin="0.7in">
+  <div slot="header" style="display:flex;justify-content:space-between;align-items:center;font-family:'Manrope',sans-serif;font-size:10px;color:#7A8A85;padding-bottom:6px">
+    <span style="font-weight:800;color:#0E7C6B">TODOSCARE</span>
+    <span>Especificación funcional · Rol Paciente</span>
+  </div>
+  <div slot="footer" style="text-align:center;font-family:'Manrope',sans-serif;font-size:10px;color:#9AA8A3;padding-top:6px">
+    Documento de referencia para desarrollo · Confidencial
+  </div>
+
+  <div class="kicker">Especificación funcional</div>
+  <h1>Rol Paciente — TODOSCARE PWA</h1>
+  <p class="lead">Detalle de datos, permisos, pantallas, flujos, estados e integraciones para el usuario Paciente. Puente entre el prototipo de UX y el desarrollo del backend/frontend.</p>
+  <p class="meta">Versión 0.1 · borrador para revisión · complementa el prototipo interactivo TODOSCARE</p>
+
+  <h2>1. Resumen del rol</h2>
+  <p>El Paciente es el usuario final de la plataforma. Accede vía PWA (WhatsApp webview / Chrome) sin descargar app nativa. Su objetivo: gestionar su salud de punta a punta — agendar, atenderse, ver resultados, comprar medicamentos y administrar su billetera — con una experiencia simple, guiada y en pocos pasos.</p>
+  <div class="callout">
+    <div class="t">Principio rector</div>
+    Cada acción debe resolverse en el menor número de pasos y con guía paso a paso. Si el paciente pregunta al bot cómo hacer algo, el bot entrega un enlace que abre la pantalla real ya en modo asistido.
+  </div>
+
+  <h2>2. Modelo de datos del Paciente</h2>
+  <h3>2.1 Registro inicial (obligatorio — 5 campos)</h3>
+  <table>
+    <thead><tr><th>Campo</th><th>Tipo</th><th>Validación</th><th>Obligatorio</th></tr></thead>
+    <tbody>
+      <tr><td>Nombre completo</td><td>Texto</td><td>Mín. 3 caracteres</td><td>Sí</td></tr>
+      <tr><td>RUT / ID nacional</td><td>Texto</td><td>Formato + dígito verificador por país</td><td>Sí</td></tr>
+      <tr><td>Teléfono</td><td>Texto</td><td>Formato internacional (+código)</td><td>Sí</td></tr>
+      <tr><td>Dirección</td><td>Texto</td><td>Geolocalizable (para servicios cercanos)</td><td>Sí</td></tr>
+      <tr><td>Correo electrónico</td><td>Email</td><td>Formato válido + verificación</td><td>Sí</td></tr>
+    </tbody>
+  </table>
+  <p>La aceptación de <strong>Términos y Condiciones</strong> es obligatoria en el registro y se re-solicita en cada actualización del documento; sin aceptación no hay continuidad de uso.</p>
+
+  <h3>2.2 Ficha clínica completa (opcional — gamificada)</h3>
+  <p>Campos adicionales que el paciente completa a su ritmo para subir de nivel (Bronce → Plata → Oro → Diamante) y ganar puntos:</p>
+  <ul>
+    <li>Datos personales: fecha de nacimiento, sexo, foto, contacto de emergencia</li>
+    <li>Datos médicos: grupo sanguíneo, alergias, medicación actual, antecedentes/preexistencias</li>
+    <li>Historial: hospitalizaciones, cirugías, resultados de exámenes (subidos por foto/PDF → IA actualiza la ficha)</li>
+    <li>Seguro / Isapre, dependientes (hijos &lt;18 vinculados a la cuenta)</li>
+  </ul>
+
+  <h2>3. Permisos (matriz RBAC)</h2>
+  <table>
+    <thead><tr><th>Recurso</th><th>Ver</th><th>Crear</th><th>Editar</th><th>Eliminar</th></tr></thead>
+    <tbody>
+      <tr><td>Su propia ficha clínica</td><td>Sí</td><td>Sí</td><td>Sí (campos opcionales)</td><td>No</td></tr>
+      <tr><td>Resultados de exámenes propios</td><td>Sí</td><td>Subir</td><td>No</td><td>No</td></tr>
+      <tr><td>Sus agendamientos</td><td>Sí</td><td>Sí</td><td>Reagenda/cancela</td><td>Cancela</td></tr>
+      <tr><td>Ficha de dependientes &lt;18</td><td>Sí</td><td>Vincular</td><td>Sí</td><td>Desvincular</td></tr>
+      <tr><td>Billetera / cashback</td><td>Sí</td><td>—</td><td>Usar saldo</td><td>No</td></tr>
+      <tr><td>Datos de otros pacientes</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+      <tr><td>Precios/config de clínica</td><td>Sí (solo lectura)</td><td>No</td><td>No</td><td>No</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <div class="t">Aislamiento de datos</div>
+    El paciente nunca accede a información de otro paciente. El QR de emergencia otorga acceso de <strong>solo lectura</strong> a un profesional verificado, y cada acceso queda registrado (fecha, hora, profesional).
+  </div>
+
+  <h2>4. Pantallas del rol</h2>
+  <table>
+    <thead><tr><th>Pantalla</th><th>Contenido</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <tr><td>Registro + T&amp;C</td><td>5 campos + aceptación</td><td>Crear cuenta</td></tr>
+      <tr><td>Onboarding</td><td>5 preguntas de salud + dependientes</td><td>Responder, agregar dependiente, omitir</td></tr>
+      <tr><td>Inicio</td><td>Nivel/puntos, acciones rápidas, asistente, promociones</td><td>Navegar a cualquier servicio</td></tr>
+      <tr><td>Agenda</td><td>Especialidades → horarios → confirmación</td><td>Agendar, reagenda, cancelar</td></tr>
+      <tr><td>Mi salud</td><td>Ficha, exámenes, dental, agendamientos, hospitalizaciones, subir info, QR emergencia</td><td>Ver, subir PDF/foto, generar QR</td></tr>
+      <tr><td>Farmacia</td><td>Medicamentos recetados</td><td>Pedir por WhatsApp</td></tr>
+      <tr><td>Perfil / Billetera</td><td>Puntos, cashback, niveles, datos personales, movimientos</td><td>Pagar con cashback, canjear puntos</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Flujos detallados</h2>
+
+  <h3>5.1 Agendar una consulta</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b"><strong>Elegir especialidad.</strong> Lista con duración y precio. Estado vacío si no hay especialidades activas en la sucursal.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b"><strong>Elegir horario.</strong> Slots ordenados por cercanía a la dirección del paciente (geo). El backend bloquea doble-reserva (índice anti-conflicto).</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b"><strong>Confirmar y pagar.</strong> Pago online o en clínica; puede aplicar cashback. Validar disponibilidad de nuevo antes de confirmar.</div></div>
+  <div class="flow-step"><div class="flow-num">4</div><div class="b"><strong>Recordatorios.</strong> Notificación push + WhatsApp. Reagenda/cancelación hasta X horas antes.</div></div>
+  <p><strong>Errores:</strong> slot tomado durante la confirmación → mostrar mensaje y refrescar horarios. Pago rechazado → conservar la reserva N minutos y reintentar.</p>
+
+  <h3>5.2 Subir información a la ficha clínica</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Paciente sube imagen/PDF (en la app o por WhatsApp al asistente).</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">La IA extrae los datos (human-in-the-loop: el paciente confirma antes de guardar).</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">Se actualiza la ficha y se otorgan puntos de gamificación.</div></div>
+
+  <h3>5.3 QR de emergencia</h3>
+  <p>Genera un código de solo lectura con datos críticos (grupo sanguíneo, alergias) visibles y acceso a ficha/historial/exámenes para un profesional verificado. Compartible, imprimible y disponible en pantalla de bloqueo. Cada acceso se audita.</p>
+
+  <h2>6. Estados de UI (aplican a todas las pantallas)</h2>
+  <ul>
+    <li><strong>Vacío:</strong> mensaje guía + acción sugerida (ej. "Aún no tienes exámenes").</li>
+    <li><strong>Cargando:</strong> skeletons, nunca pantalla en blanco.</li>
+    <li><strong>Error:</strong> mensaje claro + reintento; nunca códigos técnicos.</li>
+    <li><strong>Éxito:</strong> confirmación visual + siguiente paso sugerido.</li>
+    <li><strong>Offline (PWA):</strong> datos cacheados de solo lectura + aviso.</li>
+  </ul>
+
+  <h2>7. Notificaciones</h2>
+  <table>
+    <thead><tr><th>Evento</th><th>Canal</th><th>Momento</th></tr></thead>
+    <tbody>
+      <tr><td>Recordatorio de cita</td><td>Push + WhatsApp</td><td>24 h y 1 h antes</td></tr>
+      <tr><td>Resultado de examen listo</td><td>Push + WhatsApp + correo</td><td>Al publicarse</td></tr>
+      <tr><td>Subió de nivel</td><td>Push</td><td>Al alcanzarlo</td></tr>
+      <tr><td>Promoción relevante</td><td>Push</td><td>Segmentado</td></tr>
+      <tr><td>Actualización de T&amp;C</td><td>In-app (bloqueante)</td><td>Al entrar</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Integraciones que consume el rol</h2>
+  <table>
+    <thead><tr><th>Sistema</th><th>Uso del paciente</th><th>Tipo de conexión</th></tr></thead>
+    <tbody>
+      <tr><td>WhatsApp / Bot IA</td><td>Consultas, subir exámenes, enlaces guiados</td><td>API WhatsApp + webhook</td></tr>
+      <tr><td>Laboratorio</td><td>Recibe resultados de exámenes</td><td>Orden → resultado (API/archivo)</td></tr>
+      <tr><td>Farmacia</td><td>Pedido de medicamentos recetados</td><td>API stock + pedido</td></tr>
+      <tr><td>Pasarela de pago</td><td>Pago de consultas/exámenes; cashback</td><td>API pago + split</td></tr>
+      <tr><td>Geolocalización / mapas</td><td>Servicios de salud cercanos</td><td>API mapas</td></tr>
+      <tr><td>Notificaciones push (PWA)</td><td>Recordatorios y avisos</td><td>Web Push</td></tr>
+    </tbody>
+  </table>
+
+  <h2>9. Cumplimiento legal</h2>
+  <p>Tratamiento de datos personales y de salud conforme al marco de <strong>Chile, Brasil, Colombia y México</strong>. T&amp;C versionados con re-aceptación obligatoria; consentimiento explícito para datos sensibles (ficha clínica, exámenes); registro de auditoría de accesos; derecho de acceso y portabilidad de datos del paciente.</p>
+
+  <h2>10. Preguntas abiertas / a definir</h2>
+  <ul>
+    <li>¿Ventana exacta de reagenda/cancelación sin costo?</li>
+    <li>¿El cashback tiene vencimiento? ¿Tope de uso por transacción?</li>
+    <li>¿Qué campos exactos exige cada nivel de gamificación (Plata/Oro/Diamante)?</li>
+    <li>¿Verificación de identidad del profesional que escanea el QR de emergencia?</li>
+    <li>¿Un dependiente puede tener su propia cuenta al cumplir 18? Proceso de traspaso.</li>
+  </ul>
+</doc-page>
+
+</x-dc>
+</body>
+</html>

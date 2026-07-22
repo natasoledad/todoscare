@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  body{margin:0;background:#4a5551}
+  h1,h2,h3{font-family:'Manrope',sans-serif;color:#0F2A24;text-wrap:balance}
+  h1{font-size:30px;line-height:1.15;font-weight:800;margin:0 0 6px}
+  h2{font-size:19px;font-weight:800;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid #0E7C6B}
+  h3{font-size:14.5px;font-weight:700;margin:20px 0 8px;color:#0A5D50}
+  p,li,td,th{font-family:'Inter',sans-serif;color:#233B35;font-size:12.5px;line-height:1.6}
+  p{margin:0 0 10px;text-wrap:pretty}
+  ul{margin:0 0 10px;padding-left:18px}
+  li{margin:0 0 5px}
+  strong{color:#0F2A24;font-weight:700}
+  table{width:100%;border-collapse:collapse;margin:6px 0 14px}
+  th{background:#E4F2EF;color:#0A5D50;font-weight:700;font-size:11px;text-align:left;padding:8px 10px;border:1px solid #CFE4DE}
+  td{padding:8px 10px;border:1px solid #E1E9E6;vertical-align:top}
+  tr:nth-child(even) td{background:#F7FAF9}
+  .kicker{margin-top:24px;font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#0E7C6B;margin-bottom:8px}
+  .lead{font-size:13.5px;color:#42564F;margin-bottom:4px}
+  .meta{font-size:11px;color:#7A8A85;font-family:'Manrope',sans-serif;margin-top:2px}
+  .callout{background:#F1F7F5;border-left:3px solid #0E7C6B;border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0;break-inside:avoid}
+  .callout .t{font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;color:#0A5D50;margin-bottom:4px}
+  .flow-step{break-inside:avoid;margin:0 0 8px;padding:10px 14px;background:#fff;border:1px solid #E1E9E6;border-radius:10px;display:flex;gap:12px;align-items:flex-start}
+  .flow-num{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:#0E7C6B;color:#fff;font-family:'Manrope',sans-serif;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .flow-step .b{font-size:12px}
+  a{color:#0E7C6B}
+  a:hover{color:#0A5D50}
+</style>
+<script src="./doc-page.js"></script>
+</helmet>
+
+<doc-page margin="0.7in">
+  <div slot="header" style="display:flex;justify-content:space-between;align-items:center;font-family:'Manrope',sans-serif;font-size:10px;color:#7A8A85;padding-bottom:6px">
+    <span style="font-weight:800;color:#0E7C6B">TODOSCARE</span>
+    <span>Especificación funcional · Rol Empresa / Cliente</span>
+  </div>
+  <div slot="footer" style="text-align:center;font-family:'Manrope',sans-serif;font-size:10px;color:#9AA8A3;padding-top:6px">
+    Documento de referencia para desarrollo · Confidencial
+  </div>
+
+  <div class="kicker">Especificación funcional</div>
+  <h1>Rol Empresa / Cliente — TODOSCARE</h1>
+  <p class="lead">Detalle de datos, permisos, pantallas, flujos e integraciones del usuario Empresa/Cliente: la clínica o negocio que opera dentro de la plataforma y configura su oferta.</p>
+  <p class="meta">Versión 0.1 · borrador para revisión · complementa el prototipo interactivo TODOSCARE</p>
+
+  <h2>1. Resumen del rol</h2>
+  <p>La Empresa/Cliente es el <strong>tenant operativo</strong>: una clínica, consultorio o empresa que usa la plataforma para ofrecer y gestionar servicios de salud. Configura su agenda, catálogo de productos/servicios con precios, promociones e información pública que ven los pacientes. Su alcance está acotado a su propia clínica y sucursales (aislamiento por clinic_id).</p>
+  <div class="callout">
+    <div class="t">Dos lecturas del rol</div>
+    "Empresa" cubre tanto la <strong>clínica prestadora</strong> (configura oferta y agenda) como la <strong>empresa contratante B2B</strong> (compra planes para sus funcionarios). Ambas comparten portal pero con módulos distintos — definir cuál aplica por cuenta.
+  </div>
+
+  <h2>2. Modelo de datos</h2>
+  <table>
+    <thead><tr><th>Grupo</th><th>Campos</th></tr></thead>
+    <tbody>
+      <tr><td>Datos de la empresa</td><td>Razón social, RUT/ID fiscal, logo, descripción, contacto</td></tr>
+      <tr><td>Ubicaciones</td><td>Sucursales, dirección geolocalizada, horarios de atención</td></tr>
+      <tr><td>Profesionales</td><td>Médicos y especialidades, agendas por profesional/sucursal</td></tr>
+      <tr><td>Catálogo</td><td>Productos y servicios, precios, duración por servicio</td></tr>
+      <tr><td>Promociones</td><td>Ofertas, vigencia, segmento objetivo</td></tr>
+      <tr><td>Funcionarios (B2B)</td><td>Nómina cubierta, plan asignado, altas/bajas</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Permisos (matriz RBAC)</h2>
+  <table>
+    <thead><tr><th>Recurso</th><th>Ver</th><th>Crear</th><th>Editar</th><th>Eliminar</th></tr></thead>
+    <tbody>
+      <tr><td>Agendas de su clínica</td><td>Sí</td><td>Sí</td><td>Sí</td><td>Sí</td></tr>
+      <tr><td>Catálogo y precios</td><td>Sí</td><td>Sí</td><td>Sí</td><td>Baja lógica</td></tr>
+      <tr><td>Promociones</td><td>Sí</td><td>Sí</td><td>Sí</td><td>Sí</td></tr>
+      <tr><td>Información de la empresa</td><td>Sí</td><td>—</td><td>Sí</td><td>No</td></tr>
+      <tr><td>Ficha clínica de pacientes</td><td>Solo profesional tratante</td><td>No</td><td>No</td><td>No</td></tr>
+      <tr><td>Datos de otras clínicas</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+      <tr><td>Funcionarios (solo B2B)</td><td>Sí</td><td>Alta</td><td>Sí</td><td>Baja</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Pantallas del rol</h2>
+  <table>
+    <thead><tr><th>Pantalla</th><th>Contenido</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <tr><td>Inicio / KPIs</td><td>Citas hoy, ingresos del mes</td><td>Navegar a módulos</td></tr>
+      <tr><td>Configurar agendas</td><td>Horarios por profesional y sucursal</td><td>Crear/editar bloques y disponibilidad</td></tr>
+      <tr><td>Productos y servicios</td><td>Catálogo con precios</td><td>Alta/edición, precios, duración</td></tr>
+      <tr><td>Promociones</td><td>Ofertas activas y borradores</td><td>Crear, activar, programar</td></tr>
+      <tr><td>Información de la empresa</td><td>Nombre, logo, ubicaciones, horarios</td><td>Editar perfil público</td></tr>
+      <tr><td>Funcionarios (B2B)</td><td>Nómina y planes</td><td>Alta/baja, asignar plan</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Flujos detallados</h2>
+
+  <h3>5.1 Configurar la agenda de un profesional</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b"><strong>Elegir profesional y sucursal.</strong></div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b"><strong>Definir bloques</strong> — días, horas, duración por especialidad y buffers.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b"><strong>Reglas</strong> — cupos, telemedicina, excepciones (feriados, vacaciones).</div></div>
+  <div class="flow-step"><div class="flow-num">4</div><div class="b"><strong>Publicar</strong> — la disponibilidad aparece al paciente al agendar (anti doble-reserva).</div></div>
+
+  <h3>5.2 Publicar un servicio con precio</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Crear servicio: nombre, especialidad, duración.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">Definir precio y si aplica convenio/cobertura de aseguradora.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">Activar — queda visible en el catálogo del paciente.</div></div>
+
+  <h3>5.3 Crear una promoción</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Definir oferta, descuento y vigencia.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">Segmentar (todos, por servicio, por nivel de paciente).</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">Activar o programar; dispara notificación push a los pacientes segmentados.</div></div>
+
+  <h2>6. Estados de UI</h2>
+  <ul>
+    <li><strong>Vacío:</strong> "Aún no tienes servicios/promociones" + CTA de alta.</li>
+    <li><strong>Cargando:</strong> skeletons en catálogo y agenda.</li>
+    <li><strong>Error:</strong> conflicto de horario o precio inválido con mensaje claro.</li>
+    <li><strong>Éxito:</strong> confirmación + previsualización de cómo lo verá el paciente.</li>
+  </ul>
+
+  <h2>7. Integraciones que consume</h2>
+  <table>
+    <thead><tr><th>Sistema</th><th>Uso de la empresa</th><th>Tipo</th></tr></thead>
+    <tbody>
+      <tr><td>Agenda / anti-conflicto</td><td>Publica disponibilidad real</td><td>Backend interno</td></tr>
+      <tr><td>Pasarela de pago + split</td><td>Cobra servicios; recibe su parte del reparto</td><td>API pago</td></tr>
+      <tr><td>Aseguradoras</td><td>Convenios y coberturas aplicables al catálogo</td><td>API</td></tr>
+      <tr><td>Notificaciones push</td><td>Difunde promociones segmentadas</td><td>Web Push</td></tr>
+      <tr><td>Laboratorio / Farmacia</td><td>Servicios integrados en su oferta</td><td>API</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Indicadores que ve</h2>
+  <p>KPIs acotados a su clínica: citas del día, ingresos del mes, ocupación de agenda, servicios más vendidos y promociones activas. Alimentan (y son un subconjunto de) el CRM consolidado del Administrador.</p>
+
+  <h2>9. Cumplimiento</h2>
+  <p>La empresa es responsable de la exactitud de su catálogo, precios y de la <strong>responsabilidad sanitaria</strong> de sus profesionales. No accede al dato clínico del paciente salvo el profesional tratante. Sujeta a los T&amp;C de la plataforma por país (Chile, Brasil, Colombia, México).</p>
+
+  <h2>10. Preguntas abiertas / a definir</h2>
+  <ul>
+    <li>¿Una cuenta puede ser a la vez clínica prestadora y empresa contratante B2B?</li>
+    <li>¿Quién aprueba cambios de precio: la empresa sola o requiere validación del Admin?</li>
+    <li>¿Reglas de split configurables por la empresa o solo por el Admin?</li>
+    <li>¿Límite de promociones activas simultáneas? ¿Aprobación previa?</li>
+    <li>¿Alta de funcionarios B2B por carga masiva (CSV) o uno a uno?</li>
+  </ul>
+</doc-page>
+
+</x-dc>
+</body>
+</html>

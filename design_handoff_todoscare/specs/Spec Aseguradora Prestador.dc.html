@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  body{margin:0;background:#4a5551}
+  h1,h2,h3{font-family:'Manrope',sans-serif;color:#0F2A24;text-wrap:balance}
+  h1{font-size:30px;line-height:1.15;font-weight:800;margin:0 0 6px}
+  h2{font-size:19px;font-weight:800;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid #0E7C6B}
+  h3{font-size:14.5px;font-weight:700;margin:20px 0 8px;color:#0A5D50}
+  p,li,td,th{font-family:'Inter',sans-serif;color:#233B35;font-size:12.5px;line-height:1.6}
+  p{margin:0 0 10px;text-wrap:pretty}
+  ul{margin:0 0 10px;padding-left:18px}
+  li{margin:0 0 5px}
+  strong{color:#0F2A24;font-weight:700}
+  table{width:100%;border-collapse:collapse;margin:6px 0 14px}
+  th{background:#E4F2EF;color:#0A5D50;font-weight:700;font-size:11px;text-align:left;padding:8px 10px;border:1px solid #CFE4DE}
+  td{padding:8px 10px;border:1px solid #E1E9E6;vertical-align:top}
+  tr:nth-child(even) td{background:#F7FAF9}
+  .kicker{margin-top:24px;font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#0E7C6B;margin-bottom:8px}
+  .lead{font-size:13.5px;color:#42564F;margin-bottom:4px}
+  .meta{font-size:11px;color:#7A8A85;font-family:'Manrope',sans-serif;margin-top:2px}
+  .callout{background:#F1F7F5;border-left:3px solid #0E7C6B;border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0;break-inside:avoid}
+  .callout .t{font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;color:#0A5D50;margin-bottom:4px}
+  .flow-step{break-inside:avoid;margin:0 0 8px;padding:10px 14px;background:#fff;border:1px solid #E1E9E6;border-radius:10px;display:flex;gap:12px;align-items:flex-start}
+  .flow-num{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:#0E7C6B;color:#fff;font-family:'Manrope',sans-serif;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .flow-step .b{font-size:12px}
+  a{color:#0E7C6B}
+  a:hover{color:#0A5D50}
+</style>
+<script src="./doc-page.js"></script>
+</helmet>
+
+<doc-page margin="0.7in">
+  <div slot="header" style="display:flex;justify-content:space-between;align-items:center;font-family:'Manrope',sans-serif;font-size:10px;color:#7A8A85;padding-bottom:6px">
+    <span style="font-weight:800;color:#0E7C6B">TODOSCARE</span>
+    <span>Especificación funcional · Aseguradora / Prestador</span>
+  </div>
+  <div slot="footer" style="text-align:center;font-family:'Manrope',sans-serif;font-size:10px;color:#9AA8A3;padding-top:6px">
+    Documento de referencia para desarrollo · Confidencial
+  </div>
+
+  <div class="kicker">Especificación funcional</div>
+  <h1>Rol Aseguradora / Prestador — TODOSCARE</h1>
+  <p class="lead">Detalle de datos, permisos, pantallas, flujos e integraciones del tercero pagador o proveedor de servicios: convenios, coberturas, autorizaciones y liquidaciones.</p>
+  <p class="meta">Versión 0.1 · borrador para revisión · complementa el prototipo interactivo TODOSCARE</p>
+
+  <h2>1. Resumen del rol</h2>
+  <p>La Aseguradora/Prestador es el <strong>tercero pagador o proveedor de red</strong> (Isapre, seguro, EPS, laboratorio, farmacia externa) que se conecta a la plataforma para definir coberturas, autorizar prestaciones y liquidar a las clínicas por las atenciones de sus afiliados.</p>
+  <div class="callout">
+    <div class="t">Dos caras del rol</div>
+    <strong>Aseguradora/pagador:</strong> define convenios, autoriza y liquida. <strong>Prestador de servicio</strong> (lab/farmacia): recibe órdenes y entrega resultados/productos. Definir si comparten portal o se separan por perfil.
+  </div>
+
+  <h2>2. Modelo de datos</h2>
+  <table>
+    <thead><tr><th>Grupo</th><th>Campos</th></tr></thead>
+    <tbody>
+      <tr><td>Entidad</td><td>Razón social, ID fiscal, tipo (seguro/Isapre/EPS/lab/farmacia), contacto</td></tr>
+      <tr><td>Afiliados</td><td>Padrón de asegurados, plan/cobertura, vigencia</td></tr>
+      <tr><td>Convenios</td><td>Aranceles, copagos, % de cobertura por servicio</td></tr>
+      <tr><td>Autorizaciones</td><td>Solicitudes, estado, criterios de aprobación</td></tr>
+      <tr><td>Liquidaciones</td><td>Atenciones facturadas por clínica, montos, estado de pago</td></tr>
+      <tr><td>Red</td><td>Clínicas y profesionales en convenio</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Permisos (matriz RBAC)</h2>
+  <table>
+    <thead><tr><th>Recurso</th><th>Ver</th><th>Crear</th><th>Editar</th><th>Eliminar</th></tr></thead>
+    <tbody>
+      <tr><td>Convenios y aranceles</td><td>Sí</td><td>Sí</td><td>Sí (versión)</td><td>Baja lógica</td></tr>
+      <tr><td>Padrón de afiliados</td><td>Sí</td><td>Alta</td><td>Sí</td><td>Baja</td></tr>
+      <tr><td>Autorizaciones</td><td>Sí</td><td>—</td><td>Resolver (aprobar/rechazar)</td><td>No</td></tr>
+      <tr><td>Liquidaciones</td><td>Sí</td><td>—</td><td>Conciliar/pagar</td><td>No</td></tr>
+      <tr><td>Ficha clínica del afiliado</td><td>Solo lo autorizado y auditado</td><td>No</td><td>No</td><td>No</td></tr>
+      <tr><td>Datos de otras aseguradoras</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <div class="t">Mínimo dato clínico</div>
+    La aseguradora accede solo a la información estrictamente necesaria para autorizar/liquidar (principio de minimización), con consentimiento del afiliado y registro de auditoría.
+  </div>
+
+  <h2>4. Pantallas del rol</h2>
+  <table>
+    <thead><tr><th>Pantalla</th><th>Contenido</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <tr><td>Inicio / KPIs</td><td>Afiliados, atenciones del mes, por liquidar, autorizaciones pendientes</td><td>Navegar a módulos</td></tr>
+      <tr><td>Convenios y coberturas</td><td>Aranceles, copagos, % por servicio</td><td>Crear/versionar</td></tr>
+      <tr><td>Autorizaciones</td><td>Pendientes, aprobadas, rechazadas</td><td>Resolver</td></tr>
+      <tr><td>Liquidaciones</td><td>Montos por clínica, estado de pago</td><td>Conciliar, pagar</td></tr>
+      <tr><td>Red de prestadores</td><td>Clínicas y profesionales en convenio</td><td>Consultar</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Flujos detallados</h2>
+
+  <h3>5.1 Resolver una autorización</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Llega la solicitud (prestación + afiliado + datos clínicos mínimos).</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">Se valida cobertura, vigencia y criterios; se aprueba, rechaza o pide más info.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">La resolución notifica a clínica y paciente; queda auditada.</div></div>
+  <p><strong>Errores:</strong> afiliado sin vigencia → rechazo con motivo; datos insuficientes → estado "pendiente de info".</p>
+
+  <h3>5.2 Liquidar a una clínica</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Se agrupan las atenciones facturables del período por clínica.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">Se aplican aranceles y copagos del convenio; se calcula el monto neto.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">Se concilia y paga; el ledger y el CRM registran el asiento y actualizan CxC.</div></div>
+
+  <h3>5.3 Publicar/actualizar un convenio</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Definir aranceles, copagos y % de cobertura por servicio.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">Versionar con vigencia; las clínicas en red lo ven en su catálogo.</div></div>
+
+  <h2>6. Estados de UI</h2>
+  <ul>
+    <li><strong>Vacío:</strong> "Sin autorizaciones pendientes".</li>
+    <li><strong>Cargando:</strong> skeletons en bandejas y tablas.</li>
+    <li><strong>Error:</strong> conflicto de convenio/vigencia con mensaje claro.</li>
+    <li><strong>SLA:</strong> autorizaciones cerca de vencer su plazo destacadas.</li>
+  </ul>
+
+  <h2>7. Integraciones que consume</h2>
+  <table>
+    <thead><tr><th>Sistema</th><th>Uso</th><th>Tipo</th></tr></thead>
+    <tbody>
+      <tr><td>Motor de convenios/aranceles</td><td>Reglas de cobertura y copago</td><td>Interno</td></tr>
+      <tr><td>Ledger / split</td><td>Liquidaciones y conciliación</td><td>Interno</td></tr>
+      <tr><td>Padrón del asegurador</td><td>Vigencia de afiliados</td><td>API / EDI</td></tr>
+      <tr><td>Clínicas (agenda/atención)</td><td>Atenciones a liquidar</td><td>Interno</td></tr>
+      <tr><td>Notificaciones</td><td>Resoluciones a clínica/paciente</td><td>Push / correo</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Cumplimiento</h2>
+  <p>Acceso al dato clínico bajo minimización y consentimiento, siempre auditado; convenios versionados; liquidaciones trazables en el ledger inmutable. Conforme al marco legal de <strong>Chile, Brasil, Colombia y México</strong> y a la normativa de seguros/salud de cada país.</p>
+
+  <h2>9. Preguntas abiertas / a definir</h2>
+  <ul>
+    <li>¿Formato de intercambio con el padrón del asegurador (API, EDI, archivo)?</li>
+    <li>¿SLA de autorización y su escalamiento?</li>
+    <li>¿Qué datos clínicos mínimos exige cada tipo de autorización?</li>
+    <li>¿Ciclo de liquidación (semanal/mensual) y calendario de pago?</li>
+    <li>¿Prestadores externos (lab/farmacia) usan este mismo portal o uno propio?</li>
+  </ul>
+</doc-page>
+
+</x-dc>
+</body>
+</html>

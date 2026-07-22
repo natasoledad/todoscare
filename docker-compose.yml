@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: todoscare
+      POSTGRES_PASSWORD: todoscare
+      POSTGRES_DB: todoscare
+    ports:
+      - "5432:5432"
+    volumes:
+      - todoscare_pgdata:/var/lib/postgresql/data
+
+  api:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+
+volumes:
+  todoscare_pgdata:

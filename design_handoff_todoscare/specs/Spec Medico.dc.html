@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  body{margin:0;background:#4a5551}
+  h1,h2,h3{font-family:'Manrope',sans-serif;color:#0F2A24;text-wrap:balance}
+  h1{font-size:30px;line-height:1.15;font-weight:800;margin:0 0 6px}
+  h2{font-size:19px;font-weight:800;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid #0E7C6B}
+  h3{font-size:14.5px;font-weight:700;margin:20px 0 8px;color:#0A5D50}
+  p,li,td,th{font-family:'Inter',sans-serif;color:#233B35;font-size:12.5px;line-height:1.6}
+  p{margin:0 0 10px;text-wrap:pretty}
+  ul{margin:0 0 10px;padding-left:18px}
+  li{margin:0 0 5px}
+  strong{color:#0F2A24;font-weight:700}
+  table{width:100%;border-collapse:collapse;margin:6px 0 14px}
+  th{background:#E4F2EF;color:#0A5D50;font-weight:700;font-size:11px;text-align:left;padding:8px 10px;border:1px solid #CFE4DE}
+  td{padding:8px 10px;border:1px solid #E1E9E6;vertical-align:top}
+  tr:nth-child(even) td{background:#F7FAF9}
+  .kicker{margin-top:24px;font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#0E7C6B;margin-bottom:8px}
+  .lead{font-size:13.5px;color:#42564F;margin-bottom:4px}
+  .meta{font-size:11px;color:#7A8A85;font-family:'Manrope',sans-serif;margin-top:2px}
+  .callout{background:#F1F7F5;border-left:3px solid #0E7C6B;border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0;break-inside:avoid}
+  .callout .t{font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;color:#0A5D50;margin-bottom:4px}
+  .flow-step{break-inside:avoid;margin:0 0 8px;padding:10px 14px;background:#fff;border:1px solid #E1E9E6;border-radius:10px;display:flex;gap:12px;align-items:flex-start}
+  .flow-num{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:#0E7C6B;color:#fff;font-family:'Manrope',sans-serif;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .flow-step .b{font-size:12px}
+  a{color:#0E7C6B}
+  a:hover{color:#0A5D50}
+</style>
+<script src="./doc-page.js"></script>
+</helmet>
+
+<doc-page margin="0.7in">
+  <div slot="header" style="display:flex;justify-content:space-between;align-items:center;font-family:'Manrope',sans-serif;font-size:10px;color:#7A8A85;padding-bottom:6px">
+    <span style="font-weight:800;color:#0E7C6B">TODOSCARE</span>
+    <span>Especificación funcional · Rol Médico</span>
+  </div>
+  <div slot="footer" style="text-align:center;font-family:'Manrope',sans-serif;font-size:10px;color:#9AA8A3;padding-top:6px">
+    Documento de referencia para desarrollo · Confidencial
+  </div>
+
+  <div class="kicker">Especificación funcional</div>
+  <h1>Rol Médico — TODOSCARE</h1>
+  <p class="lead">Detalle de datos, permisos, pantallas, flujos e integraciones del profesional de salud: agenda, atención, prontuario, prescripciones y órdenes de examen.</p>
+  <p class="meta">Versión 0.1 · borrador para revisión · complementa el prototipo interactivo TODOSCARE</p>
+
+  <h2>1. Resumen del rol</h2>
+  <p>El Médico es el profesional tratante (clínico general, ginecología, psicología, nutrición, odontología y demás especialidades). Es el <strong>único rol con acceso al contenido clínico</strong> del paciente que atiende. Gestiona su agenda, registra la atención en el prontuario, emite prescripciones electrónicas y solicita exámenes.</p>
+  <div class="callout">
+    <div class="t">Acceso al dato clínico</div>
+    El médico ve la ficha clínica completa <strong>solo de los pacientes que atiende</strong> y durante la relación asistencial. Todo acceso queda auditado. En urgencias, el acceso puede originarse por el QR de emergencia del paciente.
+  </div>
+
+  <h2>2. Modelo de datos</h2>
+  <table>
+    <thead><tr><th>Grupo</th><th>Campos</th></tr></thead>
+    <tbody>
+      <tr><td>Perfil profesional</td><td>Nombre, especialidad(es), N.º de colegiatura/registro sanitario, sucursales</td></tr>
+      <tr><td>Agenda</td><td>Bloques de disponibilidad, citas asignadas, telemedicina</td></tr>
+      <tr><td>Atención</td><td>Prontuario (JSONB flexible), diagnóstico, evolución, adjuntos</td></tr>
+      <tr><td>Prescripciones</td><td>Medicamentos, dosis, indicaciones, firma electrónica</td></tr>
+      <tr><td>Órdenes</td><td>Exámenes de laboratorio/imágenes, derivaciones</td></tr>
+      <tr><td>Odontología</td><td>Odontograma, plan de tratamiento (si aplica)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Permisos (matriz RBAC)</h2>
+  <table>
+    <thead><tr><th>Recurso</th><th>Ver</th><th>Crear</th><th>Editar</th><th>Eliminar</th></tr></thead>
+    <tbody>
+      <tr><td>Ficha clínica del paciente atendido</td><td>Sí</td><td>Sí (registros)</td><td>Sí (propios)</td><td>No (solo corrección auditada)</td></tr>
+      <tr><td>Prontuario / evolución</td><td>Sí</td><td>Sí</td><td>Enmienda auditada</td><td>No</td></tr>
+      <tr><td>Prescripciones</td><td>Sí</td><td>Sí (firma)</td><td>Anula + reemite</td><td>No</td></tr>
+      <tr><td>Órdenes de examen</td><td>Sí</td><td>Sí</td><td>Sí (pendientes)</td><td>Cancela pendientes</td></tr>
+      <tr><td>Su agenda</td><td>Sí</td><td>Bloqueos</td><td>Sí</td><td>Sí</td></tr>
+      <tr><td>Pacientes que no atiende</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+      <tr><td>Datos financieros de la clínica</td><td>Solo su liquidación/split</td><td>No</td><td>No</td><td>No</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Pantallas del rol</h2>
+  <table>
+    <thead><tr><th>Pantalla</th><th>Contenido</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <tr><td>Agenda del día</td><td>Citas, telemedicina, estado de cada paciente</td><td>Iniciar atención, ver ficha</td></tr>
+      <tr><td>Ficha del paciente</td><td>Antecedentes, alergias, historial, exámenes</td><td>Consultar, agregar nota</td></tr>
+      <tr><td>Consulta / atención</td><td>Motivo, evolución, diagnóstico</td><td>Registrar en prontuario</td></tr>
+      <tr><td>Prescripción</td><td>Medicamentos, dosis, indicaciones</td><td>Emitir y firmar</td></tr>
+      <tr><td>Orden de examen</td><td>Laboratorio / imágenes</td><td>Solicitar, derivar</td></tr>
+      <tr><td>Odontograma (dental)</td><td>Estado por pieza, plan</td><td>Marcar tratamientos</td></tr>
+      <tr><td>Mis liquidaciones</td><td>Atenciones y su split</td><td>Ver detalle</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Flujos detallados</h2>
+
+  <h3>5.1 Atender una cita (presencial o telemedicina)</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b"><strong>Abrir la cita</strong> desde la agenda del día; se carga la ficha del paciente.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b"><strong>Registrar la atención</strong> — motivo, evolución y diagnóstico en el prontuario (JSONB flexible por especialidad).</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b"><strong>Emitir prescripción y/u órdenes</strong> — medicamentos (a farmacia) y exámenes (a laboratorio).</div></div>
+  <div class="flow-step"><div class="flow-num">4</div><div class="b"><strong>Cerrar la atención</strong> — se marca realizada, se dispara seguimiento y la liquidación/split correspondiente.</div></div>
+  <p><strong>Errores:</strong> paciente no se presenta → marcar "no-show"; telemedicina con fallo de conexión → reintento o reagenda con registro del motivo.</p>
+
+  <h3>5.2 Emitir prescripción electrónica</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Seleccionar medicamento (catálogo), dosis e indicaciones.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">Firmar electrónicamente; queda inmutable y trazable.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">Se envía al paciente (app/WhatsApp) y a farmacia integrada.</div></div>
+
+  <h3>5.3 Solicitar exámenes</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Crear orden (laboratorio/imágenes) asociada a la atención.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">El laboratorio la recibe; al publicar el resultado, la IA lo ingesta (human-in-the-loop) y el paciente es notificado.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">El resultado queda en la ficha para seguimiento del médico.</div></div>
+
+  <h2>6. Estados de UI</h2>
+  <ul>
+    <li><strong>Vacío:</strong> "Sin citas hoy" en la agenda.</li>
+    <li><strong>Cargando:</strong> skeleton de ficha; nunca abrir consulta sin datos cargados.</li>
+    <li><strong>Error:</strong> conflicto al guardar prontuario → conservar borrador local y reintentar.</li>
+    <li><strong>Bloqueo clínico:</strong> alertas de alergia/interacción antes de firmar una prescripción.</li>
+  </ul>
+
+  <h2>7. Integraciones que consume</h2>
+  <table>
+    <thead><tr><th>Sistema</th><th>Uso del médico</th><th>Tipo</th></tr></thead>
+    <tbody>
+      <tr><td>Prontuario (JSONB)</td><td>Registro clínico flexible por especialidad</td><td>Backend interno</td></tr>
+      <tr><td>Farmacia</td><td>Envío de prescripciones</td><td>API</td></tr>
+      <tr><td>Laboratorio / imágenes</td><td>Órdenes y recepción de resultados</td><td>API / archivo</td></tr>
+      <tr><td>Firma electrónica</td><td>Prescripciones y documentos</td><td>API firma</td></tr>
+      <tr><td>Telemedicina (video)</td><td>Consulta remota</td><td>API video (WebRTC)</td></tr>
+      <tr><td>Split de pagos</td><td>Liquidación de sus atenciones</td><td>Backend financiero</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Cumplimiento y responsabilidad sanitaria</h2>
+  <p>El médico es responsable del acto clínico y de la exactitud del prontuario y las prescripciones. Registro inmutable con enmiendas auditadas (nunca borrado); firma electrónica trazable; acceso al dato clínico limitado a la relación asistencial y auditado; conformidad con el marco legal de <strong>Chile, Brasil, Colombia y México</strong>. La responsabilidad sanitaria de la clínica (p. ej. Dra. Nátaly) se registra a nivel de sucursal.</p>
+
+  <h2>9. Preguntas abiertas / a definir</h2>
+  <ul>
+    <li>¿Qué proveedor de firma electrónica por país y validez legal de la receta?</li>
+    <li>¿Plantillas de prontuario por especialidad (campos estructurados vs. libres)?</li>
+    <li>¿Reglas de alerta clínica (alergias/interacciones): fuente del vademécum?</li>
+    <li>¿El médico puede atender en varias clínicas y ver su split consolidado?</li>
+    <li>¿Política de "no-show" y su efecto en la liquidación?</li>
+    <li>¿Plataforma de telemedicina (video) propia o de terceros?</li>
+  </ul>
+</doc-page>
+
+</x-dc>
+</body>
+</html>

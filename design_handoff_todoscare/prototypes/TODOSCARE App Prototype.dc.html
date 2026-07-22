@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#F4F7F6;font-family:'Inter',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  *{box-sizing:border-box}
+  ::-webkit-scrollbar{display:none}
+  .scrollhide{scrollbar-width:none}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes popIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh; padding:56px 40px; display:flex; flex-direction:column; align-items:center; gap:28px">
+
+  <div style="max-width:640px; text-align:center; display:flex; flex-direction:column; gap:10px; margin-bottom:8px">
+    <div style="font:700 13px/1 'Manrope',sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#0E7C6B">Prototipo interactivo</div>
+    <div style="font:800 30px/1.25 'Manrope',sans-serif; color:#0F2A24">TODOSCARE — App para pacientes (PWA)</div>
+    <div style="font:400 15px/1.55 'Inter',sans-serif; color:#5C6F6A">Onboarding simplificado, agenda de especialidades, telemedicina, laboratorio, farmacia, billetera con gamificación y asistente por WhatsApp. Usa las pestañas inferiores del teléfono para navegar.</div>
+  </div>
+
+  <div style="display:flex; gap:28px; flex-wrap:wrap; justify-content:center; align-items:flex-start">
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+      <div style="font:600 13px/1 'Manrope',sans-serif; color:#0E7C6B">1. Registro + Términos</div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" title="TODOSCARE" hint-size="390px,844px">{{ registroScreen }}</x-import>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+      <div style="font:600 13px/1 'Manrope',sans-serif; color:#0E7C6B">2. Onboarding + dependientes</div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" title="TODOSCARE" hint-size="390px,844px">{{ onboardingScreen }}</x-import>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+      <div style="font:600 13px/1 'Manrope',sans-serif; color:#0E7C6B">3. App principal</div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" title="TODOSCARE" hint-size="390px,844px">{{ appScreen }}</x-import>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+      <div style="font:600 13px/1 'Manrope',sans-serif; color:#0E7C6B">4. Bot WhatsApp + paso a paso</div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" title="WhatsApp" hint-size="390px,844px">{{ whatsappScreen }}</x-import>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+      <div style="font:600 13px/1 'Manrope',sans-serif; color:#0E7C6B">5. Login Empresa / Cliente</div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" title="TODOSCARE Empresa" hint-size="390px,844px">{{ empresaScreen }}</x-import>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+      <div style="font:600 13px/1 'Manrope',sans-serif; color:#0E7C6B">6. Login Administrador</div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" title="TODOSCARE Admin" hint-size="390px,844px">{{ adminScreen }}</x-import>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+      <div style="font:600 13px/1 'Manrope',sans-serif; color:#0E7C6B">7. CRM · Gestión de clínicas</div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" title="TODOSCARE CRM" hint-size="390px,844px">{{ crmScreen }}</x-import>
+    </div>
+
+    <div style="display:flex; flex-direction:column; align-items:center; gap:12px">
+      <div style="font:600 13px/1 'Manrope',sans-serif; color:#0E7C6B">8. Login Aseguradoras / Prestadores</div>
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" title="TODOSCARE Partners" hint-size="390px,844px">{{ partnerScreen }}</x-import>
+    </div>
+
+  </div>
+
+  <div style="max-width:640px; font:400 13px/1.6 'Inter',sans-serif; color:#8A9A96; text-align:center; margin-top:8px">
+    Reinicia el onboarding con el botón "↺" en la esquina superior del primer teléfono.
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const TEAL = '#0E7C6B';
+const TEAL_DARK = '#0A5D50';
+const TEAL_SOFT = '#E4F2EF';
+const BG = '#F4F7F6';
+const INK = '#0F2A24';
+const SUB = '#5C6F6A';
+
+const SPECIALTIES = [
+  { id: 'gen', name: 'Médico general', icon: '🩺', dur: '30 min', price: '$450' },
+  { id: 'gine', name: 'Ginecología', icon: '⚕️', dur: '40 min', price: '$650' },
+  { id: 'psico', name: 'Psicología', icon: '🧠', dur: '50 min', price: '$550' },
+  { id: 'nutri', name: 'Nutrición', icon: '🥗', dur: '30 min', price: '$500' },
+  { id: 'dent', name: 'Odontología', icon: '🦷', dur: '45 min', price: '$600' },
+  { id: 'tele', name: 'Telemedicina 24/7', icon: '📱', dur: '20 min', price: '$350' },
+];
+
+const SLOTS = ['09:00', '10:30', '11:15', '15:00', '16:45', '18:30'];
+
+const EXAMS = [
+  { name: 'Hemograma completo', date: '20 may 2026', status: 'Listo', color: TEAL },
+  { name: 'Perfil lipídico', date: '20 may 2026', status: 'Listo', color: TEAL },
+  { name: 'Radiografía panorámica (dental)', date: '02 jun 2026', status: 'En proceso', color: '#B98900' },
+];
+
+const MEDS = [
+  { name: 'Losartán 50mg', qty: '30 comprimidos', price: '$180' },
+  { name: 'Omeprazol 20mg', qty: '14 cápsulas', price: '$95' },
+];
+
+function Btn(props) {
+  const { children, onClick, style, variant } = props;
+  const base = {
+    border: 'none', cursor: 'pointer', fontFamily: 'Manrope,sans-serif', fontWeight: 700,
+    borderRadius: 14, padding: '14px 18px', fontSize: 15, transition: 'transform .15s ease',
+  };
+  const variants = {
+    primary: { background: TEAL, color: '#fff' },
+    ghost: { background: TEAL_SOFT, color: TEAL_DARK },
+    outline: { background: '#fff', color: INK, border: '1.5px solid #E3E9E7' },
+  };
+  return React.createElement('button', {
+    onClick,
+    style: { ...base, ...(variants[variant || 'primary']), ...style },
+    onMouseDown: e => e.currentTarget.style.transform = 'scale(.97)',
+    onMouseUp: e => e.currentTarget.style.transform = 'scale(1)',
+    onMouseLeave: e => e.currentTarget.style.transform = 'scale(1)',
+  }, children);
+}
+
+function Dots(props) {
+  const { count, active } = props;
+  return React.createElement('div', { style: { display: 'flex', gap: 6, justifyContent: 'center' } },
+    Array.from({ length: count }).map((_, i) => React.createElement('div', {
+      key: i,
+      style: {
+        width: i === active ? 20 : 6, height: 6, borderRadius: 3,
+        background: i === active ? TEAL : '#DCE6E3', transition: 'all .25s ease',
+      }
+    }))
+  );
+}
+
+function TabBarIcon(id) {
+  const icons = { home: '🏠', agenda: '📅', salud: '📋', farmacia: '💊', perfil: '👤' };
+  return icons[id] || '•';
+}
+
+function TabBar(props) {
+  const { active, onChange } = props;
+  const tabs = [
+    { id: 'home', label: 'Inicio' },
+    { id: 'agenda', label: 'Agenda' },
+    { id: 'salud', label: 'Salud' },
+    { id: 'farmacia', label: 'Farmacia' },
+    { id: 'perfil', label: 'Perfil' },
+  ];
+  return React.createElement('div', {
+    style: {
+      position: 'absolute', left: 0, right: 0, bottom: 0, height: 78,
+      background: 'rgba(255,255,255,.92)', backdropFilter: 'blur(14px)',
+      borderTop: '1px solid #ECF1EF', display: 'flex', paddingBottom: 18,
+    }
+  }, tabs.map(t => React.createElement('div', {
+    key: t.id,
+    onClick: () => onChange(t.id),
+    style: {
+      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+      justifyContent: 'flex-end', cursor: 'pointer', paddingTop: 10,
+      color: active === t.id ? TEAL : '#A6B4B0',
+    }
+  },
+    React.createElement('div', { style: { fontSize: 20, filter: active === t.id ? 'none' : 'grayscale(1) opacity(.7)' } }, TabBarIcon(t.id)),
+    React.createElement('div', { style: { fontSize: 10.5, fontWeight: active === t.id ? 700 : 500, fontFamily: 'Manrope,sans-serif' } }, t.label)
+  )));
+}
+
+function ScreenShell(children, extraStyle) {
+  return React.createElement('div', {
+    style: { position: 'relative', width: '100%', height: '100%', background: BG, overflow: 'hidden', ...extraStyle }
+  }, children);
+}
+
+function Header(title, subtitle) {
+  return React.createElement('div', { style: { padding: '20px 22px 6px' } },
+    React.createElement('div', { style: { font: '800 22px/1.2 Manrope,sans-serif', color: INK } }, title),
+    subtitle ? React.createElement('div', { style: { font: '400 13px/1.4 Inter,sans-serif', color: SUB, marginTop: 4 } }, subtitle) : null
+  );
+}
+
+class Component extends DCLogic {
+  state = {
+    regFields: { nombre: '', rut: '', telefono: '', direccion: '', correo: '' },
+    tycAccepted: false,
+    tycOpen: false,
+    regDone: false,
+
+    waStep: 0,
+
+    empresaView: 'inicio',
+    adminView: 'inicio',
+    crmClinic: null,
+    partnerView: 'inicio',
+
+    onbStep: 0,
+    onbAnswers: { motivo: null, condicion: null, actividad: null, alergias: null, seguro: null },
+    dependents: [],
+    onbDone: false,
+
+    tab: 'home',
+    agendaStep: 'list', // list | slots | confirm
+    selectedSpecialty: null,
+    selectedSlot: null,
+    level: 'Plata',
+    points: 1240,
+    walletOpen: false,
+    saludView: 'menu',
+  };
+
+  restartOnboarding = () => {
+    this.setState({ onbStep: 0, onbAnswers: { motivo: null, condicion: null, actividad: null, alergias: null, seguro: null }, dependents: [], onbDone: false });
+  };
+
+  answerQ = (key, val) => {
+    this.setState(s => ({ onbAnswers: { ...s.onbAnswers, [key]: val } }));
+  };
+
+  addDependent = () => {
+    this.setState(s => ({ dependents: [...s.dependents, { name: 'Dependiente ' + (s.dependents.length + 1), age: '' }] }));
+  };
+
+  removeDependent = (i) => {
+    this.setState(s => ({ dependents: s.dependents.filter((_, idx) => idx !== i) }));
+  };
+
+  nextOnb = () => this.setState(s => ({ onbStep: Math.min(s.onbStep + 1, 6) }));
+  prevOnb = () => this.setState(s => ({ onbStep: Math.max(s.onbStep - 1, 0) }));
+  finishOnb = () => this.setState({ onbDone: true });
+
+  setTab = (id) => this.setState({ tab: id, agendaStep: 'list', selectedSpecialty: null, selectedSlot: null, saludView: 'menu' });
+  pickSpecialty = (sp) => this.setState({ selectedSpecialty: sp, agendaStep: 'slots' });
+  pickSlot = (slot) => this.setState({ selectedSlot: slot, agendaStep: 'confirm' });
+  backAgenda = () => {
+    this.setState(s => ({
+      agendaStep: s.agendaStep === 'confirm' ? 'slots' : 'list',
+      selectedSlot: s.agendaStep === 'confirm' ? null : s.selectedSlot,
+      selectedSpecialty: s.agendaStep === 'slots' ? null : s.selectedSpecialty,
+    }));
+  };
+  resetAgenda = () => this.setState({ agendaStep: 'list', selectedSpecialty: null, selectedSlot: null });
+
+  setRegField = (key, val) => this.setState(s => ({ regFields: { ...s.regFields, [key]: val } }));
+  restartRegistro = () => this.setState({ regFields: { nombre: '', rut: '', telefono: '', direccion: '', correo: '' }, tycAccepted: false, tycOpen: false, regDone: false });
+
+  renderRegistro() {
+    const s = this.state;
+    const fields = [
+      { key: 'nombre', label: 'Nombre completo', ph: 'Camila Rodríguez' },
+      { key: 'rut', label: 'RUT / ID', ph: '18.245.301-K' },
+      { key: 'telefono', label: 'Teléfono', ph: '+56 9 8765 4321' },
+      { key: 'direccion', label: 'Dirección', ph: 'Av. Providencia 1234' },
+      { key: 'correo', label: 'Correo electrónico', ph: 'camila@correo.com' },
+    ];
+
+    if (s.regDone) {
+      return ScreenShell(
+        React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32, textAlign: 'center', animation: 'fadeUp .4s ease' } },
+          React.createElement('div', { style: { width: 84, height: 84, borderRadius: '50%', background: TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, animation: 'popIn .35s ease' } }, '🎉'),
+          React.createElement('div', { style: { font: '800 21px/1.3 Manrope,sans-serif', color: INK } }, 'Cuenta creada'),
+          React.createElement('div', { style: { font: '400 14px/1.5 Inter,sans-serif', color: SUB, maxWidth: 240 } }, 'Solo pedimos 5 datos para empezar. El resto de tu ficha es opcional — y te da puntos.'),
+          React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8, background: '#FBF3E4', border: '1px solid #EEDFB8', borderRadius: 12, padding: '10px 16px' } },
+            React.createElement('span', { style: { fontSize: 18 } }, '🥉'),
+            React.createElement('span', { style: { font: '700 13px Manrope,sans-serif', color: '#8A6A00' } }, 'Nivel Bronce · +100 pts')
+          ),
+          React.createElement(Btn, { onClick: this.restartRegistro, variant: 'outline', style: { marginTop: 12, width: 200 } }, '↺ Reiniciar demo')
+        )
+      );
+    }
+
+    const tycModal = s.tycOpen ? React.createElement('div', {
+      style: { position: 'absolute', inset: 0, background: 'rgba(15,42,36,.45)', display: 'flex', alignItems: 'flex-end', zIndex: 10 }
+    },
+      React.createElement('div', { style: { background: '#fff', borderRadius: '22px 22px 0 0', padding: '22px 22px 30px', width: '100%', maxHeight: '75%', display: 'flex', flexDirection: 'column', gap: 12, animation: 'fadeUp .3s ease' } },
+        React.createElement('div', { style: { font: '800 17px Manrope,sans-serif', color: INK } }, 'Términos y condiciones'),
+        React.createElement('div', { style: { font: '400 12.5px/1.6 Inter,sans-serif', color: SUB, overflowY: 'auto' } },
+          'Tratamiento de datos personales y de salud conforme al marco legal de Chile, Brasil, Colombia y México (protección de datos, ficha clínica, resultados de exámenes, comercio de medicamentos y servicios de salud). Cada actualización de estos términos requiere tu nueva aceptación para continuar usando la plataforma.'),
+        React.createElement(Btn, { onClick: () => this.setState({ tycAccepted: true, tycOpen: false }), style: { width: '100%' } }, 'Acepto los términos'),
+        React.createElement(Btn, { onClick: () => this.setState({ tycOpen: false }), variant: 'ghost', style: { width: '100%' } }, 'Cerrar')
+      )
+    ) : null;
+
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' } },
+        React.createElement('div', { style: { padding: '24px 24px 0' } },
+          React.createElement('div', { style: { font: '800 24px Manrope,sans-serif', color: TEAL } }, 'TODOSCARE'),
+          React.createElement('div', { style: { font: '800 20px/1.3 Manrope,sans-serif', color: INK, marginTop: 14 } }, 'Crea tu cuenta'),
+          React.createElement('div', { style: { font: '400 13px/1.5 Inter,sans-serif', color: SUB, marginTop: 4 } }, 'Solo 5 datos. Rápido y simple.')
+        ),
+        React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '16px 22px 0', display: 'flex', flexDirection: 'column', gap: 12 }, className: 'scrollhide' },
+          fields.map(f => React.createElement('div', { key: f.key },
+            React.createElement('div', { style: { font: '600 12px Manrope,sans-serif', color: SUB, marginBottom: 5 } }, f.label),
+            React.createElement('input', {
+              value: s.regFields[f.key],
+              placeholder: f.ph,
+              onChange: e => this.setRegField(f.key, e.target.value),
+              style: { width: '100%', padding: '13px 14px', borderRadius: 12, border: '1.5px solid #E7EDEB', background: '#fff', font: '500 14px Inter,sans-serif', color: INK, outline: 'none' }
+            })
+          )),
+          React.createElement('div', {
+            onClick: () => s.tycAccepted ? this.setState({ tycAccepted: false }) : this.setState({ tycOpen: true }),
+            style: { display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: '4px 2px 8px' }
+          },
+            React.createElement('div', {
+              style: { width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: s.tycAccepted ? 'none' : '1.5px solid #C6D2CE', background: s.tycAccepted ? TEAL : '#fff', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }
+            }, s.tycAccepted ? '✓' : ''),
+            React.createElement('div', { style: { font: '400 12px/1.5 Inter,sans-serif', color: SUB } },
+              'Acepto los ', React.createElement('span', { style: { color: TEAL, fontWeight: 700, textDecoration: 'underline' } }, 'términos y condiciones'), ' (obligatorio, se re-acepta con cada actualización).')
+          )
+        ),
+        React.createElement('div', { style: { padding: '10px 20px 24px' } },
+          React.createElement(Btn, {
+            onClick: () => s.tycAccepted && this.setState({ regDone: true }),
+            style: { width: '100%', opacity: s.tycAccepted ? 1 : .45, cursor: s.tycAccepted ? 'pointer' : 'not-allowed' }
+          }, 'Crear cuenta')
+        ),
+        tycModal
+      )
+    );
+  }
+
+  renderWhatsapp() {
+    const s = this.state;
+    const bubble = (from, content, key) => React.createElement('div', {
+      key,
+      style: {
+        alignSelf: from === 'user' ? 'flex-end' : 'flex-start',
+        maxWidth: '82%', padding: '10px 13px', borderRadius: from === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+        background: from === 'user' ? '#D9FDD3' : '#fff', boxShadow: '0 1px 1px rgba(0,0,0,.06)',
+        font: '400 13px/1.45 Inter,sans-serif', color: '#111B21', animation: 'fadeUp .3s ease',
+      }
+    }, content);
+
+    const msgs = [
+      bubble('user', '¿Cómo agendo una consulta con cardiólogo?', 'm1'),
+      bubble('bot', React.createElement('div', null,
+        'Encontré 3 horarios cerca de tu dirección 📍. Te dejo el enlace — la app te guía en 4 pasos mientras agendas de verdad:',
+        React.createElement('div', {
+          onClick: () => this.setState({ waStep: 1 }),
+          style: { marginTop: 8, padding: '10px 12px', borderRadius: 10, background: '#F0F6F4', border: '1px solid #D5E5E0', color: '#0E7C6B', font: '700 12.5px Manrope,sans-serif', cursor: 'pointer', textAlign: 'center' }
+        }, '🔗 todoscare.app/agendar — Abrir guía')
+      ), 'm2'),
+    ];
+
+    const guideSteps = [
+      { n: 1, t: 'Elige la especialidad', d: 'Cardiología ya viene seleccionada' },
+      { n: 2, t: 'Elige el horario', d: '3 opciones cerca de ti' },
+      { n: 3, t: 'Confirma y paga', d: 'Pago online o en clínica' },
+      { n: 4, t: 'Recibe recordatorios', d: 'Notificación + WhatsApp' },
+    ];
+
+    const guide = s.waStep > 0 ? React.createElement('div', {
+      style: { position: 'absolute', inset: 0, background: BG, zIndex: 10, display: 'flex', flexDirection: 'column', animation: 'fadeUp .3s ease' }
+    },
+      React.createElement('div', { style: { padding: '20px 22px 0', display: 'flex', alignItems: 'center', gap: 12 } },
+        React.createElement('div', { onClick: () => this.setState({ waStep: 0 }), style: { cursor: 'pointer', fontSize: 18, color: SUB } }, '✕'),
+        React.createElement('div', { style: { font: '800 17px Manrope,sans-serif', color: INK } }, 'Agendar en 4 pasos')
+      ),
+      React.createElement('div', { style: { flex: 1, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 10 } },
+        guideSteps.map((g, i) => React.createElement('div', {
+          key: g.n,
+          onClick: () => this.setState({ waStep: Math.max(s.waStep, i + 2) }),
+          style: {
+            display: 'flex', gap: 13, alignItems: 'center', padding: '14px 15px', borderRadius: 15, cursor: 'pointer',
+            background: '#fff', border: s.waStep >= i + 2 ? `2px solid ${TEAL}` : '1.5px solid #E7EDEB',
+          }
+        },
+          React.createElement('div', {
+            style: { width: 30, height: 30, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', font: '800 13px Manrope,sans-serif', background: s.waStep >= i + 2 ? TEAL : TEAL_SOFT, color: s.waStep >= i + 2 ? '#fff' : TEAL_DARK }
+          }, s.waStep >= i + 2 ? '✓' : g.n),
+          React.createElement('div', null,
+            React.createElement('div', { style: { font: '700 14px Inter,sans-serif', color: INK } }, g.t),
+            React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB, marginTop: 2 } }, g.d)
+          )
+        )),
+        s.waStep >= 6 ? React.createElement('div', { style: { textAlign: 'center', padding: '14px 0', font: '700 14px Manrope,sans-serif', color: TEAL, animation: 'popIn .3s ease' } }, '✅ Cita agendada de verdad — no era solo un tutorial') : React.createElement('div', { style: { textAlign: 'center', font: '400 12px Inter,sans-serif', color: '#A6B4B0', padding: '8px 0' } }, 'Toca cada paso para completarlo')
+      )
+    ) : null;
+
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', background: '#EFE7DD' } },
+        React.createElement('div', { style: { padding: '14px 18px', background: '#075E54', display: 'flex', alignItems: 'center', gap: 12 } },
+          React.createElement('div', { style: { width: 38, height: 38, borderRadius: '50%', background: TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 } }, '🤖'),
+          React.createElement('div', null,
+            React.createElement('div', { style: { font: '700 15px Manrope,sans-serif', color: '#fff' } }, 'TODOSCARE Asistente'),
+            React.createElement('div', { style: { font: '400 11.5px Inter,sans-serif', color: '#B5D9D3' } }, 'en línea · IA')
+          )
+        ),
+        React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 10 }, className: 'scrollhide' },
+          bubble('user', 'Hola, ¿me envías el resultado de mi examen de sangre del 20 de mayo?', 'a1'),
+          bubble('bot', React.createElement('div', null, 'Claro ✅ Aquí está tu Hemograma completo (20 may). También lo envié a tu correo.',
+            React.createElement('div', { style: { marginTop: 8, padding: '9px 12px', borderRadius: 10, background: '#F0F6F4', border: '1px solid #D5E5E0', display: 'flex', gap: 8, alignItems: 'center', font: '600 12px Inter,sans-serif', color: '#0E7C6B' } }, '📄 hemograma_20may.pdf')
+          ), 'a2'),
+          ...msgs
+        ),
+        React.createElement('div', { style: { padding: '10px 14px 26px', display: 'flex', gap: 8 } },
+          React.createElement('div', { style: { flex: 1, padding: '11px 15px', borderRadius: 22, background: '#fff', font: '400 13px Inter,sans-serif', color: '#A6B4B0' } }, 'Escribe un mensaje…'),
+          React.createElement('div', { style: { width: 42, height: 42, borderRadius: '50%', background: '#075E54', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16 } }, '➤')
+        ),
+        guide
+      )
+    );
+  }
+
+  renderOnboarding() {
+    const s = this.state;
+    const questions = [
+      { key: 'motivo', q: '¿Cuál es tu principal motivo para unirte a TODOSCARE?', opts: ['Prevención y chequeos', 'Seguimiento de una enfermedad o preexistencia', 'Bienestar y nutrición', 'Salud mental'] },
+      { key: 'condicion', q: '¿Tienes alguna condición médica diagnosticada?', opts: ['Ninguna', 'Hipertensión', 'Diabetes', 'Prefiero decirlo con mi médico'] },
+      { key: 'actividad', q: '¿Con qué frecuencia haces actividad física?', opts: ['Casi nunca', '1-2 veces/semana', '3-4 veces/semana', 'Todos los días'] },
+      { key: 'alergias', q: '¿Tienes alergias a medicamentos?', opts: ['No', 'Sí, penicilina', 'Sí, otra', 'No estoy seguro'] },
+      { key: 'seguro', q: '¿Cuentas con seguro médico o Isapre?', opts: ['Sí', 'No', 'En trámite'] },
+    ];
+
+    if (s.onbDone) {
+      return ScreenShell(
+        React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 32, textAlign: 'center', animation: 'fadeUp .4s ease' } },
+          React.createElement('div', { style: { width: 84, height: 84, borderRadius: '50%', background: TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, animation: 'popIn .35s ease' } }, '✅'),
+          React.createElement('div', { style: { font: '800 21px/1.3 Manrope,sans-serif', color: INK } }, '¡Todo listo!'),
+          React.createElement('div', { style: { font: '400 14px/1.5 Inter,sans-serif', color: SUB, maxWidth: 240 } }, 'Tu perfil básico está activo. Completa tu ficha clínica cuando quieras y sube de nivel en la plataforma.'),
+          React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8, background: '#FFF7E6', border: '1px solid #F3E3B0', borderRadius: 12, padding: '10px 16px', marginTop: 6 } },
+            React.createElement('span', { style: { fontSize: 18 } }, '🥈'),
+            React.createElement('span', { style: { font: '700 13px Manrope,sans-serif', color: '#8A6A00' } }, 'Nivel Plata desbloqueado')
+          ),
+          React.createElement(Btn, { onClick: this.restartOnboarding, variant: 'outline', style: { marginTop: 14, width: 200 } }, '↺ Reiniciar demo')
+        )
+      );
+    }
+
+    if (s.onbStep < questions.length) {
+      const step = questions[s.onbStep];
+      const answered = s.onbAnswers[step.key];
+      return ScreenShell(
+        React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+          React.createElement('div', { style: { padding: '18px 22px 0', display: 'flex', alignItems: 'center', gap: 12 } },
+            s.onbStep > 0 ? React.createElement('div', { onClick: this.prevOnb, style: { cursor: 'pointer', fontSize: 18, color: SUB } }, '←') : React.createElement('div', { style: { width: 18 } }),
+            React.createElement('div', { style: { flex: 1 } }, React.createElement(Dots, { count: questions.length + 1, active: s.onbStep })),
+            React.createElement('div', { onClick: this.restartOnboarding, style: { cursor: 'pointer', fontSize: 15, color: '#B7C2BE' } }, '↺')
+          ),
+          React.createElement('div', { style: { padding: '28px 24px 0', font: '700 11px Manrope,sans-serif', letterSpacing: '.1em', textTransform: 'uppercase', color: TEAL } }, 'Pregunta ' + (s.onbStep + 1) + ' de 5'),
+          React.createElement('div', { style: { padding: '8px 24px 0', font: '800 21px/1.35 Manrope,sans-serif', color: INK } }, step.q),
+          React.createElement('div', { style: { padding: '22px 20px', display: 'flex', flexDirection: 'column', gap: 10, flex: 1 } },
+            step.opts.map(opt => React.createElement('div', {
+              key: opt,
+              onClick: () => this.answerQ(step.key, opt),
+              style: {
+                padding: '15px 16px', borderRadius: 14, cursor: 'pointer',
+                border: answered === opt ? `2px solid ${TEAL}` : '1.5px solid #E7EDEB',
+                background: answered === opt ? TEAL_SOFT : '#fff',
+                font: '600 14.5px Inter,sans-serif', color: answered === opt ? TEAL_DARK : INK,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }
+            }, opt, answered === opt ? React.createElement('span', { style: { color: TEAL } }, '✓') : null))
+          ),
+          React.createElement('div', { style: { padding: '0 20px 22px' } },
+            React.createElement(Btn, { onClick: this.nextOnb, style: { width: '100%' }, disabled: !answered }, s.onbStep === questions.length - 1 ? 'Continuar a dependientes' : 'Siguiente')
+          )
+        )
+      );
+    }
+
+    // dependents step
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        React.createElement('div', { style: { padding: '18px 22px 0', display: 'flex', alignItems: 'center', gap: 12 } },
+          React.createElement('div', { onClick: this.prevOnb, style: { cursor: 'pointer', fontSize: 18, color: SUB } }, '←'),
+          React.createElement('div', { style: { flex: 1 } }, React.createElement(Dots, { count: questions.length + 1, active: questions.length })),
+          React.createElement('div', { style: { width: 15 } })
+        ),
+        React.createElement('div', { style: { padding: '28px 24px 0', font: '800 21px/1.3 Manrope,sans-serif', color: INK } }, '¿Deseas agregar dependientes?'),
+        React.createElement('div', { style: { padding: '8px 24px 0', font: '400 13.5px/1.5 Inter,sans-serif', color: SUB } }, 'Hijos menores de 18 años pueden vincularse a tu cuenta para acceder a su información de salud.'),
+        React.createElement('div', { style: { padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 10, flex: 1, overflowY: 'auto' } },
+          this.state.dependents.map((d, i) => React.createElement('div', {
+            key: i, style: { display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', border: '1.5px solid #E7EDEB', borderRadius: 14, background: '#fff' }
+          },
+            React.createElement('div', { style: { width: 38, height: 38, borderRadius: '50%', background: TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 } }, '🧒'),
+            React.createElement('div', { style: { flex: 1, font: '600 14px Inter,sans-serif', color: INK } }, d.name),
+            React.createElement('div', { onClick: () => this.removeDependent(i), style: { cursor: 'pointer', color: '#C86B5E', fontSize: 13, fontWeight: 700 } }, 'Quitar')
+          )),
+          React.createElement('div', {
+            onClick: this.addDependent,
+            style: {
+              display: 'flex', alignItems: 'center', gap: 10, padding: '14px', borderRadius: 14,
+              border: '1.5px dashed #B9D4CE', color: TEAL_DARK, cursor: 'pointer', font: '700 14px Manrope,sans-serif', justifyContent: 'center'
+            }
+          }, '+ Agregar dependiente')
+        ),
+        React.createElement('div', { style: { padding: '0 20px 22px', display: 'flex', flexDirection: 'column', gap: 10 } },
+          React.createElement(Btn, { onClick: this.finishOnb, style: { width: '100%' } }, 'Finalizar registro'),
+          React.createElement(Btn, { onClick: this.finishOnb, variant: 'ghost', style: { width: '100%' } }, 'Omitir por ahora')
+        )
+      )
+    );
+  }
+
+  renderHome() {
+    const s = this.state;
+    const actions = [
+      { id: 'agenda', label: 'Agendar consulta', icon: '📅', target: 'agenda' },
+      { id: 'tele', label: 'Telemedicina', icon: '📱', target: 'agenda' },
+      { id: 'salud', label: 'Laboratorio', icon: '🧪', target: 'salud' },
+      { id: 'farmacia', label: 'Farmacia', icon: '💊', target: 'farmacia' },
+      { id: 'imagenes', label: 'Imágenes', icon: '🩻', target: 'salud' },
+      { id: 'dental', label: 'Dental', icon: '🦷', target: 'agenda' },
+    ];
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', overflowY: 'auto', paddingBottom: 90 }, className: 'scrollhide' },
+        React.createElement('div', { style: { padding: '20px 22px 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
+          React.createElement('div', null,
+            React.createElement('div', { style: { font: '400 13px Inter,sans-serif', color: SUB } }, 'Hola,'),
+            React.createElement('div', { style: { font: '800 21px Manrope,sans-serif', color: INK } }, 'Camila Rodríguez')
+          ),
+          React.createElement('div', { style: { width: 42, height: 42, borderRadius: '50%', background: TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 } }, '👩')
+        ),
+        React.createElement('div', {
+          style: { margin: '16px 20px 0', padding: '16px 18px', borderRadius: 18, background: `linear-gradient(135deg, ${TEAL}, ${TEAL_DARK})`, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
+        },
+          React.createElement('div', null,
+            React.createElement('div', { style: { font: '600 11px Manrope,sans-serif', opacity: .85, letterSpacing: '.06em', textTransform: 'uppercase' } }, 'Nivel ' + s.level),
+            React.createElement('div', { style: { font: '800 20px Manrope,sans-serif', marginTop: 3 } }, s.points + ' pts'),
+          ),
+          React.createElement('div', { style: { fontSize: 30 } }, '🥈')
+        ),
+        React.createElement('div', { style: { padding: '20px 20px 0', font: '700 13px Manrope,sans-serif', color: INK } }, 'Acciones rápidas'),
+        React.createElement('div', { style: { padding: '10px 20px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+          actions.map(a => React.createElement('div', {
+            key: a.id, onClick: () => this.setState({ tab: a.target }),
+            style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '16px 14px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8 }
+          },
+            React.createElement('div', { style: { fontSize: 22 } }, a.icon),
+            React.createElement('div', { style: { font: '600 13px Inter,sans-serif', color: INK } }, a.label)
+          ))
+        ),
+        React.createElement('div', { style: { padding: '22px 20px 0', font: '700 13px Manrope,sans-serif', color: INK } }, 'Asistente TODOSCARE'),
+        React.createElement('div', {
+          style: { margin: '10px 20px 0', padding: 16, borderRadius: 16, background: '#E9FBF4', border: '1px solid #CDEEE1', display: 'flex', gap: 12, alignItems: 'flex-start' }
+        },
+          React.createElement('div', { style: { fontSize: 22 } }, '💬'),
+          React.createElement('div', null,
+            React.createElement('div', { style: { font: '700 13.5px Inter,sans-serif', color: INK } }, 'Pregunta por WhatsApp'),
+            React.createElement('div', { style: { font: '400 12.5px/1.5 Inter,sans-serif', color: SUB, marginTop: 2 } }, '"¿Cuándo está listo mi examen de sangre?" — el bot te responde al instante.')
+          )
+        ),
+        React.createElement('div', { style: { padding: '22px 20px 0', font: '700 13px Manrope,sans-serif', color: INK } }, 'Promociones para ti'),
+        React.createElement('div', { style: { padding: '10px 20px 0', display: 'flex', gap: 10, overflowX: 'auto' }, className: 'scrollhide' },
+          [
+            { t: 'Chequeo preventivo -20%', c: '#FCEFE7' },
+            { t: 'Odontología familiar 2x1', c: '#EAF1FF' },
+          ].map((p, i) => React.createElement('div', {
+            key: i, style: { minWidth: 160, background: p.c, borderRadius: 14, padding: 14, font: '700 12.5px/1.4 Inter,sans-serif', color: INK }
+          }, p.t))
+        )
+      )
+    );
+  }
+
+  renderAgenda() {
+    const s = this.state;
+    if (s.agendaStep === 'list') {
+      return ScreenShell(
+        React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+          Header('Agenda', 'Elige una especialidad para ver disponibilidad'),
+          React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '10px 20px 90px', display: 'flex', flexDirection: 'column', gap: 10 }, className: 'scrollhide' },
+            SPECIALTIES.map(sp => React.createElement('div', {
+              key: sp.id, onClick: () => this.pickSpecialty(sp),
+              style: { display: 'flex', alignItems: 'center', gap: 14, background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px', cursor: 'pointer' }
+            },
+              React.createElement('div', { style: { width: 44, height: 44, borderRadius: 12, background: TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 } }, sp.icon),
+              React.createElement('div', { style: { flex: 1 } },
+                React.createElement('div', { style: { font: '700 14.5px Inter,sans-serif', color: INK } }, sp.name),
+                React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB, marginTop: 2 } }, sp.dur + ' · ' + sp.price)
+              ),
+              React.createElement('div', { style: { color: '#C6D2CE', fontSize: 18 } }, '›')
+            ))
+          )
+        )
+      );
+    }
+    if (s.agendaStep === 'slots') {
+      return ScreenShell(
+        React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+          React.createElement('div', { style: { padding: '18px 22px 0', display: 'flex', alignItems: 'center', gap: 12 } },
+            React.createElement('div', { onClick: this.backAgenda, style: { cursor: 'pointer', fontSize: 18, color: SUB } }, '←'),
+            React.createElement('div', { style: { font: '800 17px Manrope,sans-serif', color: INK } }, s.selectedSpecialty.name)
+          ),
+          React.createElement('div', { style: { padding: '6px 24px 0', font: '400 13px Inter,sans-serif', color: SUB } }, 'Horarios disponibles hoy · cerca de tu ubicación'),
+          React.createElement('div', { style: { padding: '18px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+            SLOTS.map(sl => React.createElement('div', {
+              key: sl, onClick: () => this.pickSlot(sl),
+              style: { padding: '14px', textAlign: 'center', borderRadius: 14, cursor: 'pointer', border: '1.5px solid #E7EDEB', background: '#fff', font: '700 15px Manrope,sans-serif', color: INK }
+            }, sl))
+          ),
+          React.createElement('div', {
+            style: { margin: '4px 20px', padding: 14, borderRadius: 14, background: '#F2F6F5', display: 'flex', gap: 10, alignItems: 'center' }
+          },
+            React.createElement('span', { style: { fontSize: 18 } }, '📍'),
+            React.createElement('span', { style: { font: '400 12.5px/1.4 Inter,sans-serif', color: SUB } }, 'Clínica Las Condes — 2.4 km de tu dirección')
+          )
+        )
+      );
+    }
+    // confirm
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 28, textAlign: 'center', animation: 'fadeUp .35s ease' } },
+        React.createElement('div', { style: { width: 78, height: 78, borderRadius: '50%', background: TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 } }, '✅'),
+        React.createElement('div', { style: { font: '800 20px Manrope,sans-serif', color: INK, marginTop: 16 } }, 'Cita confirmada'),
+        React.createElement('div', { style: { font: '400 14px/1.5 Inter,sans-serif', color: SUB, marginTop: 6 } }, s.selectedSpecialty.name + ' · Hoy ' + s.selectedSlot),
+        React.createElement('div', { style: { marginTop: 18, width: '100%', display: 'flex', flexDirection: 'column', gap: 10 } },
+          React.createElement(Btn, { onClick: this.resetAgenda, style: { width: '100%' } }, 'Agendar otra cita'),
+          React.createElement(Btn, { onClick: () => this.setState({ tab: 'home' }), variant: 'ghost', style: { width: '100%' } }, 'Volver al inicio')
+        )
+      )
+    );
+  }
+
+  renderSalud() {
+    const s = this.state;
+    const setView = (v) => this.setState({ saludView: v });
+
+    const backHeader = (title) => React.createElement('div', { style: { padding: '18px 22px 0', display: 'flex', alignItems: 'center', gap: 12 } },
+      React.createElement('div', { onClick: () => setView('menu'), style: { cursor: 'pointer', fontSize: 18, color: SUB } }, '←'),
+      React.createElement('div', { style: { font: '800 17px Manrope,sans-serif', color: INK } }, title)
+    );
+    const listBody = (children) => React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '14px 20px 90px', display: 'flex', flexDirection: 'column', gap: 10 }, className: 'scrollhide' }, children);
+    const rowCard = (icon, title, sub, right, key) => React.createElement('div', {
+      key, style: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px' }
+    },
+      React.createElement('div', { style: { width: 40, height: 40, borderRadius: 10, background: '#F2F6F5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 } }, icon),
+      React.createElement('div', { style: { flex: 1 } },
+        React.createElement('div', { style: { font: '700 14px Inter,sans-serif', color: INK } }, title),
+        sub ? React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB, marginTop: 2 } }, sub) : null
+      ),
+      right || null
+    );
+
+    if (s.saludView === 'ficha') {
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('Ficha clínica'),
+        listBody([
+          rowCard('🩸', 'Grupo sanguíneo', 'O+', null, 'f1'),
+          rowCard('⚠️', 'Alergias', 'Penicilina', null, 'f2'),
+          rowCard('💊', 'Medicación actual', 'Losartán 50mg diario', null, 'f3'),
+          rowCard('📋', 'Antecedentes', 'Hipertensión (2022)', null, 'f4'),
+          React.createElement('div', { key: 'f5', style: { padding: 14, borderRadius: 14, background: '#FBF3E4', border: '1px solid #EEDFB8', font: '400 12.5px/1.5 Inter,sans-serif', color: '#8A6A00' } }, '✨ Completa tu ficha al 100% y gana +300 pts para subir a Oro.')
+        ])
+      ));
+    }
+    if (s.saludView === 'agendamientos') {
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('Agendamientos realizados'),
+        listBody([
+          rowCard('🩺', 'Consulta general', '08 jul 2026 · Dra. Nátaly', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: TEAL, background: TEAL_SOFT, padding: '5px 10px', borderRadius: 20 } }, 'Realizada'), 'g1'),
+          rowCard('🦷', 'Limpieza dental', '12 jun 2026', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: TEAL, background: TEAL_SOFT, padding: '5px 10px', borderRadius: 20 } }, 'Realizada'), 'g2'),
+          rowCard('🧠', 'Psicología', '28 may 2026', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: TEAL, background: TEAL_SOFT, padding: '5px 10px', borderRadius: 20 } }, 'Realizada'), 'g3'),
+          rowCard('📱', 'Telemedicina', '15 jul 2026 · 18:30', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: '#B98900', background: '#FBF3E4', padding: '5px 10px', borderRadius: 20 } }, 'Próxima'), 'g4'),
+        ])
+      ));
+    }
+    if (s.saludView === 'hospitalizaciones') {
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('Hospitalizaciones'),
+        listBody([
+          rowCard('🏥', 'Apendicectomía', 'Hospital Ángeles · mar 2019 · 3 días', null, 'h1'),
+          rowCard('🏥', 'Observación', 'Clínica Roma Norte · ago 2023 · 1 día', null, 'h2'),
+        ])
+      ));
+    }
+    if (s.saludView === 'subir') {
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('Subir a tu ficha clínica'),
+        listBody([
+          React.createElement('div', { key: 's0', style: { font: '400 13px/1.5 Inter,sans-serif', color: SUB } }, 'Sube una imagen o PDF de tus exámenes, ficha clínica u otra información. La IA la revisa y actualiza tu ficha.'),
+          React.createElement('div', { key: 's1', style: { padding: 22, borderRadius: 16, border: '1.5px dashed #B9D4CE', textAlign: 'center', color: TEAL_DARK, font: '700 13px Manrope,sans-serif', cursor: 'pointer' } }, '📎 Subir imagen o PDF'),
+          React.createElement('div', { key: 's2', style: { padding: 22, borderRadius: 16, border: '1.5px dashed #B9D4CE', textAlign: 'center', color: TEAL_DARK, font: '700 13px Manrope,sans-serif', cursor: 'pointer' } }, '💬 Enviar por WhatsApp al asistente'),
+          rowCard('🤖', 'Hemograma_20may.pdf', 'Procesado por IA · agregado a tu ficha', React.createElement('span', { style: { color: TEAL, fontSize: 16 } }, '✓'), 's3'),
+        ])
+      ));
+    }
+    if (s.saludView === 'qr') {
+      const qrCells = [];
+      const seed = (x, y) => ((x * 7 + y * 13 + (x * y) % 5) % 3) !== 0;
+      for (let y = 0; y < 21; y++) for (let x = 0; x < 21; x++) {
+        const finder = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13);
+        let fill = false;
+        if (finder) {
+          const lx = x > 13 ? x - 14 : x, ly = y > 13 ? y - 14 : y;
+          fill = lx === 0 || lx === 6 || ly === 0 || ly === 6 || (lx >= 2 && lx <= 4 && ly >= 2 && ly <= 4);
+        } else fill = seed(x, y);
+        if (fill) qrCells.push(React.createElement('rect', { key: x + '-' + y, x: x * 10, y: y * 10, width: 9, height: 9, fill: INK }));
+      }
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('QR de emergencia'),
+        listBody([
+          React.createElement('div', { key: 'q0', style: { font: '400 13px/1.55 Inter,sans-serif', color: SUB } }, 'En un accidente o urgencia, el médico que te atienda escanea este código y accede a tu ficha clínica, historial y resultados de exámenes — sin necesitar tu clave.'),
+          React.createElement('div', { key: 'q1', style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 } },
+            React.createElement('svg', { viewBox: '0 0 209 209', style: { width: 180, height: 180 } }, qrCells),
+            React.createElement('div', { style: { font: '700 13px Manrope,sans-serif', color: INK } }, 'Camila Rodríguez · O+ · Alergia: penicilina'),
+            React.createElement('div', { style: { font: '400 11.5px Inter,sans-serif', color: SUB } }, 'Acceso de solo lectura · válido con verificación médica')
+          ),
+          React.createElement(Btn, { key: 'q2', style: { width: '100%' } }, 'Compartir / imprimir QR'),
+          React.createElement(Btn, { key: 'q3', variant: 'ghost', style: { width: '100%' } }, 'Agregar a la pantalla de bloqueo'),
+          React.createElement('div', { key: 'q4', style: { padding: 13, borderRadius: 13, background: '#FBF3E4', border: '1px solid #EEDFB8', font: '400 12px/1.5 Inter,sans-serif', color: '#8A6A00' } }, '🔒 Cada acceso queda registrado con fecha, hora y profesional que consultó.')
+        ])
+      ));
+    }
+    if (s.saludView === 'dental') {
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('Ficha dental'),
+        listBody([
+          React.createElement('div', { key: 'd0', style: { font: '700 13px Manrope,sans-serif', color: INK } }, 'Odontograma'),
+          React.createElement('div', { key: 'd1', style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: 16, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6 } },
+            Array.from({ length: 16 }).map((_, i) => React.createElement('div', {
+              key: i, style: { aspectRatio: '1', borderRadius: 6, background: i === 4 || i === 11 ? '#F6D9CF' : '#F2F6F5', border: '1px solid #E7EDEB' }
+            }))
+          ),
+          React.createElement('div', { key: 'd2', style: { font: '400 11.5px Inter,sans-serif', color: SUB } }, 'Piezas 15 y 24 con tratamiento pendiente'),
+          React.createElement('div', { key: 'd3', style: { padding: '8px 0 0', font: '700 13px Manrope,sans-serif', color: INK } }, 'Tratamientos'),
+          rowCard('🦷', 'Limpieza dental', '12 jun 2026', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: TEAL, background: TEAL_SOFT, padding: '5px 10px', borderRadius: 20 } }, 'Realizado'), 'd4'),
+          rowCard('🦷', 'Resina pieza 15', 'Por agendar', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: '#B98900', background: '#FBF3E4', padding: '5px 10px', borderRadius: 20 } }, 'Pendiente'), 'd5'),
+          rowCard('🩻', 'Radiografía panorámica', '02 jun 2026 · En proceso', null, 'd6'),
+        ])
+      ));
+    }
+    if (s.saludView === 'examenes') {
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('Resultados de exámenes'),
+        listBody([
+          ...EXAMS.map((ex, i) => rowCard('🧪', ex.name, ex.date, React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: ex.color, background: ex.color + '1A', padding: '5px 10px', borderRadius: 20 } }, ex.status), 'e' + i)),
+          React.createElement('div', { key: 'od', style: { padding: '10px 0 0', font: '700 13px Manrope,sans-serif', color: INK } }, 'Odontograma'),
+          React.createElement('div', { key: 'og', style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: 16, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 6 } },
+            Array.from({ length: 16 }).map((_, i) => React.createElement('div', {
+              key: i, style: { aspectRatio: '1', borderRadius: 6, background: i === 4 || i === 11 ? '#F6D9CF' : '#F2F6F5', border: '1px solid #E7EDEB' }
+            }))
+          )
+        ])
+      ));
+    }
+
+    const menu = [
+      { id: 'ficha', icon: '📋', t: 'Mi ficha clínica', d: 'Datos médicos, alergias, antecedentes' },
+      { id: 'examenes', icon: '🧪', t: 'Resultados de exámenes realizados', d: 'Laboratorio, imágenes y odontograma' },
+      { id: 'qr', icon: '🆘', t: 'QR de emergencia', d: 'Acceso médico a tu ficha en urgencias' },
+      { id: 'dental', icon: '🦷', t: 'Ficha dental', d: 'Odontograma y tratamientos' },
+      { id: 'agendamientos', icon: '📅', t: 'Agendamientos realizados', d: 'Historial de consultas y citas' },
+      { id: 'hospitalizaciones', icon: '🏥', t: 'Hospitalizaciones realizadas', d: 'Ingresos y cirugías' },
+      { id: 'subir', icon: '📎', t: 'Subir info a tu ficha clínica', d: 'Imagen o PDF · la IA actualiza tu ficha' },
+    ];
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        Header('Mi salud', 'Tu información médica en un solo lugar'),
+        React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '10px 20px 90px', display: 'flex', flexDirection: 'column', gap: 10 }, className: 'scrollhide' },
+          menu.map(m => React.createElement('div', {
+            key: m.id, onClick: () => setView(m.id),
+            style: { display: 'flex', alignItems: 'center', gap: 14, background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px', cursor: 'pointer' }
+          },
+            React.createElement('div', { style: { width: 44, height: 44, borderRadius: 12, background: TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 } }, m.icon),
+            React.createElement('div', { style: { flex: 1 } },
+              React.createElement('div', { style: { font: '700 14.5px Inter,sans-serif', color: INK } }, m.t),
+              React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB, marginTop: 2 } }, m.d)
+            ),
+            React.createElement('div', { style: { color: '#C6D2CE', fontSize: 18 } }, '›')
+          ))
+        )
+      )
+    );
+  }
+
+  renderFarmacia() {
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        Header('Farmacia', 'Tus medicamentos recetados'),
+        React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '10px 20px 90px', display: 'flex', flexDirection: 'column', gap: 10 }, className: 'scrollhide' },
+          MEDS.map((m, i) => React.createElement('div', {
+            key: i, style: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px' }
+          },
+            React.createElement('div', { style: { width: 40, height: 40, borderRadius: 10, background: '#F2F6F5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 } }, '💊'),
+            React.createElement('div', { style: { flex: 1 } },
+              React.createElement('div', { style: { font: '700 14px Inter,sans-serif', color: INK } }, m.name),
+              React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB, marginTop: 2 } }, m.qty)
+            ),
+            React.createElement('div', { style: { font: '700 14px Manrope,sans-serif', color: INK } }, m.price)
+          )),
+          React.createElement(Btn, { style: { width: '100%', marginTop: 8 } }, 'Enviar pedido por WhatsApp'),
+          React.createElement('div', {
+            style: { marginTop: 6, padding: 14, borderRadius: 14, background: '#F2F6F5', display: 'flex', gap: 10, alignItems: 'center' }
+          },
+            React.createElement('span', { style: { fontSize: 18 } }, '📍'),
+            React.createElement('span', { style: { font: '400 12.5px/1.4 Inter,sans-serif', color: SUB } }, 'Farmacia más cercana: a 800 m de tu ubicación')
+          )
+        )
+      )
+    );
+  }
+
+  renderWallet() {
+    const s = this.state;
+    const txns = [
+      { icon: '🩺', t: 'Consulta general', d: '08 jul', pts: '+45 pts', cash: '+$22 cashback' },
+      { icon: '📋', t: 'Ficha clínica completada', d: '02 jul', pts: '+150 pts', cash: null },
+      { icon: '💊', t: 'Compra en farmacia', d: '28 jun', pts: '+18 pts', cash: '+$9 cashback' },
+      { icon: '💳', t: 'Pago con cashback', d: '20 jun', pts: null, cash: '-$35' },
+      { icon: '🦷', t: 'Limpieza dental', d: '12 jun', pts: '+60 pts', cash: '+$30 cashback' },
+    ];
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        React.createElement('div', { style: { padding: '18px 22px 0', display: 'flex', alignItems: 'center', gap: 12 } },
+          React.createElement('div', { onClick: () => this.setState({ walletOpen: false }), style: { cursor: 'pointer', fontSize: 18, color: SUB } }, '←'),
+          React.createElement('div', { style: { font: '800 17px Manrope,sans-serif', color: INK } }, 'Billetera TODOSCARE')
+        ),
+        React.createElement('div', {
+          style: { margin: '14px 20px 0', padding: 18, borderRadius: 18, background: `linear-gradient(135deg, ${TEAL}, ${TEAL_DARK})`, color: '#fff' }
+        },
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+            React.createElement('div', null,
+              React.createElement('div', { style: { font: '600 11px Manrope,sans-serif', opacity: .85, textTransform: 'uppercase', letterSpacing: '.06em' } }, 'Puntos'),
+              React.createElement('div', { style: { font: '800 24px Manrope,sans-serif', marginTop: 4 } }, s.points)
+            ),
+            React.createElement('div', { style: { textAlign: 'right' } },
+              React.createElement('div', { style: { font: '600 11px Manrope,sans-serif', opacity: .85, textTransform: 'uppercase', letterSpacing: '.06em' } }, 'Cashback'),
+              React.createElement('div', { style: { font: '800 24px Manrope,sans-serif', marginTop: 4 } }, '$124')
+            )
+          ),
+          React.createElement('div', { style: { font: '400 12px Inter,sans-serif', opacity: .85, marginTop: 10 } }, 'Usa tu cashback como pago en consultas, exámenes y farmacia.')
+        ),
+        React.createElement('div', { style: { margin: '12px 20px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+          React.createElement(Btn, { style: { fontSize: 13.5, padding: '12px' } }, 'Pagar con cashback'),
+          React.createElement(Btn, { variant: 'ghost', style: { fontSize: 13.5, padding: '12px' } }, 'Canjear puntos')
+        ),
+        React.createElement('div', { style: { padding: '18px 20px 0', font: '700 13px Manrope,sans-serif', color: INK } }, 'Movimientos'),
+        React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '10px 20px 30px', display: 'flex', flexDirection: 'column', gap: 10 }, className: 'scrollhide' },
+          txns.map((tx, i) => React.createElement('div', {
+            key: i, style: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '13px 15px' }
+          },
+            React.createElement('div', { style: { width: 38, height: 38, borderRadius: 10, background: '#F2F6F5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 } }, tx.icon),
+            React.createElement('div', { style: { flex: 1 } },
+              React.createElement('div', { style: { font: '600 13.5px Inter,sans-serif', color: INK } }, tx.t),
+              React.createElement('div', { style: { font: '400 11.5px Inter,sans-serif', color: SUB, marginTop: 2 } }, tx.d)
+            ),
+            React.createElement('div', { style: { textAlign: 'right' } },
+              tx.pts ? React.createElement('div', { style: { font: '700 12.5px Manrope,sans-serif', color: TEAL } }, tx.pts) : null,
+              tx.cash ? React.createElement('div', { style: { font: '600 11.5px Inter,sans-serif', color: tx.cash.startsWith('-') ? '#C86B5E' : SUB, marginTop: 2 } }, tx.cash) : null
+            )
+          ))
+        )
+      )
+    );
+  }
+
+  renderPerfil() {
+    const s = this.state;
+    if (s.walletOpen) return this.renderWallet();
+    const levels = ['Bronce', 'Plata', 'Oro', 'Diamante'];
+    const idx = levels.indexOf(s.level);
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', overflowY: 'auto', paddingBottom: 90 }, className: 'scrollhide' },
+        Header('Mi perfil', 'Billetera digital y progreso'),
+        React.createElement('div', {
+          onClick: () => this.setState({ walletOpen: true }),
+          style: { margin: '10px 20px 0', padding: 18, borderRadius: 18, background: `linear-gradient(135deg, ${TEAL}, ${TEAL_DARK})`, color: '#fff', cursor: 'pointer' }
+        },
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+            React.createElement('div', { style: { font: '600 11px Manrope,sans-serif', opacity: .85, textTransform: 'uppercase', letterSpacing: '.06em' } }, 'Billetera TODOSCARE'),
+            React.createElement('div', { style: { fontSize: 20 } }, '💳')
+          ),
+          React.createElement('div', { style: { font: '800 26px Manrope,sans-serif', marginTop: 8 } }, s.points + ' pts'),
+          React.createElement('div', { style: { font: '400 12.5px Inter,sans-serif', opacity: .85, marginTop: 4 } }, 'Cashback disponible: $124 · Ver movimientos ›')
+        ),
+        React.createElement('div', { style: { padding: '20px 20px 0', font: '700 13px Manrope,sans-serif', color: INK } }, 'Progreso de nivel'),
+        React.createElement('div', { style: { margin: '10px 20px 0', background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: 16 } },
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between' } },
+            levels.map((l, i) => React.createElement('div', {
+              key: l, style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, opacity: i <= idx ? 1 : .35 }
+            },
+              React.createElement('div', { style: { fontSize: 20 } }, ['🥉', '🥈', '🥇', '💎'][i]),
+              React.createElement('div', { style: { font: '600 10.5px Manrope,sans-serif', color: INK } }, l)
+            ))
+          ),
+          React.createElement('div', { style: { height: 6, background: '#EDF2F1', borderRadius: 3, marginTop: 14, position: 'relative' } },
+            React.createElement('div', { style: { position: 'absolute', left: 0, top: 0, bottom: 0, width: ((idx + 1) / levels.length * 100) + '%', background: TEAL, borderRadius: 3 } })
+          ),
+          React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB, marginTop: 10 } }, 'Completa tu ficha clínica para llegar a Oro (+300 pts)')
+        ),
+        React.createElement('div', { style: { padding: '20px 20px 0', font: '700 13px Manrope,sans-serif', color: INK } }, 'Datos personales'),
+        React.createElement('div', { style: { margin: '10px 20px 0', background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: 6 } },
+          [
+            ['Nombre', 'Camila Rodríguez'],
+            ['RUT / ID', '18.245.**-*'],
+            ['Teléfono', '+56 9 ****'],
+            ['Dirección', 'Providencia, Santiago'],
+          ].map((row, i) => React.createElement('div', {
+            key: i, style: { display: 'flex', justifyContent: 'space-between', padding: '12px 10px', borderBottom: i < 3 ? '1px solid #F2F6F5' : 'none' }
+          },
+            React.createElement('div', { style: { font: '400 13px Inter,sans-serif', color: SUB } }, row[0]),
+            React.createElement('div', { style: { font: '600 13px Inter,sans-serif', color: INK } }, row[1])
+          ))
+        )
+      )
+    );
+  }
+
+  renderPortalHome(kind) {
+    const isAdmin = kind === 'admin';
+    const items = isAdmin ? [
+      { id: 'clinicas', icon: '🏥', t: 'Clínicas y sucursales', d: '3 clínicas · 5 sucursales' },
+      { id: 'usuarios', icon: '👥', t: 'Usuarios y roles', d: 'Pacientes, médicos, empresas' },
+      { id: 'config', icon: '⚙️', t: 'Configuración global', d: 'Planes, T&C, integraciones' },
+      { id: 'finanzas', icon: '📊', t: 'Finanzas y reportes', d: 'Ledger, split de pagos' },
+    ] : [
+      { id: 'agendas', icon: '📅', t: 'Configurar agendas', d: 'Horarios por profesional y sucursal' },
+      { id: 'productos', icon: '🏷️', t: 'Productos y servicios', d: 'Catálogo y precios' },
+      { id: 'promos', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },
+      { id: 'empresa', icon: 'ℹ️', t: 'Información de la empresa', d: 'Datos, logo, ubicaciones' },
+    ];
+    const setView = (v) => this.setState(isAdmin ? { adminView: v } : { empresaView: v });
+    const view = isAdmin ? this.state.adminView : this.state.empresaView;
+
+    if (view !== 'inicio') {
+      const item = items.find(i => i.id === view);
+      let detail;
+      if (view === 'agendas') {
+        detail = ['Dra. Nátaly — Lun a Vie 9:00–18:00', 'Dr. Fuentes (Gral.) — Lun, Mié, Vie', 'Nutrición — Mar y Jue 10:00–17:00'].map((r, i) =>
+          React.createElement('div', { key: i, style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 14, padding: '14px 16px', font: '500 13.5px Inter,sans-serif', color: INK, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+            r, React.createElement('span', { style: { color: TEAL, font: '700 12px Manrope,sans-serif' } }, 'Editar')));
+      } else if (view === 'productos') {
+        detail = [['Consulta general', '$450'], ['Limpieza dental', '$600'], ['Perfil lipídico', '$320'], ['Plan mensual individual', '$199/mes']].map((r, i) =>
+          React.createElement('div', { key: i, style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 14, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', font: '500 13.5px Inter,sans-serif', color: INK } },
+            r[0], React.createElement('span', { style: { fontWeight: 700 } }, r[1])));
+      } else if (view === 'promos') {
+        detail = [['Chequeo preventivo -20%', 'Activa'], ['Odontología familiar 2x1', 'Activa'], ['Primera telemedicina gratis', 'Borrador']].map((r, i) =>
+          React.createElement('div', { key: i, style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 14, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', font: '500 13.5px Inter,sans-serif', color: INK } },
+            r[0], React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: r[1] === 'Activa' ? TEAL : '#B98900', background: r[1] === 'Activa' ? TEAL_SOFT : '#FBF3E4', padding: '5px 10px', borderRadius: 20 } }, r[1])));
+      } else if (view === 'finanzas') {
+        detail = [['Ingresos del mes', '$48,200'], ['Split a profesionales', '$28,900'], ['Cashback emitido', '$1,240']].map((r, i) =>
+          React.createElement('div', { key: i, style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 14, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', font: '500 13.5px Inter,sans-serif', color: INK } },
+            r[0], React.createElement('span', { style: { fontWeight: 700 } }, r[1])));
+      } else if (view === 'usuarios') {
+        detail = [['Pacientes activos', '120'], ['Profesionales', '9'], ['Empresas B2B', '4'], ['Roles y permisos', '›']].map((r, i) =>
+          React.createElement('div', { key: i, style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 14, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', font: '500 13.5px Inter,sans-serif', color: INK } },
+            r[0], React.createElement('span', { style: { fontWeight: 700, color: r[1] === '›' ? '#C6D2CE' : INK } }, r[1])));
+      } else if (view === 'clinicas') {
+        detail = ['Clínica Roma Norte — CDMX', 'Clínica Condesa — CDMX', 'Sucursal Polanco — CDMX'].map((r, i) =>
+          React.createElement('div', { key: i, style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 14, padding: '14px 16px', font: '500 13.5px Inter,sans-serif', color: INK, display: 'flex', justifyContent: 'space-between' } },
+            r, React.createElement('span', { style: { color: '#C6D2CE' } }, '›')));
+      } else {
+        detail = [React.createElement('div', { key: 0, style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 14, padding: 16, font: '400 13px/1.6 Inter,sans-serif', color: SUB } },
+          isAdmin ? 'Planes mensuales (individual, empresas, sistema público federal/estatal/municipal), términos y condiciones por país, e integraciones de WhatsApp/IA.' : 'Nombre, logo, descripción, horarios de atención y ubicaciones que ven los pacientes en el mapa.')];
+      }
+      return ScreenShell(
+        React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+          React.createElement('div', { style: { padding: '18px 22px 0', display: 'flex', alignItems: 'center', gap: 12 } },
+            React.createElement('div', { onClick: () => setView('inicio'), style: { cursor: 'pointer', fontSize: 18, color: SUB } }, '←'),
+            React.createElement('div', { style: { font: '800 17px Manrope,sans-serif', color: INK } }, item ? item.t : '')
+          ),
+          React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '16px 20px 30px', display: 'flex', flexDirection: 'column', gap: 10 }, className: 'scrollhide' }, detail)
+        )
+      );
+    }
+
+    return ScreenShell(
+      React.createElement('div', { style: { height: '100%', overflowY: 'auto', paddingBottom: 30 }, className: 'scrollhide' },
+        React.createElement('div', { style: { padding: '20px 22px 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+          React.createElement('div', null,
+            React.createElement('div', { style: { font: '400 13px Inter,sans-serif', color: SUB } }, isAdmin ? 'Administrador' : 'Portal Empresa'),
+            React.createElement('div', { style: { font: '800 21px Manrope,sans-serif', color: INK } }, isAdmin ? 'TODOSCARE Admin' : 'Clínica Roma Norte')
+          ),
+          React.createElement('div', { style: { width: 42, height: 42, borderRadius: '50%', background: isAdmin ? '#0F2A24' : TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 } }, isAdmin ? '🛡️' : '🏥')
+        ),
+        React.createElement('div', { style: { margin: '14px 20px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+          (isAdmin ? [['Pacientes', '120'], ['Citas hoy', '31']] : [['Citas hoy', '18'], ['Ingresos mes', '$12,400']]).map((k, i) =>
+            React.createElement('div', { key: i, style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px' } },
+              React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB } }, k[0]),
+              React.createElement('div', { style: { font: '800 22px Manrope,sans-serif', color: INK, marginTop: 4 } }, k[1])
+            ))
+        ),
+        React.createElement('div', { style: { padding: '20px 20px 0', font: '700 13px Manrope,sans-serif', color: INK } }, isAdmin ? 'Acceso total' : 'Gestión'),
+        React.createElement('div', { style: { padding: '10px 20px 0', display: 'flex', flexDirection: 'column', gap: 10 } },
+          items.map(it => React.createElement('div', {
+            key: it.id, onClick: () => setView(it.id),
+            style: { display: 'flex', alignItems: 'center', gap: 14, background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px', cursor: 'pointer' }
+          },
+            React.createElement('div', { style: { width: 44, height: 44, borderRadius: 12, background: TEAL_SOFT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 } }, it.icon),
+            React.createElement('div', { style: { flex: 1 } },
+              React.createElement('div', { style: { font: '700 14.5px Inter,sans-serif', color: INK } }, it.t),
+              React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB, marginTop: 2 } }, it.d)
+            ),
+            React.createElement('div', { style: { color: '#C6D2CE', fontSize: 18 } }, '›')
+          ))
+        )
+      )
+    );
+  }
+
+  renderCRM() {
+    const s = this.state;
+    const clinics = [
+      { id: 'roma', name: 'Clínica Roma Norte', city: 'CDMX', ingresos: '$18,400', margen: '32%', pacientes: 62, citas: 18, ocupacion: 84, cxc: '$4,200', up: true,
+        rank: [['Odontología', '$5,900'], ['Consulta general', '$4,300'], ['Nutrición', '$2,100']] },
+      { id: 'condesa', name: 'Clínica Condesa', city: 'CDMX', ingresos: '$14,900', margen: '28%', pacientes: 41, citas: 11, ocupacion: 71, cxc: '$3,050', up: true,
+        rank: [['Ginecología', '$4,600'], ['Consulta general', '$3,800'], ['Psicología', '$2,400']] },
+      { id: 'polanco', name: 'Sucursal Polanco', city: 'CDMX', ingresos: '$9,300', margen: '19%', pacientes: 27, citas: 8, ocupacion: 58, cxc: '$2,700', up: false,
+        rank: [['Telemedicina', '$2,900'], ['Consulta general', '$2,600'], ['Odontología', '$1,700']] },
+    ];
+
+    if (s.crmClinic) {
+      const c = clinics.find(x => x.id === s.crmClinic);
+      const kpi = (label, val, sub, tint) => React.createElement('div', { style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 15px' } },
+        React.createElement('div', { style: { font: '400 11.5px Inter,sans-serif', color: SUB } }, label),
+        React.createElement('div', { style: { font: '800 20px Manrope,sans-serif', color: tint || INK, marginTop: 4 } }, val),
+        sub ? React.createElement('div', { style: { font: '400 11px Inter,sans-serif', color: SUB, marginTop: 2 } }, sub) : null
+      );
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        React.createElement('div', { style: { padding: '18px 22px 0', display: 'flex', alignItems: 'center', gap: 12 } },
+          React.createElement('div', { onClick: () => this.setState({ crmClinic: null }), style: { cursor: 'pointer', fontSize: 18, color: SUB } }, '←'),
+          React.createElement('div', null,
+            React.createElement('div', { style: { font: '800 17px Manrope,sans-serif', color: INK } }, c.name),
+            React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB } }, c.city + ' · indicadores del mes')
+          )
+        ),
+        React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '16px 20px 30px' }, className: 'scrollhide' },
+          React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+            kpi('Ingresos', c.ingresos, 'este mes', TEAL),
+            kpi('Margen', c.margen, c.up ? '▲ vs. mes ant.' : '▼ vs. mes ant.', c.up ? TEAL : '#C86B5E'),
+            kpi('Cuentas por cobrar', c.cxc, 'pendiente', '#B98900'),
+            kpi('Ticket promedio', '$296', 'por atención'),
+          ),
+          React.createElement('div', { style: { marginTop: 14, background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '16px' } },
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+              React.createElement('div', { style: { font: '600 12px Inter,sans-serif', color: SUB } }, 'Ocupación de agenda'),
+              React.createElement('div', { style: { font: '800 15px Manrope,sans-serif', color: INK } }, c.ocupacion + '%')
+            ),
+            React.createElement('div', { style: { height: 8, background: '#EDF2F1', borderRadius: 4, marginTop: 10, position: 'relative' } },
+              React.createElement('div', { style: { position: 'absolute', left: 0, top: 0, bottom: 0, width: c.ocupacion + '%', background: TEAL, borderRadius: 4 } })
+            ),
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginTop: 12, font: '400 12px Inter,sans-serif', color: SUB } },
+              React.createElement('span', null, c.pacientes + ' pacientes activos'),
+              React.createElement('span', null, c.citas + ' citas hoy')
+            )
+          ),
+          React.createElement('div', { style: { padding: '18px 0 8px', font: '700 13px Manrope,sans-serif', color: INK } }, 'Ingresos por servicio'),
+          React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+            c.rank.map((r, i) => React.createElement('div', { key: i, style: { display: 'flex', justifyContent: 'space-between', background: '#fff', border: '1px solid #ECF1EF', borderRadius: 13, padding: '12px 15px', font: '500 13px Inter,sans-serif', color: INK } },
+              r[0], React.createElement('span', { style: { fontWeight: 700 } }, r[1])))
+          )
+        )
+      ));
+    }
+
+    const totalIngresos = '$42,600';
+    return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+      React.createElement('div', { style: { padding: '20px 22px 4px' } },
+        React.createElement('div', { style: { font: '400 13px Inter,sans-serif', color: SUB } }, 'CRM · Gestión de clínicas'),
+        React.createElement('div', { style: { font: '800 21px Manrope,sans-serif', color: INK } }, 'Panel financiero')
+      ),
+      React.createElement('div', { style: { margin: '14px 20px 0', padding: 18, borderRadius: 18, background: `linear-gradient(135deg, ${TEAL}, ${TEAL_DARK})`, color: '#fff' } },
+        React.createElement('div', { style: { font: '600 11px Manrope,sans-serif', opacity: .85, textTransform: 'uppercase', letterSpacing: '.06em' } }, 'Ingresos consolidados'),
+        React.createElement('div', { style: { font: '800 28px Manrope,sans-serif', marginTop: 6 } }, totalIngresos),
+        React.createElement('div', { style: { display: 'flex', gap: 18, marginTop: 10, font: '400 12px Inter,sans-serif', opacity: .9 } },
+          React.createElement('span', null, '3 clínicas'),
+          React.createElement('span', null, '130 pacientes'),
+          React.createElement('span', null, '▲ 12% mes')
+        )
+      ),
+      React.createElement('div', { style: { padding: '18px 20px 8px', font: '700 13px Manrope,sans-serif', color: INK } }, 'Por clínica'),
+      React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '0 20px 30px', display: 'flex', flexDirection: 'column', gap: 10 }, className: 'scrollhide' },
+        clinics.map(c => React.createElement('div', {
+          key: c.id, onClick: () => this.setState({ crmClinic: c.id }),
+          style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px', cursor: 'pointer' }
+        },
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+            React.createElement('div', { style: { font: '700 14.5px Inter,sans-serif', color: INK } }, c.name),
+            React.createElement('div', { style: { color: '#C6D2CE', fontSize: 18 } }, '›')
+          ),
+          React.createElement('div', { style: { display: 'flex', gap: 16, marginTop: 8 } },
+            React.createElement('div', null,
+              React.createElement('div', { style: { font: '800 16px Manrope,sans-serif', color: TEAL } }, c.ingresos),
+              React.createElement('div', { style: { font: '400 10.5px Inter,sans-serif', color: SUB } }, 'ingresos')
+            ),
+            React.createElement('div', null,
+              React.createElement('div', { style: { font: '800 16px Manrope,sans-serif', color: c.up ? INK : '#C86B5E' } }, c.margen),
+              React.createElement('div', { style: { font: '400 10.5px Inter,sans-serif', color: SUB } }, 'margen ' + (c.up ? '▲' : '▼'))
+            ),
+            React.createElement('div', null,
+              React.createElement('div', { style: { font: '800 16px Manrope,sans-serif', color: INK } }, c.pacientes),
+              React.createElement('div', { style: { font: '400 10.5px Inter,sans-serif', color: SUB } }, 'pacientes')
+            )
+          )
+        ))
+      )
+    ));
+  }
+
+  renderPartner() {
+    const s = this.state;
+    const setView = (v) => this.setState({ partnerView: v });
+    const backHeader = (title) => React.createElement('div', { style: { padding: '18px 22px 0', display: 'flex', alignItems: 'center', gap: 12 } },
+      React.createElement('div', { onClick: () => setView('inicio'), style: { cursor: 'pointer', fontSize: 18, color: SUB } }, '←'),
+      React.createElement('div', { style: { font: '800 17px Manrope,sans-serif', color: INK } }, title)
+    );
+    const listBody = (children) => React.createElement('div', { style: { flex: 1, overflowY: 'auto', padding: '14px 20px 30px', display: 'flex', flexDirection: 'column', gap: 10 }, className: 'scrollhide' }, children);
+    const rowCard = (icon, title, sub, right, key) => React.createElement('div', {
+      key, style: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px' }
+    },
+      React.createElement('div', { style: { width: 40, height: 40, borderRadius: 10, background: '#F2F6F5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 } }, icon),
+      React.createElement('div', { style: { flex: 1 } },
+        React.createElement('div', { style: { font: '700 14px Inter,sans-serif', color: INK } }, title),
+        sub ? React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB, marginTop: 2 } }, sub) : null),
+      right || null
+    );
+
+    if (s.partnerView === 'convenios') {
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('Convenios y coberturas'),
+        listBody([
+          rowCard('🩺', 'Consulta general', 'Copago $150 · cobertura 70%', null, 'c1'),
+          rowCard('🦷', 'Odontología', 'Copago $250 · cobertura 50%', null, 'c2'),
+          rowCard('🧪', 'Laboratorio', 'Cobertura 80%', null, 'c3'),
+          rowCard('📱', 'Telemedicina', 'Sin copago', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: TEAL, background: TEAL_SOFT, padding: '5px 10px', borderRadius: 20 } }, 'Activo'), 'c4'),
+        ])
+      ));
+    }
+    if (s.partnerView === 'autorizaciones') {
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('Autorizaciones'),
+        listBody([
+          rowCard('⏳', 'Resonancia magnética', 'Camila R. · solicitada hoy', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: '#B98900', background: '#FBF3E4', padding: '5px 10px', borderRadius: 20 } }, 'Pendiente'), 'a1'),
+          rowCard('✅', 'Cirugía menor', 'J. Pérez · autorizada', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: TEAL, background: TEAL_SOFT, padding: '5px 10px', borderRadius: 20 } }, 'Aprobada'), 'a2'),
+          rowCard('❌', 'Tratamiento estético', 'No cubierto', React.createElement('span', { style: { font: '700 11px Manrope,sans-serif', color: '#C86B5E', background: '#F9E5E1', padding: '5px 10px', borderRadius: 20 } }, 'Rechazada'), 'a3'),
+        ])
+      ));
+    }
+    if (s.partnerView === 'liquidaciones') {
+      return ScreenShell(React.createElement('div', { style: { height: '100%', display: 'flex', flexDirection: 'column' } },
+        backHeader('Liquidaciones'),
+        listBody([
+          React.createElement('div', { key: 'l0', style: { padding: 16, borderRadius: 16, background: `linear-gradient(135deg, ${TEAL}, ${TEAL_DARK})`, color: '#fff' } },
+            React.createElement('div', { style: { font: '600 11px Manrope,sans-serif', opacity: .85, textTransform: 'uppercase' } }, 'Por liquidar este mes'),
+            React.createElement('div', { style: { font: '800 26px Manrope,sans-serif', marginTop: 6 } }, '$21,750')),
+          rowCard('🏥', 'Clínica Roma Norte', '186 atenciones', React.createElement('span', { style: { font: '700 13px Manrope,sans-serif', color: INK } }, '$9,400'), 'l1'),
+          rowCard('🏥', 'Clínica Condesa', '142 atenciones', React.createElement('span', { style: { font: '700 13px Manrope,sans-serif', color: INK } }, '$7,800'), 'l2'),
+          rowCard('🏥', 'Sucursal Polanco', '98 atenciones', React.createElement('span', { style: { font: '700 13px Manrope,sans-serif', color: INK } }, '$4,550'), 'l3'),
+        ])
+      ));
+    }
+
+    const items = [
+      { id: 'convenios', icon: '📄', t: 'Convenios y coberturas', d: 'Aranceles, copagos y % de cobertura' },
+      { id: 'autorizaciones', icon: '✅', t: 'Autorizaciones', d: 'Solicitudes pendientes y resueltas' },
+      { id: 'liquidaciones', icon: '💰', t: 'Liquidaciones', d: 'Atenciones facturadas por clínica' },
+      { id: 'red', icon: '🌐', t: 'Red de prestadores', d: '3 clínicas · 9 profesionales' },
+    ];
+    return ScreenShell(React.createElement('div', { style: { height: '100%', overflowY: 'auto', paddingBottom: 30 }, className: 'scrollhide' },
+      React.createElement('div', { style: { padding: '20px 22px 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        React.createElement('div', null,
+          React.createElement('div', { style: { font: '400 13px Inter,sans-serif', color: SUB } }, 'Aseguradora / Prestador'),
+          React.createElement('div', { style: { font: '800 21px Manrope,sans-serif', color: INK } }, 'Seguros del Valle')
+        ),
+        React.createElement('div', { style: { width: 42, height: 42, borderRadius: '50%', background: '#EAF1FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 } }, '🛡️')
+      ),
+      React.createElement('div', { style: { margin: '14px 20px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+        [['Afiliados', '840'], ['Atenciones mes', '426'], ['Por liquidar', '$21,750'], ['Aut. pendientes', '7']].map((k, i) =>
+          React.createElement('div', { key: i, style: { background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px' } },
+            React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB } }, k[0]),
+            React.createElement('div', { style: { font: '800 20px Manrope,sans-serif', color: INK, marginTop: 4 } }, k[1])
+          ))
+      ),
+      React.createElement('div', { style: { padding: '20px 20px 0', font: '700 13px Manrope,sans-serif', color: INK } }, 'Gestión'),
+      React.createElement('div', { style: { padding: '10px 20px 0', display: 'flex', flexDirection: 'column', gap: 10 } },
+        items.map(it => React.createElement('div', {
+          key: it.id, onClick: () => it.id !== 'red' && setView(it.id),
+          style: { display: 'flex', alignItems: 'center', gap: 14, background: '#fff', border: '1px solid #ECF1EF', borderRadius: 16, padding: '14px 16px', cursor: 'pointer' }
+        },
+          React.createElement('div', { style: { width: 44, height: 44, borderRadius: 12, background: '#EAF1FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 } }, it.icon),
+          React.createElement('div', { style: { flex: 1 } },
+            React.createElement('div', { style: { font: '700 14.5px Inter,sans-serif', color: INK } }, it.t),
+            React.createElement('div', { style: { font: '400 12px Inter,sans-serif', color: SUB, marginTop: 2 } }, it.d)
+          ),
+          React.createElement('div', { style: { color: '#C6D2CE', fontSize: 18 } }, '›')
+        ))
+      )
+    ));
+  }
+
+  renderVals() {
+    const s = this.state;
+    let body;
+    if (s.tab === 'home') body = this.renderHome();
+    else if (s.tab === 'agenda') body = this.renderAgenda();
+    else if (s.tab === 'salud') body = this.renderSalud();
+    else if (s.tab === 'farmacia') body = this.renderFarmacia();
+    else body = this.renderPerfil();
+
+    const appScreen = React.createElement('div', { style: { position: 'relative', width: '100%', height: '100%' } },
+      body,
+      React.createElement(TabBar, { active: s.tab, onChange: this.setTab })
+    );
+
+    return {
+      registroScreen: this.renderRegistro(),
+      onboardingScreen: this.renderOnboarding(),
+      appScreen,
+      whatsappScreen: this.renderWhatsapp(),
+      empresaScreen: this.renderPortalHome('empresa'),
+      adminScreen: this.renderPortalHome('admin'),
+      crmScreen: this.renderCRM(),
+      partnerScreen: this.renderPartner(),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

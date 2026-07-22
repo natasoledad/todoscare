@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  body{margin:0;background:#4a5551}
+  h1,h2,h3{font-family:'Manrope',sans-serif;color:#0F2A24;text-wrap:balance}
+  h1{font-size:30px;line-height:1.15;font-weight:800;margin:0 0 6px}
+  h2{font-size:19px;font-weight:800;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid #0E7C6B}
+  h3{font-size:14.5px;font-weight:700;margin:20px 0 8px;color:#0A5D50}
+  p,li,td,th{font-family:'Inter',sans-serif;color:#233B35;font-size:12.5px;line-height:1.6}
+  p{margin:0 0 10px;text-wrap:pretty}
+  ul{margin:0 0 10px;padding-left:18px}
+  li{margin:0 0 5px}
+  strong{color:#0F2A24;font-weight:700}
+  table{width:100%;border-collapse:collapse;margin:6px 0 14px}
+  th{background:#E4F2EF;color:#0A5D50;font-weight:700;font-size:11px;text-align:left;padding:8px 10px;border:1px solid #CFE4DE}
+  td{padding:8px 10px;border:1px solid #E1E9E6;vertical-align:top}
+  tr:nth-child(even) td{background:#F7FAF9}
+  .kicker{margin-top:24px;font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#0E7C6B;margin-bottom:8px}
+  .lead{font-size:13.5px;color:#42564F;margin-bottom:4px}
+  .meta{font-size:11px;color:#7A8A85;font-family:'Manrope',sans-serif;margin-top:2px}
+  .callout{background:#F1F7F5;border-left:3px solid #0E7C6B;border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0;break-inside:avoid}
+  .callout .t{font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;color:#0A5D50;margin-bottom:4px}
+  .flow-step{break-inside:avoid;margin:0 0 8px;padding:10px 14px;background:#fff;border:1px solid #E1E9E6;border-radius:10px;display:flex;gap:12px;align-items:flex-start}
+  .flow-num{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:#0E7C6B;color:#fff;font-family:'Manrope',sans-serif;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .flow-step .b{font-size:12px}
+  a{color:#0E7C6B}
+  a:hover{color:#0A5D50}
+</style>
+<script src="./doc-page.js"></script>
+</helmet>
+
+<doc-page margin="0.7in">
+  <div slot="header" style="display:flex;justify-content:space-between;align-items:center;font-family:'Manrope',sans-serif;font-size:10px;color:#7A8A85;padding-bottom:6px">
+    <span style="font-weight:800;color:#0E7C6B">TODOSCARE</span>
+    <span>Especificación funcional · CRM / Gestión de clínicas</span>
+  </div>
+  <div slot="footer" style="text-align:center;font-family:'Manrope',sans-serif;font-size:10px;color:#9AA8A3;padding-top:6px">
+    Documento de referencia para desarrollo · Confidencial
+  </div>
+
+  <div class="kicker">Especificación funcional</div>
+  <h1>CRM · Gestión de clínicas — TODOSCARE</h1>
+  <p class="lead">Módulo de gestión y control financiero multi-clínica: indicadores por clínica, consolidado, fórmulas de cada KPI y conectores del CRM con el resto de la plataforma.</p>
+  <p class="meta">Versión 0.1 · borrador para revisión · complementa el prototipo interactivo TODOSCARE</p>
+
+  <h2>1. Resumen del módulo</h2>
+  <p>El CRM es la capa de <strong>gestión de negocio</strong> sobre el modelo multi-tenant. Consolida la operación y las finanzas de todas las clínicas y sucursales, y permite el drill-down a una clínica para ver sus indicadores en detalle. No es un rol de usuario por sí mismo: lo consumen el Administrador (consolidado global) y cada Empresa/Cliente (acotado a su clínica).</p>
+  <div class="callout">
+    <div class="t">Fuente única de verdad</div>
+    Todos los indicadores se derivan del <strong>ledger inmutable</strong> y de la agenda; el CRM no almacena cifras propias, las calcula. Así el consolidado del Admin y el KPI de la clínica nunca divergen.
+  </div>
+
+  <h2>2. Alcance por consumidor</h2>
+  <table>
+    <thead><tr><th>Consumidor</th><th>Ve</th><th>Nivel</th></tr></thead>
+    <tbody>
+      <tr><td>Administrador (plataforma)</td><td>Todas las clínicas + consolidado</td><td>Global</td></tr>
+      <tr><td>Empresa / Clínica</td><td>Solo su clínica y sucursales</td><td>Tenant</td></tr>
+      <tr><td>Médico</td><td>Solo su liquidación/split</td><td>Individual</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Indicadores y fórmulas</h2>
+  <table>
+    <thead><tr><th>Indicador</th><th>Fórmula</th><th>Fuente</th></tr></thead>
+    <tbody>
+      <tr><td>Ingresos</td><td>Σ pagos confirmados del período</td><td>Ledger</td></tr>
+      <tr><td>Margen</td><td>(Ingresos − costos directos) / Ingresos</td><td>Ledger + centros de costo</td></tr>
+      <tr><td>Ticket promedio</td><td>Ingresos / N.º atenciones</td><td>Ledger + agenda</td></tr>
+      <tr><td>Cuentas por cobrar</td><td>Σ facturado − Σ cobrado</td><td>Ledger + aseguradoras</td></tr>
+      <tr><td>Ocupación de agenda</td><td>Slots reservados / slots disponibles</td><td>Agenda</td></tr>
+      <tr><td>Ingresos por servicio</td><td>Σ pagos agrupados por servicio</td><td>Ledger + catálogo</td></tr>
+      <tr><td>Por liquidar a prestadores</td><td>Σ split pendiente del período</td><td>Motor de split</td></tr>
+      <tr><td>Var. vs. mes anterior</td><td>(Actual − anterior) / anterior</td><td>Ledger histórico</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <div class="t">A definir con el equipo financiero</div>
+    Qué costos entran en "costos directos", período por defecto (mes calendario vs. móvil), y tratamiento de reembolsos/anulaciones en cada fórmula.
+  </div>
+
+  <h2>4. Pantallas del módulo</h2>
+  <table>
+    <thead><tr><th>Pantalla</th><th>Contenido</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <tr><td>Panel consolidado</td><td>Ingresos totales, N.º clínicas, pacientes, variación</td><td>Filtrar período, drill-down</td></tr>
+      <tr><td>Lista por clínica</td><td>Ingresos, margen ▲/▼, pacientes por clínica</td><td>Abrir detalle</td></tr>
+      <tr><td>Detalle de clínica</td><td>KPIs, ocupación, ingresos por servicio</td><td>Exportar</td></tr>
+      <tr><td>Liquidaciones</td><td>Montos por liquidar por clínica/profesional</td><td>Conciliar, marcar pagado</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. Flujos detallados</h2>
+
+  <h3>5.1 Drill-down consolidado → clínica</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Panel consolidado muestra el total y la variación del período.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">Al tocar una clínica se cargan sus KPIs calculados desde el ledger y la agenda.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">Desde el detalle se puede exportar o ir a liquidaciones.</div></div>
+
+  <h3>5.2 Conciliación de liquidaciones</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">El motor de split calcula lo adeudado a cada prestador por atenciones del período.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">Se concilia contra pagos recibidos (incl. aseguradoras) y cuentas por cobrar.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">Se marca "pagado"; el ledger registra el asiento inmutable.</div></div>
+
+  <h2>6. Conectores del CRM</h2>
+  <p>El CRM no vive aislado; se alimenta y comunica con los módulos internos y sistemas externos:</p>
+  <table>
+    <thead><tr><th>Conector</th><th>Dirección</th><th>Dato que fluye</th><th>Tipo</th></tr></thead>
+    <tbody>
+      <tr><td>Ledger financiero</td><td>Entrada</td><td>Pagos, asientos, split</td><td>Interno</td></tr>
+      <tr><td>Agenda</td><td>Entrada</td><td>Citas, slots, ocupación</td><td>Interno</td></tr>
+      <tr><td>Catálogo</td><td>Entrada</td><td>Servicios y precios</td><td>Interno</td></tr>
+      <tr><td>Pasarela de pago</td><td>Bidireccional</td><td>Confirmaciones, reparto</td><td>API + webhook</td></tr>
+      <tr><td>Aseguradoras</td><td>Entrada</td><td>Liquidaciones, coberturas</td><td>API / EDI</td></tr>
+      <tr><td>Contabilidad / ERP</td><td>Salida</td><td>Exportación de asientos</td><td>API / archivo</td></tr>
+      <tr><td>Notificaciones</td><td>Salida</td><td>Alertas de metas/desvíos</td><td>Push / correo</td></tr>
+    </tbody>
+  </table>
+
+  <h2>7. Permisos</h2>
+  <table>
+    <thead><tr><th>Acción</th><th>Admin</th><th>Empresa/Clínica</th><th>Médico</th></tr></thead>
+    <tbody>
+      <tr><td>Ver consolidado global</td><td>Sí</td><td>No</td><td>No</td></tr>
+      <tr><td>Ver KPIs de su clínica</td><td>Sí</td><td>Sí</td><td>No</td></tr>
+      <tr><td>Ver su liquidación</td><td>Sí</td><td>Sí</td><td>Sí (propia)</td></tr>
+      <tr><td>Conciliar / marcar pagado</td><td>Sí</td><td>Según config.</td><td>No</td></tr>
+      <tr><td>Exportar a ERP</td><td>Sí</td><td>No</td><td>No</td></tr>
+    </tbody>
+  </table>
+
+  <h2>8. Estados de UI</h2>
+  <ul>
+    <li><strong>Vacío:</strong> "Sin datos en el período" con selector de rango.</li>
+    <li><strong>Cargando:</strong> skeletons en KPIs y tablas; los cálculos pueden ser asíncronos.</li>
+    <li><strong>Error:</strong> desfase de conciliación resaltado, nunca oculto.</li>
+    <li><strong>Alertas:</strong> desvío de margen o CxC sobre umbral → destacar.</li>
+  </ul>
+
+  <h2>9. Cumplimiento</h2>
+  <p>Cifras derivadas del ledger inmutable; toda conciliación deja asiento auditado. Aislamiento por clinic_id garantiza que una clínica nunca vea datos financieros de otra. Exportaciones conforme a requisitos contables/fiscales por país (Chile, Brasil, Colombia, México).</p>
+
+  <h2>10. Preguntas abiertas / a definir</h2>
+  <ul>
+    <li>Definición exacta de "costos directos" y centros de costo por clínica.</li>
+    <li>Período por defecto y comparativos (mes calendario vs. móvil, YTD).</li>
+    <li>¿Qué ERP/contabilidad se integra y en qué formato?</li>
+    <li>Umbrales de alerta (margen mínimo, CxC máximo) y a quién notifican.</li>
+    <li>¿La clínica puede conciliar sus propias liquidaciones o solo el Admin?</li>
+    <li>Reglas de split por defecto vs. por convenio con aseguradora.</li>
+  </ul>
+</doc-page>
+
+</x-dc>
+</body>
+</html>

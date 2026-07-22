@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  body{margin:0;background:#4a5551}
+  h1,h2,h3{font-family:'Manrope',sans-serif;color:#0F2A24;text-wrap:balance}
+  h1{font-size:30px;line-height:1.15;font-weight:800;margin:0 0 6px}
+  h2{font-size:19px;font-weight:800;margin:34px 0 12px;padding-bottom:8px;border-bottom:2px solid #0E7C6B}
+  h3{font-size:14.5px;font-weight:700;margin:20px 0 8px;color:#0A5D50}
+  p,li,td,th{font-family:'Inter',sans-serif;color:#233B35;font-size:12.5px;line-height:1.6}
+  p{margin:0 0 10px;text-wrap:pretty}
+  ul{margin:0 0 10px;padding-left:18px}
+  li{margin:0 0 5px}
+  strong{color:#0F2A24;font-weight:700}
+  table{width:100%;border-collapse:collapse;margin:6px 0 14px}
+  th{background:#E4F2EF;color:#0A5D50;font-weight:700;font-size:11px;text-align:left;padding:8px 10px;border:1px solid #CFE4DE}
+  td{padding:8px 10px;border:1px solid #E1E9E6;vertical-align:top}
+  tr:nth-child(even) td{background:#F7FAF9}
+  .kicker{margin-top:24px;font-family:'Manrope',sans-serif;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#0E7C6B;margin-bottom:8px}
+  .lead{font-size:13.5px;color:#42564F;margin-bottom:4px}
+  .meta{font-size:11px;color:#7A8A85;font-family:'Manrope',sans-serif;margin-top:2px}
+  .callout{background:#F1F7F5;border-left:3px solid #0E7C6B;border-radius:0 8px 8px 0;padding:12px 16px;margin:12px 0;break-inside:avoid}
+  .callout .t{font-family:'Manrope',sans-serif;font-weight:700;font-size:12px;color:#0A5D50;margin-bottom:4px}
+  .flow-step{break-inside:avoid;margin:0 0 8px;padding:10px 14px;background:#fff;border:1px solid #E1E9E6;border-radius:10px;display:flex;gap:12px;align-items:flex-start}
+  .flow-num{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:#0E7C6B;color:#fff;font-family:'Manrope',sans-serif;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .flow-step .b{font-size:12px}
+  a{color:#0E7C6B}
+  a:hover{color:#0A5D50}
+</style>
+<script src="./doc-page.js"></script>
+</helmet>
+
+<doc-page margin="0.7in">
+  <div slot="header" style="display:flex;justify-content:space-between;align-items:center;font-family:'Manrope',sans-serif;font-size:10px;color:#7A8A85;padding-bottom:6px">
+    <span style="font-weight:800;color:#0E7C6B">TODOSCARE</span>
+    <span>Especificación funcional · Rol Administrador</span>
+  </div>
+  <div slot="footer" style="text-align:center;font-family:'Manrope',sans-serif;font-size:10px;color:#9AA8A3;padding-top:6px">
+    Documento de referencia para desarrollo · Confidencial
+  </div>
+
+  <div class="kicker">Especificación funcional</div>
+  <h1>Rol Administrador — TODOSCARE</h1>
+  <p class="lead">Detalle de datos, permisos, pantallas, flujos e integraciones del usuario Administrador: acceso total, configuración global y control multi-tenant de la plataforma.</p>
+  <p class="meta">Versión 0.1 · borrador para revisión · complementa el prototipo interactivo TODOSCARE</p>
+
+  <h2>1. Resumen del rol</h2>
+  <p>El Administrador tiene <strong>acceso total</strong> a la plataforma. Gestiona el modelo multi-tenant (clínicas y sucursales), usuarios y roles, configuración global (planes, T&amp;C, integraciones) y supervisión financiera consolidada. Es el único rol que cruza los límites de un tenant individual.</p>
+  <div class="callout">
+    <div class="t">Alcance multi-tenant</div>
+    Toda acción se valida contra <strong>clinic_id</strong>; el Administrador global puede operar sobre todos los tenants, mientras que un administrador de clínica queda acotado a su(s) sucursal(es). Definir ambos sub-niveles.
+  </div>
+
+  <h2>2. Sub-roles de administración</h2>
+  <table>
+    <thead><tr><th>Sub-rol</th><th>Alcance</th><th>Ejemplos de acción</th></tr></thead>
+    <tbody>
+      <tr><td>Super-Admin (plataforma)</td><td>Todos los tenants</td><td>Crear clínicas, planes, T&amp;C, integraciones globales</td></tr>
+      <tr><td>Admin de clínica</td><td>Una clínica / sus sucursales</td><td>Usuarios de su clínica, agendas, catálogo</td></tr>
+      <tr><td>Admin de sucursal</td><td>Una sucursal</td><td>Agenda y operación local</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Recursos que gestiona</h2>
+  <table>
+    <thead><tr><th>Recurso</th><th>Detalle</th></tr></thead>
+    <tbody>
+      <tr><td>Clínicas y sucursales</td><td>Alta/baja, datos, ubicaciones, responsabilidad sanitaria</td></tr>
+      <tr><td>Usuarios y roles</td><td>Pacientes, médicos, empresas, aseguradoras; asignación de roles (RBAC)</td></tr>
+      <tr><td>Configuración global</td><td>Planes/precios, T&amp;C por país, integraciones (WhatsApp/IA, lab, farmacia, pago)</td></tr>
+      <tr><td>Finanzas</td><td>Ledger inmutable, split de pagos, convenios/aranceles, reportes consolidados</td></tr>
+      <tr><td>Catálogo</td><td>Productos, servicios, especialidades, promociones a nivel plataforma</td></tr>
+      <tr><td>Auditoría</td><td>Registro de accesos, cambios y consultas de QR de emergencia</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. Permisos (matriz RBAC)</h2>
+  <table>
+    <thead><tr><th>Recurso</th><th>Ver</th><th>Crear</th><th>Editar</th><th>Eliminar</th></tr></thead>
+    <tbody>
+      <tr><td>Clínicas / sucursales</td><td>Sí</td><td>Sí</td><td>Sí</td><td>Baja lógica</td></tr>
+      <tr><td>Usuarios y roles</td><td>Sí</td><td>Sí</td><td>Sí</td><td>Baja lógica</td></tr>
+      <tr><td>Planes y precios</td><td>Sí</td><td>Sí</td><td>Sí</td><td>Sí</td></tr>
+      <tr><td>T&amp;C por país</td><td>Sí</td><td>Sí (versión)</td><td>Sí (nueva versión)</td><td>No (histórico)</td></tr>
+      <tr><td>Ledger financiero</td><td>Sí</td><td>Automático</td><td>No (inmutable)</td><td>No</td></tr>
+      <tr><td>Ficha clínica de pacientes</td><td>Solo metadatos / auditoría</td><td>No</td><td>No</td><td>No</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    <div class="t">Límite de privacidad</div>
+    Ni el Super-Admin ve el contenido clínico de un paciente; solo metadatos operativos y auditoría. El acceso al dato médico está reservado al profesional tratante.
+  </div>
+
+  <h2>5. Pantallas del rol</h2>
+  <table>
+    <thead><tr><th>Pantalla</th><th>Contenido</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <tr><td>Inicio / KPIs</td><td>Pacientes, citas hoy, ingresos consolidados</td><td>Navegar a módulos</td></tr>
+      <tr><td>Clínicas y sucursales</td><td>Listado por ciudad</td><td>Alta/baja, editar</td></tr>
+      <tr><td>Usuarios y roles</td><td>Pacientes, profesionales, empresas B2B</td><td>Asignar roles y permisos</td></tr>
+      <tr><td>Configuración global</td><td>Planes, T&amp;C, integraciones</td><td>Crear/versionar/activar</td></tr>
+      <tr><td>Finanzas y reportes</td><td>Ledger, split de pagos</td><td>Exportar, conciliar</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. Flujos detallados</h2>
+
+  <h3>6.1 Alta de una clínica (nuevo tenant)</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b"><strong>Datos de la clínica</strong> — razón social, responsable sanitario, ubicaciones.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b"><strong>Sucursales y agendas</strong> — crear sucursales y horarios base.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b"><strong>Usuarios iniciales</strong> — admin de clínica + profesionales, con sus roles.</div></div>
+  <div class="flow-step"><div class="flow-num">4</div><div class="b"><strong>Catálogo y plan</strong> — servicios, precios y plan contratado.</div></div>
+  <div class="flow-step"><div class="flow-num">5</div><div class="b"><strong>Activación</strong> — el tenant queda aislado por clinic_id y operativo.</div></div>
+
+  <h3>6.2 Publicar nueva versión de T&amp;C</h3>
+  <div class="flow-step"><div class="flow-num">1</div><div class="b">Editar el documento por país y crear una nueva versión.</div></div>
+  <div class="flow-step"><div class="flow-num">2</div><div class="b">Al publicar, todos los pacientes deben re-aceptar (bloqueante) en su próximo ingreso.</div></div>
+  <div class="flow-step"><div class="flow-num">3</div><div class="b">Se conserva el histórico de versiones y aceptaciones para auditoría.</div></div>
+
+  <h3>6.3 Gestión de planes (usuarios finales, empresas, sistema público)</h3>
+  <p>Configurar planes mensuales para: usuarios finales; empresas (funcionarios); y sistema público en 3 esferas — <strong>Federal, Estatal y Municipal</strong> — activables juntas o por separado. Cada plan define servicios incluidos, precios y reglas de facturación.</p>
+
+  <h2>7. Estados de UI</h2>
+  <ul>
+    <li><strong>Vacío:</strong> "Sin clínicas registradas" + CTA de alta.</li>
+    <li><strong>Cargando:</strong> skeletons en tablas y KPIs.</li>
+    <li><strong>Error:</strong> conflicto de integridad (ej. RUT duplicado) con mensaje claro.</li>
+    <li><strong>Confirmación destructiva:</strong> baja lógica siempre con doble confirmación.</li>
+  </ul>
+
+  <h2>8. Integraciones que administra</h2>
+  <table>
+    <thead><tr><th>Integración</th><th>Qué configura el Admin</th><th>Tipo</th></tr></thead>
+    <tbody>
+      <tr><td>WhatsApp / Bot IA</td><td>Credenciales, plantillas, flujos guiados</td><td>API + webhook</td></tr>
+      <tr><td>Laboratorio</td><td>Conexión de órdenes/resultados por clínica</td><td>API / archivo</td></tr>
+      <tr><td>Farmacia</td><td>Catálogo, stock, reglas de pedido</td><td>API</td></tr>
+      <tr><td>Pasarela de pago + split</td><td>Cuentas, comisiones, reglas de reparto</td><td>API</td></tr>
+      <tr><td>Aseguradoras</td><td>Convenios, aranceles, autorizaciones</td><td>API / EDI</td></tr>
+    </tbody>
+  </table>
+
+  <h2>9. Indicadores financieros (consolidado)</h2>
+  <p>El Administrador ve el consolidado que alimenta el CRM: ingresos por clínica y servicio, margen, cuentas por cobrar, ticket promedio, ocupación de agenda y montos por liquidar a prestadores. Definir la fórmula y la fuente de cada indicador (ver spec del CRM).</p>
+
+  <h2>10. Cumplimiento y auditoría</h2>
+  <p>Registro inmutable (ledger) de operaciones financieras; bitácora de accesos y cambios de configuración; versionado de T&amp;C por país (Chile, Brasil, Colombia, México); trazabilidad de consultas al QR de emergencia. El Admin no puede alterar registros de auditoría.</p>
+
+  <h2>11. Preguntas abiertas / a definir</h2>
+  <ul>
+    <li>¿Cuántos sub-niveles de admin exactamente y qué separa a "admin de clínica" de "admin de sucursal"?</li>
+    <li>¿Reglas de split de pagos por defecto vs. por convenio?</li>
+    <li>¿Quién aprueba la baja de una clínica (proceso y retención de datos)?</li>
+    <li>¿El Admin puede impersonar a un usuario para soporte? ¿Con qué auditoría?</li>
+    <li>¿Periodicidad y formato de los reportes financieros exportables?</li>
+  </ul>
+</doc-page>
+
+</x-dc>
+</body>
+</html>
