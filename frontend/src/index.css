@@ -1,0 +1,78 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-heading: "Manrope", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  --color-teal: #0e7c6b;
+  --color-teal-dark: #0a5d50;
+  --color-teal-soft: #e4f2ef;
+  --color-bg: #f4f7f6;
+  --color-ink: #0f2a24;
+  --color-sub: #5c6f6a;
+  --color-border: #ecf1ef;
+  --color-border-strong: #e7edeb;
+  --color-danger: #c86b5e;
+  --color-warn: #b98900;
+  --color-warn-bg: #fbf3e4;
+  --color-warn-border: #eedfb8;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    font-family: var(--font-body);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .scrollhide {
+    scrollbar-width: none;
+  }
+
+  .scrollhide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.35s ease;
+}
+
+.animate-pop-in {
+  animation: popIn 0.3s ease;
+}

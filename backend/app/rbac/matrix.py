@@ -62,6 +62,7 @@ ROLE_PERMISSIONS: dict[RoleCode, dict[Resource, set[Action]]] = {
         Resource.OWN_APPOINTMENTS: {V, C, E, D},  # E = reagenda, D = cancela
         Resource.DEPENDIENTES: {V, C, E, D},  # C = vincular, D = desvincular
         Resource.WALLET: {V, E},  # E = usar saldo; nunca C/D directo
+        Resource.CATALOGO_PRECIOS: {V},  # solo lectura — ve precios/config de su clínica, no los administra
     },
     RoleCode.ASEGURADORA: {
         # Spec Aseguradora Prestador §3

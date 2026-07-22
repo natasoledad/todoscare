@@ -27,6 +27,13 @@ class Appointment(Base, AuditMixin, TenantMixin):
     (Kaizen note from the original backend doc: "o banco de dados impede
     double-booking... antes que a API precise processar erros complexos").
 
+    The predicate excludes both soft-deleted AND cancelled rows: a
+    cancelled appointment must actually free the professional's slot, or
+    nobody (including the same patient) could ever rebook it — cancelling
+    only sets `estado`, it doesn't soft-delete the row (history stays
+    visible in "mis citas"), so the constraint has to know about `estado`
+    too, not just `deleted_at`.
+
     Requires the btree_gist extension (uuid equality inside a GiST index).
     """
 
@@ -35,7 +42,7 @@ class Appointment(Base, AuditMixin, TenantMixin):
         ExcludeConstraint(
             ("professional_id", "="),
             ("slot", "&&"),
-            where=text("deleted_at IS NULL"),
+            where=text("deleted_at IS NULL AND estado <> 'cancelada'"),
             using="gist",
             name="appointments_no_overlap",
         ),

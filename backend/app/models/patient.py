@@ -1,8 +1,8 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import AuditMixin, Base, TenantMixin
@@ -13,7 +13,20 @@ NIVELES = ("Bronce", "Plata", "Oro", "Diamante")
 class Patient(Base, AuditMixin, TenantMixin):
     """The clinic where the patient registered. Spec Paciente §2.1: only 5
     fields are mandatory at signup; everything else is the optional,
-    gamified ficha clínica (§2.2), modeled across patient/clinical/wallet."""
+    gamified ficha clínica (§2.2).
+
+    puntos/cashback are NOT stored here — WalletAccount (app/models/wallet.py)
+    is the single source of truth for those, kept as an append-only ledger.
+    `nivel` is a denormalized cache recomputed from wallet points on every
+    mutation (see app/services/gamification.py), cheap to read on every screen.
+
+    `ficha` holds the optional, gamified clinical intake in one flexible
+    JSONB blob (onboarding answers + later additions: fecha_nacimiento, sexo,
+    contacto_emergencia, grupo_sanguineo, alergias, medicacion_actual,
+    antecedentes, seguro) — mirrors the "prontuario híbrido JSONB" approach
+    used for medical_records rather than over-normalizing fields the spec
+    itself treats as free-form and incrementally completed.
+    """
 
     __tablename__ = "patients"
 
@@ -21,8 +34,9 @@ class Patient(Base, AuditMixin, TenantMixin):
     rut: Mapped[str] = mapped_column(String(50), nullable=False)
     direccion: Mapped[str] = mapped_column(String(500), nullable=False)
     nivel: Mapped[str] = mapped_column(String(20), nullable=False, server_default="Bronce")
-    puntos: Mapped[int] = mapped_column(nullable=False, server_default="0")
-    cashback: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, server_default="0")
+    ficha: Mapped[dict | None] = mapped_column(JSONB)
+    ficha_completa_bonus_otorgado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    onboarding_completado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
 
 class Dependent(Base, AuditMixin, TenantMixin):
