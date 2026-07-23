@@ -37,12 +37,23 @@ vuelven horarios para el paciente), catálogo de servicios con precios
 promociones (crear/activar/pausar), información de la empresa, y
 funcionarios B2B (alta/baja de nómina). Todo acotado a su `clinic_id`.
 
-Auth del frontend es multi-rol (`/auth/me`): paciente → `/app`, médico →
-`/medico`, empresa → `/empresa`.
+✅ **Fase 5** — Rol Administrador completo (multi-tenant): KPIs de
+plataforma con alcance según el rol (super_admin ve todos los tenants;
+clinic_admin solo su clínica), alta de clínica (nuevo tenant: crea
+`Clinic` + primera `Branch` + usuario admin + `RoleAssignment`
+`clinic_admin` en un solo paso) y baja lógica con doble confirmación,
+gestión de usuarios y roles, planes y precios, T&C versionados por país
+(publicar una versión nueva obliga a re-aceptación de los pacientes de ese
+país — flag `tyc_pendiente`), finanzas con **ledger inmutable de solo
+lectura** (sin endpoint de edición/borrado) y auditoría que muestra
+**solo metadatos** (nunca contenido clínico). Todo respeta el aislamiento
+multi-tenant y la matriz Ver/Crear/Editar/Eliminar del rol.
 
-⏳ **Fases siguientes** — Administrador, CRM financiero,
-Aseguradora/Prestador, integraciones (WhatsApp/IA, laboratorio, farmacia,
-pagos, mapas, push).
+Auth del frontend es multi-rol (`/auth/me`): paciente → `/app`, médico →
+`/medico`, empresa → `/empresa`, administrador → `/admin`.
+
+⏳ **Fases siguientes** — CRM financiero, Aseguradora/Prestador,
+integraciones (WhatsApp/IA, laboratorio, farmacia, pagos, mapas, push).
 
 ## Stack
 
@@ -77,6 +88,7 @@ Pruebas de humo end-to-end contra la BD real (sin mocks):
 .venv/bin/python -m tests.test_paciente_smoke   # flujo completo Rol Paciente (Fase 2)
 .venv/bin/python -m tests.test_medico_smoke     # flujo completo Rol Médico (Fase 3)
 .venv/bin/python -m tests.test_empresa_smoke    # flujo completo Rol Empresa (Fase 4)
+.venv/bin/python -m tests.test_admin_smoke      # flujo completo Rol Administrador (Fase 5)
 ```
 
 Usuarios demo médicos (password `Demo1234!`): `medico.a@todoscare.dev`

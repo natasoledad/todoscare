@@ -112,6 +112,24 @@ async def get_own_patient(db: AsyncSession, ctx: TenantContext) -> Patient:
     return patient
 
 
+async def _tyc_pendiente(db: AsyncSession, patient: Patient) -> bool:
+    """True si el admin publicó una versión de T&C (del país de la clínica)
+    más nueva que la última que este paciente aceptó — re-aceptación
+    bloqueante (Spec Paciente §9 / Spec Admin §6.2)."""
+    clinic = await db.get(Clinic, patient.clinic_id)
+    latest = (
+        await db.execute(
+            select(TycVersion).where(TycVersion.pais == clinic.pais, TycVersion.deleted_at.is_(None)).order_by(TycVersion.publicado_en.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+    if latest is None:
+        return False
+    accepted = (
+        await db.execute(select(TycAcceptance.id).where(TycAcceptance.patient_id == patient.id, TycAcceptance.tyc_version_id == latest.id))
+    ).first()
+    return accepted is None
+
+
 async def _patient_out(db: AsyncSession, patient: Patient, user: User) -> PatientMeOut:
     wallet = (await db.execute(select(WalletAccount).where(WalletAccount.patient_id == patient.id))).scalar_one()
     dependents = (await db.execute(select(Dependent).where(Dependent.patient_id == patient.id, Dependent.deleted_at.is_(None)))).scalars().all()
@@ -124,6 +142,7 @@ async def _patient_out(db: AsyncSession, patient: Patient, user: User) -> Patien
         rut=patient.rut,
         nivel=patient.nivel,
         onboarding_completado=patient.onboarding_completado,
+        tyc_pendiente=await _tyc_pendiente(db, patient),
         wallet=WalletOut(puntos=wallet.puntos, cashback=float(wallet.cashback)),
         dependents=[DependentOut(id=d.id, nombre=d.nombre) for d in dependents],
         ficha=patient.ficha or {},

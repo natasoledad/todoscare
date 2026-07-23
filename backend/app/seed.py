@@ -15,7 +15,7 @@ from app.models.catalog import CatalogItem, Promotion, Specialty
 from app.models.clinical import ExamOrder, ExamResult, Hospitalization, MedicalRecord, Odontogram, Prescription
 from app.models.finance import Company, CompanyEmployee, LedgerEntry
 from app.models.identity import Role, RoleAssignment, User
-from app.models.patient import Patient, TycVersion
+from app.models.patient import Patient, TycAcceptance, TycVersion
 from app.models.scheduling import Appointment, AvailabilityBlock
 from app.models.tenant import Branch, Clinic
 from app.models.wallet import WalletAccount
@@ -236,6 +236,11 @@ async def main() -> None:
             )
             db.add(patient)
             await db.flush()
+            # Camila ya aceptó la versión vigente de T&C de su país (para que
+            # no arranque con tyc_pendiente=True). Si el admin publica una
+            # versión nueva, ahí sí quedará pendiente de re-aceptar.
+            tyc_mx = (await db.execute(select(TycVersion).where(TycVersion.pais == clinic_a.pais).order_by(TycVersion.publicado_en.desc()).limit(1))).scalar_one()
+            db.add(TycAcceptance(patient_id=patient.id, tyc_version_id=tyc_mx.id, aceptado_en=datetime.now(timezone.utc)))
             wallet = WalletAccount(clinic_id=clinic_a.id, patient_id=patient.id)
             db.add(wallet)
             await db.flush()

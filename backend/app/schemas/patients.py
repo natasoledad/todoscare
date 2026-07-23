@@ -65,6 +65,7 @@ class PatientMeOut(BaseModel):
     rut: str
     nivel: str
     onboarding_completado: bool
+    tyc_pendiente: bool  # el admin publicó una versión de T&C más nueva que la última que aceptó
     wallet: WalletOut
     dependents: list[DependentOut]
     ficha: dict

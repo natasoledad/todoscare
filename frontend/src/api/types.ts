@@ -155,6 +155,77 @@ export interface Funcionario {
   estado: string;
 }
 
+// ---- admin ----
+export interface AdminKpis {
+  alcance: 'plataforma' | 'clínica';
+  clinicas: number;
+  pacientes: number;
+  citas_hoy: number;
+  ingresos_mes: number;
+}
+
+export interface ClinicAdmin {
+  id: string;
+  razon_social: string;
+  responsable_sanitario: string | null;
+  pais: string;
+  activo: boolean;
+  sucursales: number;
+  pacientes: number;
+}
+
+export interface RoleAssignmentAdmin {
+  id: string;
+  role: string;
+  clinic_id: string | null;
+  branch_id: string | null;
+}
+
+export interface UsuarioAdmin {
+  id: string;
+  nombre: string;
+  email: string;
+  activo: boolean;
+  roles: RoleAssignmentAdmin[];
+}
+
+export interface PlanAdmin {
+  id: string;
+  tipo: string;
+  esfera: string | null;
+  nombre: string;
+  precio: number;
+}
+
+export interface TycAdmin {
+  id: string;
+  pais: string;
+  version: string;
+  publicado_en: string;
+}
+
+export interface FinanzasResumen {
+  ingresos_mes: number;
+  split_profesionales: number;
+  cashback_emitido: number;
+}
+
+export interface LedgerEntryAdmin {
+  fecha: string;
+  tipo: string;
+  monto: number;
+  moneda: string;
+  ref: string | null;
+}
+
+export interface AuditEntry {
+  fecha: string;
+  actor: string | null;
+  accion: string;
+  recurso: string;
+  clinic_id: string | null;
+}
+
 export interface TycVersion {
   id: string;
   pais: string;

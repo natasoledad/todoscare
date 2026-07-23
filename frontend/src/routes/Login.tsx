@@ -17,7 +17,8 @@ export function Login() {
     setError(null);
     try {
       const role = await login(correo, password);
-      navigate(role === 'medico' ? '/medico' : role === 'empresa' ? '/empresa' : '/app');
+      const homes: Record<string, string> = { medico: '/medico', empresa: '/empresa', admin: '/admin' };
+      navigate(homes[role] ?? '/app');
     } catch (e) {
       setError(e instanceof ApiError ? String(e.detail) : 'No se pudo iniciar sesión');
     } finally {
