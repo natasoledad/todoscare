@@ -21,6 +21,8 @@ _ADMIN_MATRIX: dict[Resource, set[Action]] = {
     Resource.TYC_PAIS: {V, C, E},  # C = nueva versión, E = nueva versión; no D (histórico)
     Resource.LEDGER_FINANCIERO: {V, C},  # C = automático (sistema, no manual); nunca E/D
     Resource.FICHA_CLINICA_METADATOS: {V},  # solo metadatos/auditoría — nunca contenido clínico
+    # Integraciones (Fase 8): el admin habilita/deshabilita conectores y ve su traza
+    Resource.INTEGRACIONES: {V, C, E, D},
     # CRM (Spec CRM §7 — fila Admin)
     Resource.CRM_CONSOLIDADO_GLOBAL: {V},
     Resource.CRM_KPIS_CLINICA: {V},

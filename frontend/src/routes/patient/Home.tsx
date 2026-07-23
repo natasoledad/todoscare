@@ -74,14 +74,18 @@ export function Home() {
       </div>
 
       <div className="px-5 pt-[22px] font-heading font-bold text-[13px] text-ink">Asistente TODOSCARE</div>
-      <div className="mx-5 mt-2.5 flex gap-3 items-start rounded-2xl border border-[#CDEEE1] bg-[#E9FBF4] p-4">
+      <div
+        onClick={() => navigate('/app/asistente')}
+        className="mx-5 mt-2.5 flex gap-3 items-center rounded-2xl border border-[#CDEEE1] bg-[#E9FBF4] p-4 cursor-pointer"
+      >
         <div className="text-[22px]">💬</div>
-        <div>
+        <div className="flex-1">
           <div className="text-[13.5px] font-bold text-ink">Pregunta por WhatsApp</div>
           <div className="mt-0.5 text-[12.5px] leading-relaxed text-sub">
-            "¿Cuándo está listo mi examen de sangre?" — el bot te responde al instante.
+            "¿Cuándo es mi próxima cita?" — el asistente te responde al instante.
           </div>
         </div>
+        <div className="text-[#C6D2CE] text-lg">›</div>
       </div>
 
       <div className="px-5 pt-[22px] font-heading font-bold text-[13px] text-ink">Promociones para ti</div>

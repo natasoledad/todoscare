@@ -80,8 +80,23 @@ Admin. Todo respeta el aislamiento por `clinic_id` y la matriz de permisos
 §7 (empresa ve KPIs de su clínica pero no el consolidado ni la
 conciliación por defecto).
 
-⏳ **Fase siguiente** — Integraciones (WhatsApp/IA, laboratorio, farmacia,
-pagos, mapas, push).
+✅ **Fase 8** — Integraciones: una capa de conectores externos
+(`app/integrations/`) con adaptadores **simulados y deterministas** que
+implementan la forma del contrato real sin credenciales ni red (el punto de
+enganche de cada proveedor queda documentado en el módulo). Cada conector se
+habilita/deshabilita por clínica vía `IntegrationConfig` (uno apagado rechaza
+sus eventos) y deja traza en `integration_events`. Conectores: **WhatsApp/IA**
+(el asistente del webview responde al paciente con datos reales — próxima
+cita, agenda, ficha), **pasarela de pago** (el webhook asienta ingreso + split
+en el ledger inmutable y sube los ingresos del CRM; idempotente),
+**laboratorio** (webhook de resultado → aparece en Mi Salud), **farmacia**
+(webhook de estado de dispensación), **mapas** (sucursales por cercanía,
+Haversine) y **web push** (suscripción + buzón de notificaciones). El
+Administrador ve y gobierna los conectores y su traza.
+
+Con la Fase 8 quedan cubiertos los ocho módulos del plan (Paciente, Médico,
+Empresa, Administrador, CRM, Aseguradora e Integraciones sobre el andamiaje
+multi-tenant).
 
 ## Stack
 
@@ -119,6 +134,7 @@ Pruebas de humo end-to-end contra la BD real (sin mocks):
 .venv/bin/python -m tests.test_admin_smoke      # flujo completo Rol Administrador (Fase 5)
 .venv/bin/python -m tests.test_crm_smoke        # CRM: consolidado, KPIs, conciliación (Fase 6)
 .venv/bin/python -m tests.test_aseguradora_smoke # Aseguradora: convenios, autorizaciones, liquidación (Fase 7)
+.venv/bin/python -m tests.test_integraciones_smoke # Integraciones: conectores externos simulados (Fase 8)
 ```
 
 Usuarios demo médicos (password `Demo1234!`): `medico.a@todoscare.dev`

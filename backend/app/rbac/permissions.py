@@ -65,3 +65,6 @@ class Resource(str, Enum):
     AUTORIZACIONES = "autorizaciones"
     LIQUIDACIONES_ASEGURADORA = "liquidaciones_aseguradora"
     FICHA_AFILIADO_AUTORIZADA = "ficha_afiliado_autorizada"  # solo lo autorizado y auditado
+
+    # --- Integraciones (Fase 8: conectores externos, gestionados por Admin) ---
+    INTEGRACIONES = "integraciones"

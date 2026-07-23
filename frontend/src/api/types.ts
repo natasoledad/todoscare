@@ -511,3 +511,38 @@ export interface FichaAfiliado {
   plan_cobertura: string | null;
   prestaciones_autorizadas: { servicio: string; diagnostico: string | null }[];
 }
+
+// ── Integraciones (Fase 8) ──
+export interface AsistenteRespuesta {
+  intent: string;
+  reply: string;
+}
+
+export interface ConectorEstado {
+  id: string;
+  tipo: string;
+  activo: boolean;
+}
+
+export interface IntegracionEvento {
+  tipo: string;
+  direccion: string;
+  estado: string;
+  ref: string | null;
+  resultado: Record<string, unknown> | null;
+  fecha: string;
+}
+
+export interface IntegracionesEstado {
+  conectores: ConectorEstado[];
+  eventos_recientes: IntegracionEvento[];
+}
+
+export interface SucursalCercana {
+  branch_id: string;
+  clinic_id: string;
+  nombre: string;
+  direccion: string | null;
+  geo: { lat: number; lng: number } | null;
+  distancia_km: number | null;
+}

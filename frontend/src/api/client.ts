@@ -7,6 +7,7 @@ import type {
   Afiliado,
   Arancel as ArancelAseg,
   AseguradoraKpis,
+  AsistenteRespuesta,
   Autorizacion,
   Cierre,
   ClinicAdmin,
@@ -25,8 +26,10 @@ import type {
   FichaAfiliado,
   FichaPaciente,
   FichaUpdateInput,
+  IntegracionesEstado,
   LiquidacionAseg,
   RedClinica,
+  SucursalCercana,
   FinanzasResumen,
   Funcionario,
   Hospitalizacion,
@@ -207,6 +210,7 @@ export const api = {
     finanzas: () => get<FinanzasResumen>('/admin/finanzas'),
     ledger: () => get<LedgerEntryAdmin[]>('/admin/finanzas/ledger'),
     auditoria: () => get<AuditEntry[]>('/admin/auditoria'),
+    toggleIntegracion: (id: string, activo: boolean) => patch<{ id: string; tipo: string; activo: boolean }>(`/admin/integraciones/${id}`, { activo }),
   },
   crm: {
     consolidado: (period?: string) => get<CrmConsolidado>(`/crm/consolidado${period ? `?period=${period}` : ''}`),
@@ -232,6 +236,11 @@ export const api = {
     pagarLiquidacion: (id: string) => post<{ settlement_id: string; estado: string; pagado_at: string | null }>(`/aseguradora/liquidaciones/${id}/pagar`),
     red: () => get<RedClinica[]>('/aseguradora/red'),
     ficha: (patientId: string) => get<FichaAfiliado>(`/aseguradora/afiliados/${patientId}/ficha`),
+  },
+  integraciones: {
+    estado: () => get<IntegracionesEstado>('/integraciones/estado'),
+    whatsapp: (texto: string) => post<AsistenteRespuesta>('/integraciones/whatsapp/mensaje', { texto }),
+    mapas: (lat: number, lng: number) => get<SucursalCercana[]>(`/integraciones/mapas/sucursales?lat=${lat}&lng=${lng}`),
   },
 };
 

@@ -15,6 +15,7 @@ from app.models.catalog import CatalogItem, Promotion, Specialty
 from app.models.clinical import ExamOrder, ExamResult, Hospitalization, MedicalRecord, Odontogram, Prescription
 from app.models.finance import Company, CompanyEmployee, LedgerEntry, PaymentSplit
 from app.models.insurance import Affiliate, Agreement, Arancel, Authorization, Insurer
+from app.models.integrations import IntegrationConfig
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient, TycAcceptance, TycVersion
 from app.models.scheduling import Appointment, AvailabilityBlock
@@ -413,6 +414,18 @@ async def main() -> None:
                         estado="pendiente",
                     )
                 )
+
+        # ── Integraciones (Fase 8) demo data ──
+        # Conectores habilitados por clínica (whatsapp/lab/farmacia/pago/mapas/
+        # push). 'push' se deja inactivo a propósito para poder probar que un
+        # conector deshabilitado rechaza el evento. Y se geolocalizan las
+        # sucursales para el conector de mapas.
+        existing_integ = (await db.execute(select(IntegrationConfig).where(IntegrationConfig.clinic_id == clinic_a.id))).scalars().first()
+        if not existing_integ:
+            for tipo, activo in [("whatsapp", True), ("lab", True), ("farmacia", True), ("pago", True), ("mapas", True), ("push", False)]:
+                db.add(IntegrationConfig(clinic_id=clinic_a.id, tipo=tipo, activo=activo, credenciales=None))
+            branch_a1.geo = {"lat": 19.4326, "lng": -99.1332}  # CDMX centro
+            branch_a1.direccion = "Av. Reforma 222, Cuauhtémoc, CDMX"
 
         await db.commit()
 

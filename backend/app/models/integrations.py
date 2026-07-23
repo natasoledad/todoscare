@@ -20,6 +20,34 @@ class IntegrationConfig(Base, AuditMixin, TenantMixin):
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
+class IntegrationEvent(Base, AuditMixin, TenantMixin):
+    """Traza (bandeja de entrada/salida) de cada conector externo — Fase 8.
+    Todo lo que entra por un webhook o sale hacia un proveedor queda asentado
+    aquí para auditoría y depuración, con el payload y el resultado. No guarda
+    credenciales (esas viven cifradas en IntegrationConfig)."""
+
+    __tablename__ = "integration_events"
+
+    tipo: Mapped[str] = mapped_column(String(30), nullable=False)  # whatsapp | lab | farmacia | pago | mapas | push
+    direccion: Mapped[str] = mapped_column(String(10), nullable=False)  # inbound | outbound
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="recibido")  # recibido | procesado | enviado | error
+    ref: Mapped[str | None] = mapped_column(String(255))
+    payload: Mapped[dict | None] = mapped_column(JSONB)
+    resultado: Mapped[dict | None] = mapped_column(JSONB)
+
+
+class PushSubscription(Base, AuditMixin):
+    """Suscripción de web push de un usuario (Fase 8). En producción guarda el
+    endpoint + claves del navegador; aquí basta el endpoint simulado. Global:
+    un usuario puede recibir notificaciones sin importar el tenant."""
+
+    __tablename__ = "push_subscriptions"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    endpoint: Mapped[str] = mapped_column(String(500), nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
 class AuditLog(Base, AuditMixin):
     """Global, cross-tenant audit trail (Spec Admin §10). clinic_id is
     nullable because some actions (creating a clinic, publishing T&C) are

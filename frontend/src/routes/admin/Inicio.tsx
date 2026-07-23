@@ -13,6 +13,7 @@ const MODULES = [
   { id: 'crm', icon: '📈', t: 'CRM / Gestión financiera', d: 'Consolidado, márgenes, liquidaciones' },
   { id: 'finanzas', icon: '📊', t: 'Finanzas y reportes', d: 'Ledger inmutable y split' },
   { id: 'auditoria', icon: '🔒', t: 'Auditoría', d: 'Accesos y cambios (metadatos)' },
+  { id: 'integraciones', icon: '🔌', t: 'Integraciones', d: 'Conectores externos y su traza' },
 ];
 
 function Kpi({ label, value }: { label: string; value: string }) {
