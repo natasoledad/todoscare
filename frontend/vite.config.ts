@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const API_TARGET = 'http://localhost:8000'
-const API_PREFIXES = ['/auth', '/patients', '/agenda', '/salud', '/farmacia', '/billetera', '/clinics', '/tyc', '/files', '/medico', '/empresa', '/admin', '/crm']
+const API_PREFIXES = ['/auth', '/patients', '/agenda', '/salud', '/farmacia', '/billetera', '/clinics', '/tyc', '/files', '/medico', '/empresa', '/admin', '/crm', '/aseguradora']
 
 export default defineConfig({
   plugins: [

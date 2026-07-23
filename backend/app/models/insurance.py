@@ -83,3 +83,4 @@ class Settlement(Base, AuditMixin, TenantMixin):
     periodo: Mapped[str] = mapped_column(String(20), nullable=False)  # e.g. "2026-07"
     monto: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendiente")  # pendiente | pagado
+    pagado_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -30,17 +30,22 @@ class Role(Base, AuditMixin):
 
 
 class RoleAssignment(Base, AuditMixin):
-    """Contextual RBAC: a role tied to an optional clinic/branch scope.
+    """Contextual RBAC: a role tied to an optional clinic/branch/insurer scope.
 
     clinic_id/branch_id both NULL  -> super_admin (crosses every tenant).
     clinic_id set, branch_id NULL  -> scoped to the whole clinic (all its branches).
     clinic_id + branch_id set      -> scoped to a single branch.
+    insurer_id set                 -> aseguradora scoped to one insurer entity
+                                      (Spec Aseguradora §1: el tercero pagador
+                                      opera sobre su propia cartera, no sobre un
+                                      tenant clínico).
     """
 
     __tablename__ = "role_assignments"
-    __table_args__ = (UniqueConstraint("user_id", "role_id", "clinic_id", "branch_id"),)
+    __table_args__ = (UniqueConstraint("user_id", "role_id", "clinic_id", "branch_id", "insurer_id"),)
 
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     role_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("roles.id"), nullable=False, index=True)
     clinic_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clinics.id"), nullable=True, index=True)
     branch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True, index=True)
+    insurer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("insurers.id"), nullable=True, index=True)

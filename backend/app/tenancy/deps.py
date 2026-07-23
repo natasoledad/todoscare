@@ -34,7 +34,7 @@ async def get_current_ctx(
         .where(RoleAssignment.user_id == user_id, RoleAssignment.deleted_at.is_(None))
     )
     grants = tuple(
-        RoleGrant(role=RoleCode(role_code), clinic_id=ra.clinic_id, branch_id=ra.branch_id)
+        RoleGrant(role=RoleCode(role_code), clinic_id=ra.clinic_id, branch_id=ra.branch_id, insurer_id=ra.insurer_id)
         for ra, role_code in rows.all()
     )
     if not grants:

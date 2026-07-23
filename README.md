@@ -49,8 +49,22 @@ lectura** (sin endpoint de edición/borrado) y auditoría que muestra
 **solo metadatos** (nunca contenido clínico). Todo respeta el aislamiento
 multi-tenant y la matriz Ver/Crear/Editar/Eliminar del rol.
 
+✅ **Fase 7** — Rol Aseguradora / Prestador (Spec Aseguradora Prestador). El
+tercero pagador se vincula a su **entidad aseguradora** (no a un tenant
+clínico): ve los convenios de su red, su padrón y sus autorizaciones, nunca
+los de otra aseguradora. Cubre: convenios y **aranceles versionados**
+(cobertura % + copago por servicio), padrón de afiliados con vigencia (alta/
+baja), **resolución de autorizaciones** (aprobar/rechazar con motivo/pedir
+info, validando vigencia del afiliado), **liquidación a la clínica**
+(generar factura la atención → asiento `facturado` que sube las Cuentas por
+Cobrar del CRM; pagar → asiento `cobrado` que las baja, ambos inmutables e
+idempotentes) y la **ficha del afiliado bajo minimización**: solo se abre si
+hay una autorización aprobada, expone lo mínimo (sin prontuario completo) y
+queda auditada.
+
 Auth del frontend es multi-rol (`/auth/me`): paciente → `/app`, médico →
-`/medico`, empresa → `/empresa`, administrador → `/admin`.
+`/medico`, empresa → `/empresa`, administrador → `/admin`, aseguradora →
+`/aseguradora`.
 
 ✅ **Fase 6** — CRM / gestión financiera multi-clínica (Spec CRM Clínicas).
 No es un rol propio: lo consumen el Administrador (consolidado global) y la
@@ -66,8 +80,8 @@ Admin. Todo respeta el aislamiento por `clinic_id` y la matriz de permisos
 §7 (empresa ve KPIs de su clínica pero no el consolidado ni la
 conciliación por defecto).
 
-⏳ **Fases siguientes** — Aseguradora/Prestador, integraciones (WhatsApp/IA,
-laboratorio, farmacia, pagos, mapas, push).
+⏳ **Fase siguiente** — Integraciones (WhatsApp/IA, laboratorio, farmacia,
+pagos, mapas, push).
 
 ## Stack
 
@@ -104,6 +118,7 @@ Pruebas de humo end-to-end contra la BD real (sin mocks):
 .venv/bin/python -m tests.test_empresa_smoke    # flujo completo Rol Empresa (Fase 4)
 .venv/bin/python -m tests.test_admin_smoke      # flujo completo Rol Administrador (Fase 5)
 .venv/bin/python -m tests.test_crm_smoke        # CRM: consolidado, KPIs, conciliación (Fase 6)
+.venv/bin/python -m tests.test_aseguradora_smoke # Aseguradora: convenios, autorizaciones, liquidación (Fase 7)
 ```
 
 Usuarios demo médicos (password `Demo1234!`): `medico.a@todoscare.dev`

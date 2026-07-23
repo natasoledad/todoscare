@@ -434,3 +434,80 @@ export interface CrmAsientoExport {
   moneda: string;
   ref: string | null;
 }
+
+// ── Aseguradora / Prestador (Fase 7) ──
+export interface AseguradoraKpis {
+  insurer_nombre: string;
+  tipo: string;
+  afiliados: number;
+  autorizaciones_pendientes: number;
+  atenciones_mes: number;
+  por_liquidar: number;
+}
+
+export interface Convenio {
+  agreement_id: string;
+  clinic_id: string;
+  clinica: string;
+  vigencia_inicio: string | null;
+  vigencia_fin: string | null;
+  vigente: boolean;
+  aranceles: number;
+}
+
+export interface Arancel {
+  arancel_id: string;
+  service_id: string;
+  servicio: string;
+  cobertura_pct: number;
+  copago: number;
+}
+
+export interface Afiliado {
+  affiliate_id: string;
+  patient_id: string | null;
+  nombre: string | null;
+  documento_identidad: string;
+  plan_cobertura: string | null;
+  vigencia_desde: string | null;
+  vigencia_hasta: string | null;
+  vigente: boolean;
+}
+
+export interface Autorizacion {
+  authorization_id: string;
+  agreement_id: string;
+  patient_id: string;
+  paciente: string;
+  servicio: string;
+  clinica: string;
+  estado: string;
+  motivo_rechazo: string | null;
+  resuelto_en: string | null;
+  fecha: string;
+}
+
+export interface LiquidacionAseg {
+  settlement_id: string;
+  agreement_id: string;
+  clinica: string;
+  periodo: string;
+  monto: number;
+  estado: string;
+  pagado_at: string | null;
+}
+
+export interface RedClinica {
+  clinic_id: string;
+  clinica: string;
+  pais: string;
+  vigente: boolean;
+}
+
+export interface FichaAfiliado {
+  patient_id: string;
+  nombre: string;
+  documento_identidad: string | null;
+  plan_cobertura: string | null;
+  prestaciones_autorizadas: { servicio: string; diagnostico: string | null }[];
+}

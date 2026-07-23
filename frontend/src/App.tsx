@@ -43,6 +43,12 @@ import { Auditoria as AdminAuditoria } from './routes/admin/Auditoria';
 import { Consolidado as AdminCrmConsolidado } from './routes/admin/crm/Consolidado';
 import { DetalleClinica as AdminCrmDetalle } from './routes/admin/crm/DetalleClinica';
 import { Liquidaciones as AdminCrmLiquidaciones } from './routes/admin/crm/Liquidaciones';
+import { Inicio as AsegInicio } from './routes/aseguradora/Inicio';
+import { Convenios as AsegConvenios } from './routes/aseguradora/Convenios';
+import { Autorizaciones as AsegAutorizaciones } from './routes/aseguradora/Autorizaciones';
+import { Liquidaciones as AsegLiquidaciones } from './routes/aseguradora/Liquidaciones';
+import { Padron as AsegPadron } from './routes/aseguradora/Padron';
+import { Red as AsegRed } from './routes/aseguradora/Red';
 
 function App() {
   return (
@@ -110,6 +116,16 @@ function App() {
               <Route path="/admin/crm" element={<AdminCrmConsolidado />} />
               <Route path="/admin/crm/liquidaciones" element={<AdminCrmLiquidaciones />} />
               <Route path="/admin/crm/:clinicId" element={<AdminCrmDetalle />} />
+            </Route>
+
+            {/* ── Aseguradora / Prestador ── */}
+            <Route element={<RequireRole role="aseguradora" />}>
+              <Route path="/aseguradora" element={<AsegInicio />} />
+              <Route path="/aseguradora/convenios" element={<AsegConvenios />} />
+              <Route path="/aseguradora/autorizaciones" element={<AsegAutorizaciones />} />
+              <Route path="/aseguradora/liquidaciones" element={<AsegLiquidaciones />} />
+              <Route path="/aseguradora/afiliados" element={<AsegPadron />} />
+              <Route path="/aseguradora/red" element={<AsegRed />} />
             </Route>
           </Route>
 

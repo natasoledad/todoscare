@@ -1,0 +1,75 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '../../components/Button';
+import { Chevron } from '../../components/ListRow';
+import { useAuth } from '../../context/AuthContext';
+import { api } from '../../api/client';
+import type { AseguradoraKpis } from '../../api/types';
+
+const MODULES = [
+  { id: 'autorizaciones', icon: '📝', t: 'Autorizaciones', d: 'Resolver solicitudes (aprobar/rechazar)' },
+  { id: 'convenios', icon: '🤝', t: 'Convenios y aranceles', d: 'Coberturas y copagos por servicio' },
+  { id: 'liquidaciones', icon: '💳', t: 'Liquidaciones', d: 'Facturar y pagar a las clínicas' },
+  { id: 'afiliados', icon: '🪪', t: 'Padrón de afiliados', d: 'Altas, bajas y vigencia' },
+  { id: 'red', icon: '🌐', t: 'Red de prestadores', d: 'Clínicas en convenio' },
+];
+
+function Kpi({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white border border-border rounded-2xl px-4 py-3.5">
+      <div className="text-xs text-sub">{label}</div>
+      <div className="mt-1 font-heading font-extrabold text-[22px] text-ink tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+export function Inicio() {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const [kpis, setKpis] = useState<AseguradoraKpis | null>(null);
+
+  useEffect(() => {
+    api.aseguradora.inicio().then(setKpis);
+  }, []);
+
+  return (
+    <div className="h-full overflow-y-auto scrollhide pb-8">
+      <div className="flex items-start justify-between px-[22px] pt-5 pb-1">
+        <div>
+          <div className="text-[13px] text-sub">Aseguradora / Prestador</div>
+          <div className="font-heading font-extrabold text-xl text-ink">{kpis?.insurer_nombre ?? '…'}</div>
+        </div>
+        <div className="w-[42px] h-[42px] rounded-full bg-teal-soft flex items-center justify-center text-lg">🛡️</div>
+      </div>
+
+      <div className="mx-5 mt-2 grid grid-cols-2 gap-2.5">
+        <Kpi label="Afiliados" value={kpis ? String(kpis.afiliados) : '—'} />
+        <Kpi label="Autorizaciones pend." value={kpis ? String(kpis.autorizaciones_pendientes) : '—'} />
+        <Kpi label="Atenciones del mes" value={kpis ? String(kpis.atenciones_mes) : '—'} />
+        <Kpi label="Por liquidar" value={kpis ? `$${kpis.por_liquidar.toLocaleString('es-MX')}` : '—'} />
+      </div>
+
+      <div className="px-5 pt-5 font-heading font-bold text-[13px] text-ink">Gestión</div>
+      <div className="px-5 pt-2.5 flex flex-col gap-2.5">
+        {MODULES.map((m) => (
+          <div
+            key={m.id}
+            onClick={() => navigate(`/aseguradora/${m.id}`)}
+            className="flex items-center gap-3.5 bg-white border border-border rounded-2xl px-4 py-3.5 cursor-pointer"
+          >
+            <div className="w-11 h-11 rounded-xl bg-teal-soft flex items-center justify-center text-xl shrink-0">{m.icon}</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-[14.5px] text-ink">{m.t}</div>
+              <div className="mt-0.5 text-xs text-sub">{m.d}</div>
+            </div>
+            <Chevron />
+          </div>
+        ))}
+      </div>
+
+      <div className="px-5 pt-6">
+        <Button onClick={() => { logout(); navigate('/'); }} variant="outline" className="w-full">Cerrar sesión</Button>
+      </div>
+    </div>
+  );
+}

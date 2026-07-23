@@ -14,6 +14,7 @@ from app.core.security import hash_password
 from app.models.catalog import CatalogItem, Promotion, Specialty
 from app.models.clinical import ExamOrder, ExamResult, Hospitalization, MedicalRecord, Odontogram, Prescription
 from app.models.finance import Company, CompanyEmployee, LedgerEntry, PaymentSplit
+from app.models.insurance import Affiliate, Agreement, Arancel, Authorization, Insurer
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient, TycAcceptance, TycVersion
 from app.models.scheduling import Appointment, AvailabilityBlock
@@ -133,7 +134,7 @@ async def get_or_create_catalog_item(db, clinic_id, specialty_id, nombre: str, p
     return row
 
 
-async def assign_role(db, user_id, role_id, clinic_id=None, branch_id=None) -> None:
+async def assign_role(db, user_id, role_id, clinic_id=None, branch_id=None, insurer_id=None) -> None:
     existing = (
         await db.execute(
             select(RoleAssignment).where(
@@ -141,12 +142,13 @@ async def assign_role(db, user_id, role_id, clinic_id=None, branch_id=None) -> N
                 RoleAssignment.role_id == role_id,
                 RoleAssignment.clinic_id == clinic_id,
                 RoleAssignment.branch_id == branch_id,
+                RoleAssignment.insurer_id == insurer_id,
             )
         )
     ).scalar_one_or_none()
     if existing:
         return
-    db.add(RoleAssignment(user_id=user_id, role_id=role_id, clinic_id=clinic_id, branch_id=branch_id))
+    db.add(RoleAssignment(user_id=user_id, role_id=role_id, clinic_id=clinic_id, branch_id=branch_id, insurer_id=insurer_id))
 
 
 async def main() -> None:
@@ -158,6 +160,13 @@ async def main() -> None:
         clinic_a = await get_or_create_clinic(db, "Clínica Demo A", "MX")
         clinic_b = await get_or_create_clinic(db, "Clínica Demo B", "CL")
         branch_a1 = await get_or_create_branch(db, clinic_a.id, "Sucursal A1")
+
+        # Entidad aseguradora (global, no tenant) — el rol se vincula a ella.
+        insurer_x = (await db.execute(select(Insurer).where(Insurer.nombre == "Seguros Bienestar MX"))).scalar_one_or_none()
+        if insurer_x is None:
+            insurer_x = Insurer(nombre="Seguros Bienestar MX", pais="MX", tipo="seguro", contacto="convenios@bienestar.mx")
+            db.add(insurer_x)
+            await db.flush()
 
         super_admin = await get_or_create_user(db, "super@todoscare.dev", "Super Admin")
         admin_a = await get_or_create_user(db, "admin.a@todoscare.dev", "Admin Clínica A")
@@ -178,10 +187,10 @@ async def main() -> None:
         await assign_role(db, medico_b.id, roles[RoleCode.MEDICO.value].id, clinic_id=clinic_a.id, branch_id=branch_a1.id)
         await assign_role(db, empresa_a.id, roles[RoleCode.EMPRESA.value].id, clinic_id=clinic_a.id)
         await assign_role(db, paciente_a.id, roles[RoleCode.PACIENTE.value].id, clinic_id=clinic_a.id)
-        # Simplification for Fase 1: aseguradora scoped to the one clinic it
-        # has a convenio with here. A real aseguradora spans many clinics —
-        # revisit this scoping model in Fase 7 (Spec Aseguradora Prestador).
-        await assign_role(db, aseguradora_x.id, roles[RoleCode.ASEGURADORA.value].id, clinic_id=clinic_a.id)
+        # Fase 7: la aseguradora se vincula a su ENTIDAD (insurer), no a un
+        # tenant clínico — un pagador opera sobre su cartera y su red de
+        # clínicas en convenio (Spec Aseguradora Prestador §1).
+        await assign_role(db, aseguradora_x.id, roles[RoleCode.ASEGURADORA.value].id, insurer_id=insurer_x.id)
 
         specialties = {}
         for nombre, icono in SPECIALTIES:
@@ -366,6 +375,45 @@ async def main() -> None:
                     )
                 )
 
+        # ── Aseguradora / Prestador (Fase 7) demo data ──
+        # Un convenio vigente entre la aseguradora y Clínica Demo A, con un
+        # arancel (cobertura 80% / copago) para "Médico general", Camila como
+        # afiliada vigente, y una autorización pendiente de resolver.
+        existing_agreement = (await db.execute(select(Agreement).where(Agreement.insurer_id == insurer_x.id, Agreement.clinic_id == clinic_a.id))).scalars().first()
+        if not existing_agreement:
+            patient_row = (await db.execute(select(Patient).where(Patient.clinic_id == clinic_a.id).order_by(Patient.created_at).limit(1))).scalar_one()
+            servicio = catalog["Médico general"]
+            agreement = Agreement(
+                clinic_id=clinic_a.id,
+                insurer_id=insurer_x.id,
+                vigencia_inicio=(today - timedelta(days=90)).date(),
+                vigencia_fin=(today + timedelta(days=275)).date(),
+            )
+            db.add(agreement)
+            await db.flush()
+            db.add(Arancel(clinic_id=clinic_a.id, agreement_id=agreement.id, service_id=servicio.id, cobertura_pct=80, copago=100))
+            db.add(
+                Affiliate(
+                    insurer_id=insurer_x.id,
+                    patient_id=patient_row.id,
+                    documento_identidad="MX-CURP-CAMILA-01",
+                    plan_cobertura="Plan Integral",
+                    vigencia_desde=(today - timedelta(days=365)).date(),
+                    vigencia_hasta=(today + timedelta(days=365)).date(),
+                )
+            )
+            # Dos solicitudes pendientes: uno para aprobar, otro para rechazar.
+            for _ in range(2):
+                db.add(
+                    Authorization(
+                        clinic_id=clinic_a.id,
+                        agreement_id=agreement.id,
+                        patient_id=patient_row.id,
+                        service_id=servicio.id,
+                        estado="pendiente",
+                    )
+                )
+
         await db.commit()
 
     print("Seed OK. Demo password for every user:", DEMO_PASSWORD)
@@ -376,7 +424,7 @@ async def main() -> None:
     print("  medico.b@todoscare.dev     -> medico @ Clínica Demo A / Sucursal A1 (sin citas)")
     print("  empresa.a@todoscare.dev    -> empresa @ Clínica Demo A")
     print("  paciente.a@todoscare.dev   -> paciente @ Clínica Demo A")
-    print("  aseguradora.x@todoscare.dev-> aseguradora @ Clínica Demo A")
+    print("  aseguradora.x@todoscare.dev-> aseguradora @ Seguros Bienestar MX (convenio con Clínica Demo A)")
 
 
 if __name__ == "__main__":
