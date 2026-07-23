@@ -29,6 +29,15 @@ class IngresoServicio(BaseModel):
     monto: float
 
 
+class MarketingKpis(BaseModel):
+    gasto_marketing: float
+    nuevos_pacientes: int
+    cac: float | None  # costo de adquisición de cliente
+    ltv: float | None  # valor de vida (ARPU histórico como proxy)
+    ltv_cac_ratio: float | None  # retorno de la inversión en captación
+    roas: float | None  # ingresos del período / gasto de marketing
+
+
 class DetalleClinicaOut(BaseModel):
     clinic_id: uuid.UUID
     razon_social: str
@@ -42,6 +51,7 @@ class DetalleClinicaOut(BaseModel):
     cuentas_por_cobrar: float
     ocupacion: float  # 0..1
     por_liquidar: float
+    marketing: MarketingKpis
     ingresos_por_servicio: list[IngresoServicio]
 
 

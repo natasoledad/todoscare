@@ -19,6 +19,16 @@ export function VarBadge({ v }: { v: number | null }) {
   );
 }
 
+function MktTile({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: 'good' }) {
+  return (
+    <div className="rounded-2xl border border-border bg-white px-3.5 py-3">
+      <div className="text-[11px] text-sub">{label}</div>
+      <div className={`mt-0.5 font-heading font-extrabold text-[18px] tabular-nums ${tone === 'good' ? 'text-teal-dark' : 'text-ink'}`}>{value}</div>
+      <div className="text-[10.5px] text-sub">{hint}</div>
+    </div>
+  );
+}
+
 /** Detalle de KPIs de una clínica — compartido por el Admin (drill-down) y la
  *  Empresa (su propia clínica). Todo se calcula en el backend desde el ledger
  *  + agenda; aquí solo se presenta. */
@@ -44,6 +54,19 @@ export function DetalleClinicaView({ d }: { d: CrmDetalleClinica }) {
             </div>
           </div>
         ))}
+      </div>
+
+      <div>
+        <div className="font-heading font-bold text-[13px] text-ink px-1 pb-2">Marketing / captación</div>
+        <div className="grid grid-cols-2 gap-2">
+          <MktTile label="CAC" value={d.marketing.cac === null ? '—' : money(d.marketing.cac)} hint="Costo de adquisición" />
+          <MktTile label="LTV" value={d.marketing.ltv === null ? '—' : money(d.marketing.ltv)} hint="Valor de vida (proxy)" />
+          <MktTile label="LTV : CAC" value={d.marketing.ltv_cac_ratio === null ? '—' : `${d.marketing.ltv_cac_ratio}×`} hint="Retorno de captación" tone={d.marketing.ltv_cac_ratio !== null && d.marketing.ltv_cac_ratio >= 3 ? 'good' : undefined} />
+          <MktTile label="ROAS" value={d.marketing.roas === null ? '—' : `${d.marketing.roas}×`} hint="Ingresos / gasto mkt." />
+        </div>
+        <div className="px-1 pt-1.5 text-[11px] text-sub">
+          Gasto de marketing del mes {money(d.marketing.gasto_marketing)} · {d.marketing.nuevos_pacientes} paciente(s) nuevo(s)
+        </div>
       </div>
 
       <div>

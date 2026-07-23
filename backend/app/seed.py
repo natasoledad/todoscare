@@ -357,6 +357,11 @@ async def main() -> None:
             await db.flush()
             prev.created_at = today.replace(day=1) - timedelta(days=2)  # mes anterior
 
+            # Gasto de marketing del período para los indicadores de captación
+            # (CAC/LTV/ROAS). Con 1 paciente nuevo este mes (Camila) => CAC = 300.
+            db.add(LedgerEntry(clinic_id=clinic_a.id, tipo="gasto_marketing", monto=200, ref="seed-mkt-ads"))
+            db.add(LedgerEntry(clinic_id=clinic_a.id, tipo="gasto_marketing", monto=100, ref="seed-mkt-redes"))
+
             cita = (
                 await db.execute(
                     select(Appointment).where(Appointment.clinic_id == clinic_a.id, Appointment.service_id.isnot(None)).limit(1)

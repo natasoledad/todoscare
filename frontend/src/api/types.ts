@@ -400,6 +400,15 @@ export interface CrmIngresoServicio {
   monto: number;
 }
 
+export interface CrmMarketing {
+  gasto_marketing: number;
+  nuevos_pacientes: number;
+  cac: number | null;
+  ltv: number | null;
+  ltv_cac_ratio: number | null;
+  roas: number | null;
+}
+
 export interface CrmDetalleClinica {
   clinic_id: string;
   razon_social: string;
@@ -413,6 +422,7 @@ export interface CrmDetalleClinica {
   cuentas_por_cobrar: number;
   ocupacion: number;
   por_liquidar: number;
+  marketing: CrmMarketing;
   ingresos_por_servicio: CrmIngresoServicio[];
 }
 

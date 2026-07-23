@@ -71,6 +71,11 @@ async def main() -> None:
         det = r.json()
         check("detalle de clínica -> 200 con KPIs", r.status_code == 200 and det["razon_social"] == "Clínica Demo A")
         check("ticket promedio = 270 (ingresos de atención / n.º atenciones)", abs(det["ticket_promedio"] - 270.0) < 0.01)
+        # ── Indicadores de marketing / captación ──
+        mkt = det["marketing"]
+        check("marketing: gasto = 300 y 1 paciente nuevo", abs(mkt["gasto_marketing"] - 300) < 0.01 and mkt["nuevos_pacientes"] == 1)
+        check("marketing: CAC = 300 (gasto / nuevos)", abs(mkt["cac"] - 300) < 0.01)
+        check("marketing: LTV, ratio LTV:CAC y ROAS calculados", mkt["ltv"] is not None and mkt["ltv_cac_ratio"] is not None and mkt["roas"] is not None)
         check("por liquidar = 486 (3 splits × 162 pendientes)", abs(det["por_liquidar"] - 486.0) < 0.01)
         check("ocupación entre 0 y 1", 0.0 <= det["ocupacion"] <= 1.0)
         svc = {s["servicio"]: s["monto"] for s in det["ingresos_por_servicio"]}

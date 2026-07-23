@@ -199,6 +199,67 @@ def _margen(ingresos: float, costos: float) -> float | None:
     return round((ingresos - costos) / ingresos, 4)
 
 
+# ─────────────────────────── marketing / captación ───────────────────────────
+# Métricas de crecimiento sobre el mismo ledger. El gasto de marketing se
+# asienta como LedgerEntry tipo='gasto_marketing' (egreso); no se inventan
+# cifras. Definiciones (borrador, a validar con el equipo de growth):
+#   CAC  = gasto de marketing del período / clientes nuevos del período
+#   LTV  = ingreso histórico de la clínica / total de pacientes (ARPU
+#          histórico como proxy del valor de vida)
+#   LTV:CAC = retorno de la inversión en captación (salud del negocio; >3 sano)
+#   ROAS = ingresos del período / gasto de marketing del período
+async def _gasto_marketing(db: AsyncSession, scope: Scope, start: date, end: date, clinic_id: uuid.UUID | None = None) -> float:
+    q = select(func.coalesce(func.sum(LedgerEntry.monto), 0)).where(
+        LedgerEntry.tipo == "gasto_marketing",
+        LedgerEntry.deleted_at.is_(None),
+        func.date(LedgerEntry.created_at) >= start,
+        func.date(LedgerEntry.created_at) < end,
+        _scoped(LedgerEntry.clinic_id, scope),
+    )
+    if clinic_id is not None:
+        q = q.where(LedgerEntry.clinic_id == clinic_id)
+    return float((await db.execute(q)).scalar_one())
+
+
+async def _nuevos_pacientes(db: AsyncSession, scope: Scope, start: date, end: date, clinic_id: uuid.UUID | None = None) -> int:
+    q = select(func.count(Patient.id)).where(
+        Patient.deleted_at.is_(None),
+        func.date(Patient.created_at) >= start,
+        func.date(Patient.created_at) < end,
+        _scoped(Patient.clinic_id, scope),
+    )
+    if clinic_id is not None:
+        q = q.where(Patient.clinic_id == clinic_id)
+    return int((await db.execute(q)).scalar_one())
+
+
+async def _marketing(db: AsyncSession, scope: Scope, start: date, end: date, ingresos_periodo: float, clinic_id: uuid.UUID | None = None) -> dict:
+    gasto = await _gasto_marketing(db, scope, start, end, clinic_id=clinic_id)
+    nuevos = await _nuevos_pacientes(db, scope, start, end, clinic_id=clinic_id)
+
+    # LTV = ingreso histórico / total de pacientes (ARPU histórico).
+    hist_q = select(func.coalesce(func.sum(LedgerEntry.monto), 0)).where(LedgerEntry.tipo == "ingreso", LedgerEntry.deleted_at.is_(None), _scoped(LedgerEntry.clinic_id, scope))
+    pac_q = select(func.count(Patient.id)).where(Patient.deleted_at.is_(None), _scoped(Patient.clinic_id, scope))
+    if clinic_id is not None:
+        hist_q = hist_q.where(LedgerEntry.clinic_id == clinic_id)
+        pac_q = pac_q.where(Patient.clinic_id == clinic_id)
+    ingresos_hist = float((await db.execute(hist_q)).scalar_one())
+    total_pac = int((await db.execute(pac_q)).scalar_one())
+
+    cac = round(gasto / nuevos, 2) if nuevos else None
+    ltv = round(ingresos_hist / total_pac, 2) if total_pac else None
+    ltv_cac = round(ltv / cac, 2) if (ltv is not None and cac) else None
+    roas = round(ingresos_periodo / gasto, 2) if gasto else None
+    return {
+        "gasto_marketing": gasto,
+        "nuevos_pacientes": nuevos,
+        "cac": cac,
+        "ltv": ltv,
+        "ltv_cac_ratio": ltv_cac,
+        "roas": roas,
+    }
+
+
 # ─────────────────────────── pantallas ───────────────────────────
 async def consolidado(db: AsyncSession, ctx: TenantContext, period: str | None) -> dict:
     """Panel consolidado + lista por clínica (§4). Alcance según ctx."""
@@ -303,6 +364,7 @@ async def detalle_clinica(db: AsyncSession, ctx: TenantContext, clinic_id: uuid.
         "cuentas_por_cobrar": await _cuentas_por_cobrar(db, scope, clinic_id=clinic_id),
         "ocupacion": await _ocupacion(db, scope, start, end, clinic_id=clinic_id),
         "por_liquidar": await _por_liquidar(db, scope, start, end, clinic_id=clinic_id),
+        "marketing": await _marketing(db, scope, start, end, ingresos, clinic_id=clinic_id),
         "ingresos_por_servicio": [{"servicio": nombre, "monto": float(monto)} for nombre, monto in por_servicio_rows],
     }
 
