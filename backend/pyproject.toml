@@ -15,6 +15,7 @@ dependencies = [
     "bcrypt<4.1",  # passlib 1.7.4 breaks on bcrypt>=4.1 (removed `__about__`)
     "python-jose[cryptography]>=3.3",
     "python-multipart>=0.0.12",
+    "gunicorn>=23.0",  # servidor de producción (workers uvicorn)
 ]
 
 [project.optional-dependencies]

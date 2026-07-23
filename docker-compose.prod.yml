@@ -1,0 +1,59 @@
+# Despliegue de producción de TODOSCARE (3 servicios): Postgres, API (FastAPI
+# + gunicorn) y web (SPA compilada servida por nginx, que proxya /api al API).
+#
+# Uso:
+#   cp .env.prod.example .env      # y edita los secretos (¡JWT_SECRET!)
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# La API aplica las migraciones al arrancar (entrypoint). Para sembrar datos
+# demo una vez: SEED_ON_START=true en el .env del primer arranque (luego
+# vuelve a false).
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-todoscare}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:-todoscare}
+    volumes:
+      - todoscare_pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-todoscare} -d ${POSTGRES_DB:-todoscare}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Sin puerto publicado: solo accesible dentro de la red de compose.
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET en .env}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-60}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-4}
+      SEED_ON_START: ${SEED_ON_START:-false}
+    volumes:
+      - todoscare_uploads:/app/uploads
+    expose:
+      - "8000"
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-80}:80"
+
+volumes:
+  todoscare_pgdata:
+  todoscare_uploads:

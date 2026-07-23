@@ -4,7 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const API_TARGET = 'http://localhost:8000'
-const API_PREFIXES = ['/auth', '/patients', '/agenda', '/salud', '/farmacia', '/billetera', '/clinics', '/tyc', '/files', '/medico', '/empresa', '/admin', '/crm', '/aseguradora', '/integraciones']
 
 export default defineConfig({
   plugins: [
@@ -30,6 +29,11 @@ export default defineConfig({
     }),
   ],
   server: {
-    proxy: Object.fromEntries(API_PREFIXES.map((p) => [p, { target: API_TARGET, changeOrigin: true }])),
+    // El cliente llama a /api/*; en dev lo proxyamos al backend quitando el
+    // prefijo. En producción lo hace nginx (ver frontend/docker/nginx.conf).
+    proxy: {
+      '/api': { target: API_TARGET, changeOrigin: true, rewrite: (p) => p.replace(/^\/api/, '') },
+      '/files': { target: API_TARGET, changeOrigin: true },
+    },
   },
 })

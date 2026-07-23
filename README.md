@@ -105,6 +105,20 @@ multi-tenant).
   bcrypt (passlib).
 - **Frontend**: React + Vite + TypeScript + Tailwind (PWA), en `frontend/`.
 
+## Despliegue
+
+Producción con Docker Compose (Postgres + API con gunicorn + SPA servida por
+nginx, que proxya `/api` al backend). Guía completa en **[DEPLOY.md](DEPLOY.md)**:
+
+```bash
+cp .env.prod.example .env   # edita JWT_SECRET, POSTGRES_PASSWORD, dominio
+docker compose -f docker-compose.prod.yml up -d --build
+curl -fsS http://localhost/api/health   # {"status":"ok"}
+```
+
+CI (`.github/workflows/ci.yml`) corre las 8 suites de humo y compila el
+frontend en cada push/PR.
+
 ## Backend — desarrollo local
 
 ```bash

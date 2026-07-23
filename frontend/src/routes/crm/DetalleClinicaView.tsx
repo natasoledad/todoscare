@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { CrmDetalleClinica } from '../../api/types';
 
 export const money = (n: number) => `$${Math.round(n).toLocaleString('es-MX')}`;
@@ -33,7 +34,7 @@ function MktTile({ label, value, hint, tone }: { label: string; value: string; h
  *  Empresa (su propia clínica). Todo se calcula en el backend desde el ledger
  *  + agenda; aquí solo se presenta. */
 export function DetalleClinicaView({ d }: { d: CrmDetalleClinica }) {
-  const kpis: [string, string, JSX.Element | null][] = [
+  const kpis: [string, string, ReactNode][] = [
     ['Ingresos del mes', money(d.ingresos), <VarBadge key="v" v={d.variacion} />],
     ['Margen', pct(d.margen), null],
     ['Ticket promedio', money(d.ticket_promedio), null],

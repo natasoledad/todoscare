@@ -84,6 +84,13 @@ export class ApiError extends Error {
   }
 }
 
+// Todas las llamadas cuelgan de un prefijo /api (configurable con
+// VITE_API_BASE). Así las rutas del SPA (/medico, /admin, /aseguradora…)
+// nunca colisionan con las de la API: en dev Vite lo proxya y en producción
+// nginx lo enruta al backend. El backend en sí no lleva el prefijo (lo quita
+// el proxy), por eso las pruebas de humo lo llaman sin /api.
+const API_BASE = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/$/, '');
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers = new Headers(options.headers);
@@ -92,7 +99,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
   if (token) headers.set('Authorization', `Bearer ${token}`);
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   if (!res.ok) {
     let detail: unknown;
     try {
