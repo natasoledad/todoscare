@@ -13,7 +13,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
 from app.models.catalog import CatalogItem, Promotion, Specialty
 from app.models.clinical import ExamOrder, ExamResult, Hospitalization, MedicalRecord, Odontogram, Prescription
-from app.models.finance import Company, CompanyEmployee, LedgerEntry
+from app.models.finance import Company, CompanyEmployee, LedgerEntry, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient, TycAcceptance, TycVersion
 from app.models.scheduling import Appointment, AvailabilityBlock
@@ -330,6 +330,41 @@ async def main() -> None:
         existing_company = (await db.execute(select(Company).where(Company.clinic_id == clinic_a.id))).scalars().first()
         if not existing_company:
             db.add(Company(clinic_id=clinic_a.id, razon_social="Corporativo Demo S.A."))
+
+        # ── CRM (Fase 6) demo data ──
+        # El CRM no guarda cifras: las calcula del ledger + agenda. Sembramos
+        # los asientos que lo alimentan: (a) un ingreso del mes anterior para
+        # que la variación mes-vs-mes no sea trivial; (b) ingresos de atención
+        # ligados a una cita real (ref 'appointment:<id>') para "ingresos por
+        # servicio" y el ticket promedio; (c) los splits 60% pendientes que la
+        # pantalla de liquidaciones concilia. El prestador es Dr. Fuentes
+        # (medico_b) a propósito: así no altera las liquidaciones de la Dra.
+        # Nátaly que verifica la prueba del rol médico.
+        existing_split = (await db.execute(select(PaymentSplit).where(PaymentSplit.clinic_id == clinic_a.id))).scalars().first()
+        if not existing_split:
+            prev = LedgerEntry(clinic_id=clinic_a.id, tipo="ingreso", monto=1200, ref="seed-prev")
+            db.add(prev)
+            await db.flush()
+            prev.created_at = today.replace(day=1) - timedelta(days=2)  # mes anterior
+
+            cita = (
+                await db.execute(
+                    select(Appointment).where(Appointment.clinic_id == clinic_a.id, Appointment.service_id.isnot(None)).limit(1)
+                )
+            ).scalar_one()
+            for _ in range(3):
+                led = LedgerEntry(clinic_id=clinic_a.id, tipo="ingreso", monto=270, ref=f"appointment:{cita.id}")
+                db.add(led)
+                await db.flush()
+                db.add(
+                    PaymentSplit(
+                        clinic_id=clinic_a.id,
+                        ledger_entry_id=led.id,
+                        beneficiario_id=medico_b.id,
+                        monto=162,  # 60% de 270
+                        regla={"pct": 0.60, "base": 270},
+                    )
+                )
 
         await db.commit()
 

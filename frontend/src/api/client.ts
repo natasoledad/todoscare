@@ -9,6 +9,10 @@ import type {
   Cita,
   CitaMedico,
   ClinicPublic,
+  CrmAsientoExport,
+  CrmConsolidado,
+  CrmDetalleClinica,
+  CrmLiquidacion,
   Dependent,
   EmergencyQr,
   EmpresaKpis,
@@ -195,6 +199,14 @@ export const api = {
     finanzas: () => get<FinanzasResumen>('/admin/finanzas'),
     ledger: () => get<LedgerEntryAdmin[]>('/admin/finanzas/ledger'),
     auditoria: () => get<AuditEntry[]>('/admin/auditoria'),
+  },
+  crm: {
+    consolidado: (period?: string) => get<CrmConsolidado>(`/crm/consolidado${period ? `?period=${period}` : ''}`),
+    miClinica: (period?: string) => get<CrmDetalleClinica>(`/crm/mi-clinica${period ? `?period=${period}` : ''}`),
+    detalleClinica: (clinicId: string, period?: string) => get<CrmDetalleClinica>(`/crm/clinicas/${clinicId}${period ? `?period=${period}` : ''}`),
+    liquidaciones: (period?: string) => get<CrmLiquidacion[]>(`/crm/liquidaciones${period ? `?period=${period}` : ''}`),
+    conciliar: (splitId: string) => post<{ split_id: string; estado: string; conciliado_at: string | null }>(`/crm/liquidaciones/${splitId}/conciliar`),
+    exportar: (period?: string) => get<CrmAsientoExport[]>(`/crm/exportar${period ? `?period=${period}` : ''}`),
   },
 };
 

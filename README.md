@@ -52,8 +52,22 @@ multi-tenant y la matriz Ver/Crear/Editar/Eliminar del rol.
 Auth del frontend es multi-rol (`/auth/me`): paciente → `/app`, médico →
 `/medico`, empresa → `/empresa`, administrador → `/admin`.
 
-⏳ **Fases siguientes** — CRM financiero, Aseguradora/Prestador,
-integraciones (WhatsApp/IA, laboratorio, farmacia, pagos, mapas, push).
+✅ **Fase 6** — CRM / gestión financiera multi-clínica (Spec CRM Clínicas).
+No es un rol propio: lo consumen el Administrador (consolidado global) y la
+Empresa/Clínica (acotada a la suya), con el mismo cálculo y distinto
+alcance. **Fuente única de verdad**: el CRM no guarda cifras, las calcula
+desde el ledger inmutable + la agenda (ingresos, margen, ticket promedio,
+ocupación de agenda, cuentas por cobrar, ingresos por servicio, por
+liquidar y variación mes-vs-mes). Pantallas: panel consolidado con
+drill-down por clínica, detalle de clínica, y **liquidaciones** que se
+concilian (marcar pagado ⇒ asiento de egreso inmutable en el ledger, §5.2)
+de forma idempotente. Exportación de asientos a ERP (CSV) solo para el
+Admin. Todo respeta el aislamiento por `clinic_id` y la matriz de permisos
+§7 (empresa ve KPIs de su clínica pero no el consolidado ni la
+conciliación por defecto).
+
+⏳ **Fases siguientes** — Aseguradora/Prestador, integraciones (WhatsApp/IA,
+laboratorio, farmacia, pagos, mapas, push).
 
 ## Stack
 
@@ -89,6 +103,7 @@ Pruebas de humo end-to-end contra la BD real (sin mocks):
 .venv/bin/python -m tests.test_medico_smoke     # flujo completo Rol Médico (Fase 3)
 .venv/bin/python -m tests.test_empresa_smoke    # flujo completo Rol Empresa (Fase 4)
 .venv/bin/python -m tests.test_admin_smoke      # flujo completo Rol Administrador (Fase 5)
+.venv/bin/python -m tests.test_crm_smoke        # CRM: consolidado, KPIs, conciliación (Fase 6)
 ```
 
 Usuarios demo médicos (password `Demo1234!`): `medico.a@todoscare.dev`

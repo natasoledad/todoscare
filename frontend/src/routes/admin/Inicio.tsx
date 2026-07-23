@@ -10,6 +10,7 @@ const MODULES = [
   { id: 'clinicas', icon: '🏥', t: 'Clínicas y sucursales', d: 'Alta de tenants, sucursales, baja' },
   { id: 'usuarios', icon: '👥', t: 'Usuarios y roles', d: 'Pacientes, médicos, empresas' },
   { id: 'config', icon: '⚙️', t: 'Configuración global', d: 'Planes y T&C por país' },
+  { id: 'crm', icon: '📈', t: 'CRM / Gestión financiera', d: 'Consolidado, márgenes, liquidaciones' },
   { id: 'finanzas', icon: '📊', t: 'Finanzas y reportes', d: 'Ledger inmutable y split' },
   { id: 'auditoria', icon: '🔒', t: 'Auditoría', d: 'Accesos y cambios (metadatos)' },
 ];

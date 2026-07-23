@@ -1,6 +1,7 @@
+import datetime
 import uuid
 
-from sqlalchemy import ForeignKey, Numeric, String
+from sqlalchemy import DateTime, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -72,3 +73,8 @@ class PaymentSplit(Base, AuditMixin, TenantMixin):
     beneficiario_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     monto: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     regla: Mapped[dict | None] = mapped_column(JSONB)
+    # Conciliación (Spec CRM §5.2): un split nace "pendiente" y el CRM lo
+    # marca "conciliado" al liquidar al prestador, lo que asienta un egreso
+    # inmutable en el ledger. El monto NO es editable — solo su estado.
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendiente")  # pendiente | conciliado
+    conciliado_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))

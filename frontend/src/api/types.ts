@@ -373,3 +373,64 @@ export interface Movimiento {
   cashback: number | null;
   motivo: string | null;
 }
+
+// ── CRM (Fase 6) ──
+export interface CrmClinicaRow {
+  clinic_id: string;
+  razon_social: string;
+  pais: string;
+  ingresos: number;
+  margen: number | null;
+  variacion: number | null;
+  pacientes: number;
+}
+
+export interface CrmConsolidado {
+  alcance: string;
+  period: string;
+  ingresos_totales: number;
+  variacion: number | null;
+  n_clinicas: number;
+  n_pacientes: number;
+  clinicas: CrmClinicaRow[];
+}
+
+export interface CrmIngresoServicio {
+  servicio: string;
+  monto: number;
+}
+
+export interface CrmDetalleClinica {
+  clinic_id: string;
+  razon_social: string;
+  pais: string;
+  period: string;
+  ingresos: number;
+  variacion: number | null;
+  margen: number | null;
+  ticket_promedio: number;
+  n_atenciones: number;
+  cuentas_por_cobrar: number;
+  ocupacion: number;
+  por_liquidar: number;
+  ingresos_por_servicio: CrmIngresoServicio[];
+}
+
+export interface CrmLiquidacion {
+  split_id: string;
+  clinic_id: string;
+  razon_social: string;
+  prestador: string;
+  monto: number;
+  fecha: string;
+  estado: string;
+}
+
+export interface CrmAsientoExport {
+  fecha: string;
+  clinica: string;
+  tipo: string;
+  monto: number;
+  moneda: string;
+  ref: string | null;
+}
