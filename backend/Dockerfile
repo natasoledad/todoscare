@@ -28,7 +28,9 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Quita posibles CR (\r) por si el checkout vino de Windows con CRLF, así el
+# shebang no falla con `env: bash\r: No such file or directory`.
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 # Usuario sin privilegios.
 RUN useradd --create-home --uid 10001 appuser \
