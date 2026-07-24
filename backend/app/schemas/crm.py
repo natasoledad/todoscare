@@ -91,10 +91,12 @@ class CampanaOut(BaseModel):
     gasto: float
     leads: int
     conversiones: int
+    conversiones_reales: int  # pacientes atribuidos de verdad
     fecha_inicio: date | None
     fecha_fin: date | None
     cpl: float | None  # costo por lead
-    cac: float | None  # costo por adquisición (gasto / conversiones)
+    cac: float | None  # costo por adquisición (gasto / conversiones meta)
+    cac_real: float | None  # gasto / conversiones reales
     conversion_rate: float | None
     presupuesto_usado: float | None  # 0..1
 
@@ -106,8 +108,25 @@ class CampanasResumen(BaseModel):
     gasto: float
     leads: int
     conversiones: int
+    conversiones_reales: int
     cac_promedio: float | None
+    cac_real_promedio: float | None
     conversion_rate: float | None
+
+
+class AtribucionOut(BaseModel):
+    campaign_id: uuid.UUID
+    nombre: str
+    canal: str
+    gasto: float
+    leads: int
+    conversiones_meta: int
+    conversiones_reales: int
+    ingresos_atribuidos: float
+    cac_real: float | None
+    roi_real: float | None  # (ingreso − gasto) / gasto
+    roas_real: float | None  # ingreso / gasto
+    pacientes: list[str]
 
 
 class CampanasOut(BaseModel):

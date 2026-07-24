@@ -419,10 +419,12 @@ export interface CrmCampana {
   gasto: number;
   leads: number;
   conversiones: number;
+  conversiones_reales: number;
   fecha_inicio: string | null;
   fecha_fin: string | null;
   cpl: number | null;
   cac: number | null;
+  cac_real: number | null;
   conversion_rate: number | null;
   presupuesto_usado: number | null;
 }
@@ -434,8 +436,25 @@ export interface CrmCampanasResumen {
   gasto: number;
   leads: number;
   conversiones: number;
+  conversiones_reales: number;
   cac_promedio: number | null;
+  cac_real_promedio: number | null;
   conversion_rate: number | null;
+}
+
+export interface CrmAtribucion {
+  campaign_id: string;
+  nombre: string;
+  canal: string;
+  gasto: number;
+  leads: number;
+  conversiones_meta: number;
+  conversiones_reales: number;
+  ingresos_atribuidos: number;
+  cac_real: number | null;
+  roi_real: number | null;
+  roas_real: number | null;
+  pacientes: string[];
 }
 
 export interface CrmCampanas {

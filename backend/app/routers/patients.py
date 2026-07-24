@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password
 from app.models.identity import Role, RoleAssignment, User
+from app.models.marketing import MarketingCampaign
 from app.models.patient import Dependent, Patient, TycAcceptance, TycVersion
 from app.models.tenant import Clinic
 from app.models.wallet import WalletAccount
@@ -80,11 +81,19 @@ async def register_patient(payload: RegisterInput, db: AsyncSession = Depends(ge
     if tyc is None or tyc.pais != clinic.pais:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Versión de T&C inválida para el país de la clínica")
 
+    # Atribución de marketing (opcional): la campaña debe ser de la misma clínica.
+    origen_campana_id = None
+    if payload.campana_id is not None:
+        camp = await db.get(MarketingCampaign, payload.campana_id)
+        if camp is None or camp.clinic_id != clinic.id or camp.deleted_at is not None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Campaña de atribución inválida")
+        origen_campana_id = camp.id
+
     user = User(email=payload.correo, password_hash=hash_password(payload.password), nombre=payload.nombre, telefono=payload.telefono)
     db.add(user)
     await db.flush()
 
-    patient = Patient(clinic_id=clinic.id, user_id=user.id, rut=payload.rut, direccion=payload.direccion, nivel="Bronce", ficha={})
+    patient = Patient(clinic_id=clinic.id, user_id=user.id, rut=payload.rut, direccion=payload.direccion, nivel="Bronce", ficha={}, origen_campana_id=origen_campana_id)
     db.add(patient)
     await db.flush()
 

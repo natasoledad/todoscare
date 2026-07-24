@@ -267,7 +267,7 @@ async def _marketing(db: AsyncSession, scope: Scope, start: date, end: date, ing
 # Elemento de gestión (no solo cálculo): campañas por canal. El gasto de cada
 # campaña se asienta en el ledger (tipo='gasto_marketing', ref 'campana:<id>'),
 # así el CAC/ROAS de la clínica lo reflejan automáticamente.
-def _campana_out(c: MarketingCampaign) -> dict:
+def _campana_out(c: MarketingCampaign, conversiones_reales: int = 0) -> dict:
     gasto = float(c.gasto)
     leads = int(c.leads)
     conv = int(c.conversiones)
@@ -281,11 +281,13 @@ def _campana_out(c: MarketingCampaign) -> dict:
         "gasto": gasto,
         "leads": leads,
         "conversiones": conv,
+        "conversiones_reales": conversiones_reales,  # pacientes atribuidos de verdad
         "fecha_inicio": c.fecha_inicio,
         "fecha_fin": c.fecha_fin,
         # métricas derivadas por campaña
         "cpl": round(gasto / leads, 2) if leads else None,  # costo por lead
-        "cac": round(gasto / conv, 2) if conv else None,  # costo por adquisición
+        "cac": round(gasto / conv, 2) if conv else None,  # costo por adquisición (meta)
+        "cac_real": round(gasto / conversiones_reales, 2) if conversiones_reales else None,
         "conversion_rate": round(conv / leads, 4) if leads else None,
         "presupuesto_usado": round(gasto / float(c.presupuesto), 4) if float(c.presupuesto) else None,
     }
@@ -303,11 +305,22 @@ async def campanas(db: AsyncSession, ctx: TenantContext, clinic_id: uuid.UUID | 
     elif scope is not None:
         q = q.where(MarketingCampaign.clinic_id.in_(scope))
     rows = (await db.execute(q.order_by(MarketingCampaign.created_at.desc()))).scalars().all()
-    items = [_campana_out(c) for c in rows]
+    # Conversiones reales por campaña = pacientes atribuidos (una sola query).
+    conv_map = dict(
+        (
+            await db.execute(
+                select(Patient.origen_campana_id, func.count(Patient.id))
+                .where(Patient.origen_campana_id.isnot(None), Patient.deleted_at.is_(None))
+                .group_by(Patient.origen_campana_id)
+            )
+        ).all()
+    )
+    items = [_campana_out(c, conversiones_reales=int(conv_map.get(c.id, 0))) for c in rows]
     activas = [c for c in rows if c.estado == "activa"]
     tot_gasto = sum(float(c.gasto) for c in rows)
     tot_conv = sum(int(c.conversiones) for c in rows)
     tot_leads = sum(int(c.leads) for c in rows)
+    tot_conv_real = sum(int(conv_map.get(c.id, 0)) for c in rows)
     resumen = {
         "campanas": len(rows),
         "activas": len(activas),
@@ -315,7 +328,9 @@ async def campanas(db: AsyncSession, ctx: TenantContext, clinic_id: uuid.UUID | 
         "gasto": round(tot_gasto, 2),
         "leads": tot_leads,
         "conversiones": tot_conv,
+        "conversiones_reales": tot_conv_real,
         "cac_promedio": round(tot_gasto / tot_conv, 2) if tot_conv else None,
+        "cac_real_promedio": round(tot_gasto / tot_conv_real, 2) if tot_conv_real else None,
         "conversion_rate": round(tot_conv / tot_leads, 4) if tot_leads else None,
     }
     return {"resumen": resumen, "items": items}
@@ -395,6 +410,52 @@ async def eliminar_campana(db: AsyncSession, ctx: TenantContext, campaign_id: uu
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Sin acceso a esa campaña")
     await db.delete(camp)  # baja lógica (el gasto ya asentado en el ledger se conserva)
     await db.commit()
+
+
+async def atribucion_campana(db: AsyncSession, ctx: TenantContext, campaign_id: uuid.UUID) -> dict:
+    """Atribución real: pacientes que se registraron con esta campaña, los
+    ingresos que generaron (vía sus atenciones en el ledger) y el CAC/ROI
+    reales — cierra el embudo campaña → paciente → ingreso."""
+    camp = (await db.execute(select(MarketingCampaign).where(MarketingCampaign.id == campaign_id, MarketingCampaign.deleted_at.is_(None)))).scalar_one_or_none()
+    if camp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaña no encontrada")
+    if not ctx.has_access_to_clinic(camp.clinic_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Sin acceso a esa campaña")
+
+    rows = (
+        await db.execute(
+            select(Patient.id, User.nombre).join(User, User.id == Patient.user_id).where(Patient.origen_campana_id == campaign_id, Patient.deleted_at.is_(None))
+        )
+    ).all()
+    pids = [pid for pid, _ in rows]
+    conv_reales = len(pids)
+
+    ingresos_atrib = 0.0
+    if pids:
+        appt_id = cast(func.split_part(LedgerEntry.ref, ":", 2), PgUUID(as_uuid=True))
+        q = (
+            select(func.coalesce(func.sum(LedgerEntry.monto), 0))
+            .select_from(LedgerEntry)
+            .join(Appointment, Appointment.id == appt_id)
+            .where(LedgerEntry.tipo == "ingreso", LedgerEntry.ref.like("appointment:%"), LedgerEntry.deleted_at.is_(None), Appointment.patient_id.in_(pids))
+        )
+        ingresos_atrib = float((await db.execute(q)).scalar_one())
+
+    gasto = float(camp.gasto)
+    return {
+        "campaign_id": camp.id,
+        "nombre": camp.nombre,
+        "canal": camp.canal,
+        "gasto": gasto,
+        "leads": int(camp.leads),
+        "conversiones_meta": int(camp.conversiones),
+        "conversiones_reales": conv_reales,
+        "ingresos_atribuidos": round(ingresos_atrib, 2),
+        "cac_real": round(gasto / conv_reales, 2) if conv_reales else None,
+        "roi_real": round((ingresos_atrib - gasto) / gasto, 4) if gasto else None,  # (ingreso − gasto) / gasto
+        "roas_real": round(ingresos_atrib / gasto, 2) if gasto else None,  # ingreso / gasto
+        "pacientes": [nombre for _, nombre in rows],
+    }
 
 
 async def _registrar_gasto_campana(db: AsyncSession, camp: MarketingCampaign, monto: float) -> None:

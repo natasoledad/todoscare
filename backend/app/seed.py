@@ -360,6 +360,7 @@ async def main() -> None:
 
             # Marketing digital: 2 campañas cuyo gasto (200+100=300) se asienta
             # en el ledger. Con 1 paciente nuevo este mes (Camila) => CAC = 300.
+            campana_google = None
             for nombre, canal, presupuesto, gasto, leads, conv in [
                 ("Google Ads — Chequeo preventivo", "google_ads", 500, 200, 40, 1),
                 ("Instagram — Sonrisa perfecta", "instagram", 300, 100, 25, 0),
@@ -368,6 +369,12 @@ async def main() -> None:
                 db.add(camp)
                 await db.flush()
                 db.add(LedgerEntry(clinic_id=clinic_a.id, tipo="gasto_marketing", monto=gasto, ref=f"campana:{camp.id}"))
+                if canal == "google_ads":
+                    campana_google = camp
+
+            # Atribución real: Camila llegó por la campaña de Google Ads.
+            patient_row = (await db.execute(select(Patient).where(Patient.clinic_id == clinic_a.id).order_by(Patient.created_at).limit(1))).scalar_one()
+            patient_row.origen_campana_id = campana_google.id
 
             cita = (
                 await db.execute(

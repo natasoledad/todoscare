@@ -24,6 +24,7 @@ from app.rbac.permissions import Action, Resource
 from app.schemas.crm import (
     ActualizarCampanaIn,
     AsientoExportOut,
+    AtribucionOut,
     CampanaOut,
     CampanasOut,
     ConciliarOut,
@@ -120,6 +121,15 @@ async def crear_campana(
         gasto=body.gasto, leads=body.leads, conversiones=body.conversiones, fecha_inicio=body.fecha_inicio, fecha_fin=body.fecha_fin,
     )
     return CampanaOut(**r)
+
+
+@router.get("/campanas/{campaign_id}/atribucion", response_model=AtribucionOut)
+async def atribucion_campana(
+    campaign_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CRM_CAMPANAS, Action.VER)),
+) -> AtribucionOut:
+    return AtribucionOut(**await crm.atribucion_campana(db, ctx, campaign_id))
 
 
 @router.patch("/campanas/{campaign_id}", response_model=CampanaOut)

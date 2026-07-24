@@ -128,6 +128,14 @@ async def main() -> None:
         check("campañas: 2 sembradas, gasto 300, 1 conversión", r.status_code == 200 and camp["resumen"]["campanas"] == 2 and abs(camp["resumen"]["gasto"] - 300) < 0.01 and camp["resumen"]["conversiones"] == 1)
         check("campaña trae métricas derivadas (CAC, CPL, conversión)", camp["items"][0]["cpl"] is not None and "cac" in camp["items"][0])
 
+        # ── Atribución real de conversiones (campaña → paciente → ingreso) ──
+        google = next(x for x in camp["items"] if x["canal"] == "google_ads")
+        check("conversión REAL atribuida (Camila llegó por Google Ads)", camp["resumen"]["conversiones_reales"] == 1 and google["conversiones_reales"] == 1 and abs(google["cac_real"] - 200) < 0.01)
+        r = await client.get(f"/crm/campanas/{google['id']}/atribucion", headers=superh)
+        atr = r.json()
+        check("atribución: 1 paciente (Camila) e ingresos atribuidos 810", r.status_code == 200 and atr["conversiones_reales"] == 1 and atr["pacientes"] == ["Camila Rodríguez"] and abs(atr["ingresos_atribuidos"] - 810) < 0.01)
+        check("atribución: ROAS real 4.05 y ROI real 3.05 (810 vs gasto 200)", abs(atr["roas_real"] - 4.05) < 0.01 and abs(atr["roi_real"] - 3.05) < 0.01)
+
         check("médico NO gestiona campañas -> 403", (await client.get("/crm/campanas", headers=medico)).status_code == 403)
         check("paciente NO gestiona campañas -> 403", (await client.get("/crm/campanas", headers=paciente)).status_code == 403)
 

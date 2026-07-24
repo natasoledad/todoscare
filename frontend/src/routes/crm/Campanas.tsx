@@ -5,7 +5,7 @@ import { Button } from '../../components/Button';
 import { BottomSheet } from '../../components/BottomSheet';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
-import type { CrmCampanas } from '../../api/types';
+import type { CrmAtribucion, CrmCampanas } from '../../api/types';
 import { money } from './DetalleClinicaView';
 
 const CANALES: { id: string; label: string; icon: string }[] = [
@@ -18,7 +18,6 @@ const CANALES: { id: string; label: string; icon: string }[] = [
   { id: 'referidos', label: 'Referidos', icon: '🤝' },
 ];
 const canalMeta = (id: string) => CANALES.find((c) => c.id === id) ?? { label: id, icon: '📣' };
-const pctText = (n: number | null) => (n === null ? '—' : `${(n * 100).toFixed(0)}%`);
 
 /** Gestión de marketing digital del CRM — compartida por Admin (por clínica)
  *  y Empresa (su propia clínica). El gasto de cada campaña alimenta el CAC. */
@@ -29,6 +28,7 @@ export function Campanas({ clinicId, backTo }: { clinicId?: string; backTo: stri
   const [f, setF] = useState({ nombre: '', canal: 'google_ads', presupuesto: '', gasto: '', leads: '', conversiones: '' });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [atrib, setAtrib] = useState<CrmAtribucion | null>(null);
 
   const load = () => api.crm.campanas(clinicId).then(setData);
   useEffect(() => { load(); }, [clinicId]);
@@ -71,11 +71,11 @@ export function Campanas({ clinicId, backTo }: { clinicId?: string; backTo: stri
         <div className="grid grid-cols-2 gap-2">
           <Tile label="Campañas activas" value={r ? `${r.activas}/${r.campanas}` : '—'} />
           <Tile label="Inversión" value={r ? money(r.inversion) : '—'} />
-          <Tile label="Leads → conversiones" value={r ? `${r.leads} → ${r.conversiones}` : '—'} />
-          <Tile label="CAC promedio" value={r?.cac_promedio == null ? '—' : money(r.cac_promedio)} tone="good" />
+          <Tile label="Leads → conv. reales" value={r ? `${r.leads} → ${r.conversiones_reales}` : '—'} />
+          <Tile label="CAC real promedio" value={r?.cac_real_promedio == null ? '—' : money(r.cac_real_promedio)} tone="good" />
         </div>
         <div className="px-1 text-[11px] text-sub">
-          El gasto de cada campaña se asienta en el ledger y alimenta el CAC/ROAS del CRM.
+          El gasto de cada campaña se asienta en el ledger; las conversiones reales son pacientes atribuidos.
         </div>
 
         {data && data.items.length === 0 && <div className="text-center text-sm text-sub py-8">Sin campañas todavía.</div>}
@@ -98,10 +98,11 @@ export function Campanas({ clinicId, backTo }: { clinicId?: string; backTo: stri
               </div>
               <div className="mt-1 flex justify-between text-[11px] text-sub">
                 <span>{money(c.gasto)} / {money(c.presupuesto)}</span>
-                <span>{c.leads} leads · {c.conversiones} conv · CAC {c.cac == null ? '—' : money(c.cac)} · conv. {pctText(c.conversion_rate)}</span>
+                <span>{c.leads} leads · <strong className="text-teal-dark">{c.conversiones_reales} reales</strong> · CAC {c.cac_real == null ? '—' : money(c.cac_real)}</span>
               </div>
               <div className="mt-3 flex gap-2">
                 <Button onClick={() => toggle(c.id, c.estado)} variant="outline" className="text-[12.5px] py-2 px-3.5">{c.estado === 'activa' ? 'Pausar' : 'Activar'}</Button>
+                <Button onClick={() => api.crm.atribucion(c.id).then(setAtrib)} variant="ghost" className="text-[12.5px] py-2 px-3.5">Atribución</Button>
                 <Button onClick={() => baja(c.id)} variant="ghost" className="text-[12.5px] py-2 px-3.5">Eliminar</Button>
               </div>
             </div>
@@ -112,6 +113,29 @@ export function Campanas({ clinicId, backTo }: { clinicId?: string; backTo: stri
       <div className="absolute left-0 right-0 bottom-0 px-5 pb-6 pt-3 bg-gradient-to-t from-bg via-bg to-transparent">
         <Button onClick={() => { setOpen(true); setError(null); }} className="w-full">+ Nueva campaña</Button>
       </div>
+
+      {atrib && (
+        <BottomSheet onClose={() => setAtrib(null)}>
+          <div className="font-heading font-extrabold text-[17px] text-ink">Atribución · {atrib.nombre}</div>
+          <div className="text-[12.5px] text-sub">Pacientes que llegaron por esta campaña y los ingresos que generaron.</div>
+          <div className="grid grid-cols-2 gap-2">
+            <Tile label="Conversiones reales" value={String(atrib.conversiones_reales)} />
+            <Tile label="Ingresos atribuidos" value={money(atrib.ingresos_atribuidos)} />
+            <Tile label="CAC real" value={atrib.cac_real == null ? '—' : money(atrib.cac_real)} />
+            <Tile label="ROAS real" value={atrib.roas_real == null ? '—' : `${atrib.roas_real}×`} tone="good" />
+          </div>
+          <div className="rounded-xl bg-teal-soft border border-[#CDEEE1] p-3 text-[12.5px] text-teal-dark">
+            ROI {atrib.roi_real == null ? '—' : `${(atrib.roi_real * 100).toFixed(0)}%`} · embudo: {atrib.leads} leads → {atrib.conversiones_reales} pacientes → {money(atrib.ingresos_atribuidos)} en ingresos.
+          </div>
+          {atrib.pacientes.length > 0 && (
+            <div>
+              <div className="text-[12px] font-semibold text-ink pb-1">Pacientes atribuidos</div>
+              {atrib.pacientes.map((n, i) => <div key={i} className="text-[13px] text-sub">• {n}</div>)}
+            </div>
+          )}
+          <Button onClick={() => setAtrib(null)} variant="ghost" className="w-full">Cerrar</Button>
+        </BottomSheet>
+      )}
 
       {open && (
         <BottomSheet onClose={() => setOpen(false)}>

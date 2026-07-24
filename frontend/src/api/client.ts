@@ -16,6 +16,7 @@ import type {
   ClinicPublic,
   Convenio,
   CrmAsientoExport,
+  CrmAtribucion,
   CrmCampana,
   CrmCampanas,
   CrmConsolidado,
@@ -233,6 +234,7 @@ export const api = {
       post<CrmCampana>('/crm/campanas', body),
     actualizarCampana: (id: string, body: { estado?: string; leads?: number; conversiones?: number; gasto_adicional?: number }) => patch<CrmCampana>(`/crm/campanas/${id}`, body),
     eliminarCampana: (id: string) => del(`/crm/campanas/${id}`),
+    atribucion: (id: string) => get<CrmAtribucion>(`/crm/campanas/${id}/atribucion`),
   },
   aseguradora: {
     inicio: () => get<AseguradoraKpis>('/aseguradora/inicio'),

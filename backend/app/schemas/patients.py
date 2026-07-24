@@ -27,6 +27,7 @@ class RegisterInput(BaseModel):
     password: str = Field(min_length=8)
     clinic_id: uuid.UUID
     tyc_version_id: uuid.UUID
+    campana_id: uuid.UUID | None = None  # atribución de marketing (UTM/ref)
 
 
 class DependentIn(BaseModel):
