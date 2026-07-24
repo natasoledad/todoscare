@@ -28,11 +28,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.catalog import CatalogItem
 from app.models.finance import LedgerEntry, PaymentSplit
 from app.models.identity import User
+from app.models.marketing import MarketingCampaign
 from app.models.patient import Patient
 from app.models.scheduling import Appointment, AvailabilityBlock
 from app.models.tenant import Clinic
 from app.services.medico import audit
 from app.tenancy.context import TenantContext
+
+CANALES = {"google_ads", "meta_ads", "instagram", "email", "whatsapp", "seo", "referidos"}
 
 Scope = set[uuid.UUID] | None
 
@@ -258,6 +261,148 @@ async def _marketing(db: AsyncSession, scope: Scope, start: date, end: date, ing
         "ltv_cac_ratio": ltv_cac,
         "roas": roas,
     }
+
+
+# ─────────────────────────── marketing digital: campañas ───────────────────────────
+# Elemento de gestión (no solo cálculo): campañas por canal. El gasto de cada
+# campaña se asienta en el ledger (tipo='gasto_marketing', ref 'campana:<id>'),
+# así el CAC/ROAS de la clínica lo reflejan automáticamente.
+def _campana_out(c: MarketingCampaign) -> dict:
+    gasto = float(c.gasto)
+    leads = int(c.leads)
+    conv = int(c.conversiones)
+    return {
+        "id": c.id,
+        "clinic_id": c.clinic_id,
+        "nombre": c.nombre,
+        "canal": c.canal,
+        "estado": c.estado,
+        "presupuesto": float(c.presupuesto),
+        "gasto": gasto,
+        "leads": leads,
+        "conversiones": conv,
+        "fecha_inicio": c.fecha_inicio,
+        "fecha_fin": c.fecha_fin,
+        # métricas derivadas por campaña
+        "cpl": round(gasto / leads, 2) if leads else None,  # costo por lead
+        "cac": round(gasto / conv, 2) if conv else None,  # costo por adquisición
+        "conversion_rate": round(conv / leads, 4) if leads else None,
+        "presupuesto_usado": round(gasto / float(c.presupuesto), 4) if float(c.presupuesto) else None,
+    }
+
+
+async def campanas(db: AsyncSession, ctx: TenantContext, clinic_id: uuid.UUID | None = None) -> dict:
+    """Lista campañas del alcance + un resumen agregado. Si clinic_id se
+    pasa (empresa), se acota a esa clínica (validando acceso)."""
+    scope = ctx.clinic_ids()
+    if clinic_id is not None and not ctx.has_access_to_clinic(clinic_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Sin acceso a esa clínica")
+    q = select(MarketingCampaign).where(MarketingCampaign.deleted_at.is_(None))
+    if clinic_id is not None:
+        q = q.where(MarketingCampaign.clinic_id == clinic_id)
+    elif scope is not None:
+        q = q.where(MarketingCampaign.clinic_id.in_(scope))
+    rows = (await db.execute(q.order_by(MarketingCampaign.created_at.desc()))).scalars().all()
+    items = [_campana_out(c) for c in rows]
+    activas = [c for c in rows if c.estado == "activa"]
+    tot_gasto = sum(float(c.gasto) for c in rows)
+    tot_conv = sum(int(c.conversiones) for c in rows)
+    tot_leads = sum(int(c.leads) for c in rows)
+    resumen = {
+        "campanas": len(rows),
+        "activas": len(activas),
+        "inversion": round(sum(float(c.presupuesto) for c in rows), 2),
+        "gasto": round(tot_gasto, 2),
+        "leads": tot_leads,
+        "conversiones": tot_conv,
+        "cac_promedio": round(tot_gasto / tot_conv, 2) if tot_conv else None,
+        "conversion_rate": round(tot_conv / tot_leads, 4) if tot_leads else None,
+    }
+    return {"resumen": resumen, "items": items}
+
+
+async def crear_campana(
+    db: AsyncSession,
+    ctx: TenantContext,
+    *,
+    clinic_id: uuid.UUID,
+    nombre: str,
+    canal: str,
+    presupuesto: float,
+    gasto: float = 0,
+    leads: int = 0,
+    conversiones: int = 0,
+    fecha_inicio: date | None = None,
+    fecha_fin: date | None = None,
+) -> dict:
+    if not ctx.has_access_to_clinic(clinic_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Sin acceso a esa clínica")
+    if canal not in CANALES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"canal inválido; usa uno de {sorted(CANALES)}")
+    if conversiones > leads:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "conversiones no puede superar a leads")
+    camp = MarketingCampaign(
+        clinic_id=clinic_id, nombre=nombre, canal=canal, presupuesto=presupuesto, gasto=0, leads=leads, conversiones=conversiones, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin
+    )
+    db.add(camp)
+    await db.flush()
+    if gasto and gasto > 0:
+        await _registrar_gasto_campana(db, camp, gasto)
+    audit(db, ctx, clinic_id=clinic_id, accion="crear_campana", recurso=f"campana:{camp.id}", despues={"canal": canal, "presupuesto": presupuesto})
+    await db.commit()
+    await db.refresh(camp)
+    return _campana_out(camp)
+
+
+async def actualizar_campana(
+    db: AsyncSession,
+    ctx: TenantContext,
+    campaign_id: uuid.UUID,
+    *,
+    estado: str | None = None,
+    leads: int | None = None,
+    conversiones: int | None = None,
+    gasto_adicional: float | None = None,
+) -> dict:
+    camp = (await db.execute(select(MarketingCampaign).where(MarketingCampaign.id == campaign_id, MarketingCampaign.deleted_at.is_(None)))).scalar_one_or_none()
+    if camp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaña no encontrada")
+    if not ctx.has_access_to_clinic(camp.clinic_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Sin acceso a esa campaña")
+    if estado is not None:
+        if estado not in {"activa", "pausada", "finalizada"}:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "estado inválido")
+        camp.estado = estado
+    if leads is not None:
+        camp.leads = leads
+    if conversiones is not None:
+        camp.conversiones = conversiones
+    if int(camp.conversiones) > int(camp.leads):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "conversiones no puede superar a leads")
+    if gasto_adicional and gasto_adicional > 0:
+        await _registrar_gasto_campana(db, camp, gasto_adicional)
+    audit(db, ctx, clinic_id=camp.clinic_id, accion="actualizar_campana", recurso=f"campana:{camp.id}", despues={"estado": camp.estado})
+    await db.commit()
+    await db.refresh(camp)
+    return _campana_out(camp)
+
+
+async def eliminar_campana(db: AsyncSession, ctx: TenantContext, campaign_id: uuid.UUID) -> None:
+    camp = (await db.execute(select(MarketingCampaign).where(MarketingCampaign.id == campaign_id, MarketingCampaign.deleted_at.is_(None)))).scalar_one_or_none()
+    if camp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Campaña no encontrada")
+    if not ctx.has_access_to_clinic(camp.clinic_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Sin acceso a esa campaña")
+    await db.delete(camp)  # baja lógica (el gasto ya asentado en el ledger se conserva)
+    await db.commit()
+
+
+async def _registrar_gasto_campana(db: AsyncSession, camp: MarketingCampaign, monto: float) -> None:
+    """Asienta el gasto en el ledger (gasto_marketing) e incrementa el
+    acumulado cacheado de la campaña. El ledger es la fuente de verdad del
+    CAC/ROAS; el campo `gasto` es una caché para mostrar por campaña."""
+    db.add(LedgerEntry(clinic_id=camp.clinic_id, tipo="gasto_marketing", monto=monto, ref=f"campana:{camp.id}"))
+    camp.gasto = float(camp.gasto) + float(monto)
 
 
 # ─────────────────────────── pantallas ───────────────────────────

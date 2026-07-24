@@ -122,6 +122,35 @@ async def main() -> None:
         r = await client.get("/crm/exportar", headers=superh)
         check("super_admin exporta asientos a ERP -> 200 (no vacío)", r.status_code == 200 and len(r.json()) > 0)
 
+        # ── Marketing digital: gestión de campañas ──
+        r = await client.get("/crm/campanas", headers=superh)
+        camp = r.json()
+        check("campañas: 2 sembradas, gasto 300, 1 conversión", r.status_code == 200 and camp["resumen"]["campanas"] == 2 and abs(camp["resumen"]["gasto"] - 300) < 0.01 and camp["resumen"]["conversiones"] == 1)
+        check("campaña trae métricas derivadas (CAC, CPL, conversión)", camp["items"][0]["cpl"] is not None and "cac" in camp["items"][0])
+
+        check("médico NO gestiona campañas -> 403", (await client.get("/crm/campanas", headers=medico)).status_code == 403)
+        check("paciente NO gestiona campañas -> 403", (await client.get("/crm/campanas", headers=paciente)).status_code == 403)
+
+        # empresa gestiona las de SU clínica (sin pasar clinic_id)
+        r = await client.get("/crm/campanas", headers=empresa)
+        check("empresa ve campañas de su clínica", r.status_code == 200 and r.json()["resumen"]["campanas"] == 2)
+
+        # crear campaña (empresa) — su gasto se asienta en el ledger (sube gasto_marketing)
+        gm_antes = (await client.get(f"/crm/clinicas/{clinic_a}", headers=superh)).json()["marketing"]["gasto_marketing"]
+        r = await client.post("/crm/campanas", headers=empresa, json={"nombre": "Email — Recordatorio anual", "canal": "email", "presupuesto": 150, "gasto": 60, "leads": 20, "conversiones": 3})
+        check("empresa crea campaña -> 201 con CAC=20 (60/3)", r.status_code == 201 and abs(r.json()["cac"] - 20) < 0.01)
+        camp_id = r.json()["id"]
+        gm_desp = (await client.get(f"/crm/clinicas/{clinic_a}", headers=superh)).json()["marketing"]["gasto_marketing"]
+        check("el gasto de la campaña sube el gasto de marketing del CRM (+60)", abs((gm_desp - gm_antes) - 60) < 0.01)
+
+        check("canal inválido -> 400", (await client.post("/crm/campanas", headers=empresa, json={"nombre": "X", "canal": "tiktokz", "presupuesto": 10})).status_code == 400)
+        check("conversiones > leads -> 400", (await client.post("/crm/campanas", headers=empresa, json={"nombre": "X", "canal": "seo", "presupuesto": 10, "leads": 2, "conversiones": 5})).status_code == 400)
+
+        # pausar y dar de baja
+        r = await client.patch(f"/crm/campanas/{camp_id}", headers=empresa, json={"estado": "pausada"})
+        check("pausar campaña -> 200 estado=pausada", r.status_code == 200 and r.json()["estado"] == "pausada")
+        check("dar de baja campaña -> 204", (await client.delete(f"/crm/campanas/{camp_id}", headers=empresa)).status_code == 204)
+
     print()
     failed = 0
     for name, ok in results:

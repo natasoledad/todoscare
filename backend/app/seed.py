@@ -16,6 +16,7 @@ from app.models.clinical import ExamOrder, ExamResult, Hospitalization, MedicalR
 from app.models.finance import Company, CompanyEmployee, LedgerEntry, PaymentSplit
 from app.models.insurance import Affiliate, Agreement, Arancel, Authorization, Insurer
 from app.models.integrations import IntegrationConfig
+from app.models.marketing import MarketingCampaign
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient, TycAcceptance, TycVersion
 from app.models.scheduling import Appointment, AvailabilityBlock
@@ -357,10 +358,16 @@ async def main() -> None:
             await db.flush()
             prev.created_at = today.replace(day=1) - timedelta(days=2)  # mes anterior
 
-            # Gasto de marketing del período para los indicadores de captación
-            # (CAC/LTV/ROAS). Con 1 paciente nuevo este mes (Camila) => CAC = 300.
-            db.add(LedgerEntry(clinic_id=clinic_a.id, tipo="gasto_marketing", monto=200, ref="seed-mkt-ads"))
-            db.add(LedgerEntry(clinic_id=clinic_a.id, tipo="gasto_marketing", monto=100, ref="seed-mkt-redes"))
+            # Marketing digital: 2 campañas cuyo gasto (200+100=300) se asienta
+            # en el ledger. Con 1 paciente nuevo este mes (Camila) => CAC = 300.
+            for nombre, canal, presupuesto, gasto, leads, conv in [
+                ("Google Ads — Chequeo preventivo", "google_ads", 500, 200, 40, 1),
+                ("Instagram — Sonrisa perfecta", "instagram", 300, 100, 25, 0),
+            ]:
+                camp = MarketingCampaign(clinic_id=clinic_a.id, nombre=nombre, canal=canal, estado="activa", presupuesto=presupuesto, gasto=gasto, leads=leads, conversiones=conv)
+                db.add(camp)
+                await db.flush()
+                db.add(LedgerEntry(clinic_id=clinic_a.id, tipo="gasto_marketing", monto=gasto, ref=f"campana:{camp.id}"))
 
             cita = (
                 await db.execute(

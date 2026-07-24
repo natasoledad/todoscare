@@ -16,6 +16,8 @@ import type {
   ClinicPublic,
   Convenio,
   CrmAsientoExport,
+  CrmCampana,
+  CrmCampanas,
   CrmConsolidado,
   CrmDetalleClinica,
   CrmLiquidacion,
@@ -226,6 +228,11 @@ export const api = {
     liquidaciones: (period?: string) => get<CrmLiquidacion[]>(`/crm/liquidaciones${period ? `?period=${period}` : ''}`),
     conciliar: (splitId: string) => post<{ split_id: string; estado: string; conciliado_at: string | null }>(`/crm/liquidaciones/${splitId}/conciliar`),
     exportar: (period?: string) => get<CrmAsientoExport[]>(`/crm/exportar${period ? `?period=${period}` : ''}`),
+    campanas: (clinicId?: string) => get<CrmCampanas>(`/crm/campanas${clinicId ? `?clinic_id=${clinicId}` : ''}`),
+    crearCampana: (body: { clinic_id?: string; nombre: string; canal: string; presupuesto: number; gasto?: number; leads?: number; conversiones?: number }) =>
+      post<CrmCampana>('/crm/campanas', body),
+    actualizarCampana: (id: string, body: { estado?: string; leads?: number; conversiones?: number; gasto_adicional?: number }) => patch<CrmCampana>(`/crm/campanas/${id}`, body),
+    eliminarCampana: (id: string) => del(`/crm/campanas/${id}`),
   },
   aseguradora: {
     inicio: () => get<AseguradoraKpis>('/aseguradora/inicio'),

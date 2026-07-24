@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BackHeader } from '../../../components/BackHeader';
+import { Button } from '../../../components/Button';
 import { api } from '../../../api/client';
 import type { CrmDetalleClinica } from '../../../api/types';
 import { DetalleClinicaView } from '../../crm/DetalleClinicaView';
@@ -22,6 +23,9 @@ export function DetalleClinica() {
           <>
             <div className="text-[11px] text-sub pb-3">{d.pais} · Período {d.period}</div>
             <DetalleClinicaView d={d} />
+            <div className="pt-3">
+              <Button onClick={() => navigate(`/admin/crm/${clinicId}/campanas`)} variant="outline" className="w-full">📣 Marketing digital · Campañas</Button>
+            </div>
           </>
         ) : (
           <div className="text-center text-sm text-sub py-8">Cargando…</div>

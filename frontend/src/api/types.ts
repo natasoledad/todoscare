@@ -409,6 +409,40 @@ export interface CrmMarketing {
   roas: number | null;
 }
 
+export interface CrmCampana {
+  id: string;
+  clinic_id: string;
+  nombre: string;
+  canal: string;
+  estado: 'activa' | 'pausada' | 'finalizada';
+  presupuesto: number;
+  gasto: number;
+  leads: number;
+  conversiones: number;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  cpl: number | null;
+  cac: number | null;
+  conversion_rate: number | null;
+  presupuesto_usado: number | null;
+}
+
+export interface CrmCampanasResumen {
+  campanas: number;
+  activas: number;
+  inversion: number;
+  gasto: number;
+  leads: number;
+  conversiones: number;
+  cac_promedio: number | null;
+  conversion_rate: number | null;
+}
+
+export interface CrmCampanas {
+  resumen: CrmCampanasResumen;
+  items: CrmCampana[];
+}
+
 export interface CrmDetalleClinica {
   clinic_id: string;
   razon_social: string;

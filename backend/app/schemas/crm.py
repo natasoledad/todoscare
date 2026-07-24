@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -78,3 +78,57 @@ class AsientoExportOut(BaseModel):
     monto: float
     moneda: str
     ref: str | None
+
+
+# ── Marketing digital: campañas ──
+class CampanaOut(BaseModel):
+    id: uuid.UUID
+    clinic_id: uuid.UUID
+    nombre: str
+    canal: str
+    estado: str
+    presupuesto: float
+    gasto: float
+    leads: int
+    conversiones: int
+    fecha_inicio: date | None
+    fecha_fin: date | None
+    cpl: float | None  # costo por lead
+    cac: float | None  # costo por adquisición (gasto / conversiones)
+    conversion_rate: float | None
+    presupuesto_usado: float | None  # 0..1
+
+
+class CampanasResumen(BaseModel):
+    campanas: int
+    activas: int
+    inversion: float
+    gasto: float
+    leads: int
+    conversiones: int
+    cac_promedio: float | None
+    conversion_rate: float | None
+
+
+class CampanasOut(BaseModel):
+    resumen: CampanasResumen
+    items: list[CampanaOut]
+
+
+class CrearCampanaIn(BaseModel):
+    clinic_id: uuid.UUID | None = None  # requerido para super_admin; la empresa usa la suya
+    nombre: str
+    canal: str
+    presupuesto: float = 0
+    gasto: float = 0
+    leads: int = 0
+    conversiones: int = 0
+    fecha_inicio: date | None = None
+    fecha_fin: date | None = None
+
+
+class ActualizarCampanaIn(BaseModel):
+    estado: str | None = None
+    leads: int | None = None
+    conversiones: int | None = None
+    gasto_adicional: float | None = None

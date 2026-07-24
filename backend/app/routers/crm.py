@@ -22,9 +22,13 @@ from app.core.database import get_db
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource
 from app.schemas.crm import (
+    ActualizarCampanaIn,
     AsientoExportOut,
+    CampanaOut,
+    CampanasOut,
     ConciliarOut,
     ConsolidadoOut,
+    CrearCampanaIn,
     DetalleClinicaOut,
     LiquidacionOut,
 )
@@ -91,3 +95,48 @@ async def exportar(
     ctx: TenantContext = Depends(require(Resource.CRM_EXPORTAR_ERP, Action.VER)),
 ) -> list[AsientoExportOut]:
     return [AsientoExportOut(**r) for r in await crm.exportar_asientos(db, ctx, period)]
+
+
+# ─────────── Marketing digital: campañas (Admin + Empresa) ───────────
+@router.get("/campanas", response_model=CampanasOut)
+async def campanas(
+    clinic_id: uuid.UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CRM_CAMPANAS, Action.VER)),
+) -> CampanasOut:
+    return CampanasOut(**await crm.campanas(db, ctx, clinic_id))
+
+
+@router.post("/campanas", response_model=CampanaOut, status_code=201)
+async def crear_campana(
+    body: CrearCampanaIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CRM_CAMPANAS, Action.CREAR)),
+) -> CampanaOut:
+    # La empresa/clinic_admin usa su clínica; el super_admin debe indicar clinic_id.
+    clinic_id = body.clinic_id or empresa_clinic_id(ctx)
+    r = await crm.crear_campana(
+        db, ctx, clinic_id=clinic_id, nombre=body.nombre, canal=body.canal, presupuesto=body.presupuesto,
+        gasto=body.gasto, leads=body.leads, conversiones=body.conversiones, fecha_inicio=body.fecha_inicio, fecha_fin=body.fecha_fin,
+    )
+    return CampanaOut(**r)
+
+
+@router.patch("/campanas/{campaign_id}", response_model=CampanaOut)
+async def actualizar_campana(
+    campaign_id: uuid.UUID,
+    body: ActualizarCampanaIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CRM_CAMPANAS, Action.EDITAR)),
+) -> CampanaOut:
+    r = await crm.actualizar_campana(db, ctx, campaign_id, estado=body.estado, leads=body.leads, conversiones=body.conversiones, gasto_adicional=body.gasto_adicional)
+    return CampanaOut(**r)
+
+
+@router.delete("/campanas/{campaign_id}", status_code=204)
+async def eliminar_campana(
+    campaign_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CRM_CAMPANAS, Action.ELIMINAR)),
+) -> None:
+    await crm.eliminar_campana(db, ctx, campaign_id)

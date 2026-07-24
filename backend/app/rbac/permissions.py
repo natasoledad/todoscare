@@ -58,6 +58,7 @@ class Resource(str, Enum):
     CRM_KPIS_CLINICA = "crm_kpis_clinica"
     CRM_CONCILIAR = "crm_conciliar"
     CRM_EXPORTAR_ERP = "crm_exportar_erp"
+    CRM_CAMPANAS = "crm_campanas"  # gestión de marketing digital
 
     # --- Aseguradora / Prestador (Spec Aseguradora Prestador §3) ---
     CONVENIOS_ARANCELES = "convenios_aranceles"

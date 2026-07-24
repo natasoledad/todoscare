@@ -28,6 +28,7 @@ _ADMIN_MATRIX: dict[Resource, set[Action]] = {
     Resource.CRM_KPIS_CLINICA: {V},
     Resource.CRM_CONCILIAR: {V, E},
     Resource.CRM_EXPORTAR_ERP: {V},
+    Resource.CRM_CAMPANAS: {V, C, E, D},  # gestión de marketing digital
 }
 
 ROLE_PERMISSIONS: dict[RoleCode, dict[Resource, set[Action]]] = {
@@ -45,6 +46,7 @@ ROLE_PERMISSIONS: dict[RoleCode, dict[Resource, set[Action]]] = {
         Resource.FUNCIONARIOS_B2B: {V, C, E, D},  # C = alta, D = baja
         # CRM (Spec CRM §7 — fila Empresa/Clínica)
         Resource.CRM_KPIS_CLINICA: {V},
+        Resource.CRM_CAMPANAS: {V, C, E, D},  # la clínica gestiona su marketing digital
         # CRM_CONCILIAR: "Según config." en la spec — no se otorga por
         # defecto; requiere una config explícita por clínica (abierto en
         # Spec CRM §10, no definido todavía).

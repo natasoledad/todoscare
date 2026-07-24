@@ -45,6 +45,8 @@ import { Integraciones as AdminIntegraciones } from './routes/admin/Integracione
 import { Consolidado as AdminCrmConsolidado } from './routes/admin/crm/Consolidado';
 import { DetalleClinica as AdminCrmDetalle } from './routes/admin/crm/DetalleClinica';
 import { Liquidaciones as AdminCrmLiquidaciones } from './routes/admin/crm/Liquidaciones';
+import { CampanasClinica as AdminCrmCampanas } from './routes/admin/crm/CampanasClinica';
+import { CampanasEmpresa } from './routes/empresa/CampanasEmpresa';
 import { Inicio as AsegInicio } from './routes/aseguradora/Inicio';
 import { Convenios as AsegConvenios } from './routes/aseguradora/Convenios';
 import { Autorizaciones as AsegAutorizaciones } from './routes/aseguradora/Autorizaciones';
@@ -107,6 +109,7 @@ function App() {
               <Route path="/empresa/info" element={<EmpresaInfo />} />
               <Route path="/empresa/funcionarios" element={<EmpresaFuncionarios />} />
               <Route path="/empresa/crm" element={<EmpresaCrm />} />
+              <Route path="/empresa/campanas" element={<CampanasEmpresa />} />
             </Route>
 
             {/* ── Administrador ── */}
@@ -120,6 +123,7 @@ function App() {
               <Route path="/admin/integraciones" element={<AdminIntegraciones />} />
               <Route path="/admin/crm" element={<AdminCrmConsolidado />} />
               <Route path="/admin/crm/liquidaciones" element={<AdminCrmLiquidaciones />} />
+              <Route path="/admin/crm/:clinicId/campanas" element={<AdminCrmCampanas />} />
               <Route path="/admin/crm/:clinicId" element={<AdminCrmDetalle />} />
             </Route>
 
