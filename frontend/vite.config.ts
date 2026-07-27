@@ -12,6 +12,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
+      workbox: {
+        // Precachea también las fuentes auto-alojadas → cargan al instante y offline.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest,woff2}'],
+      },
       manifest: {
         name: 'TODOSCARE',
         short_name: 'TODOSCARE',
@@ -28,6 +32,17 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // React y el router en su propio chunk estable: se cachea aparte y no
+        // se re-descarga al actualizar el código de la app.
+        manualChunks(id) {
+          if (id.includes('node_modules')) return 'vendor';
+        },
+      },
+    },
+  },
   server: {
     // El cliente llama a /api/*; en dev lo proxyamos al backend quitando el
     // prefijo. En producción lo hace nginx (ver frontend/docker/nginx.conf).

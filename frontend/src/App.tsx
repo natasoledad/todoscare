@@ -1,145 +1,177 @@
+import { lazy, Suspense, type ComponentType } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppFrame } from './components/AppFrame';
 import { AuthProvider } from './context/AuthContext';
+import { RequireAuth, RequireOnboarded, RequireRole } from './routes/ProtectedRoute';
+// Rutas públicas / de entrada: se cargan de inmediato (son la primera pantalla).
 import { Landing } from './routes/Landing';
 import { Login } from './routes/Login';
 import { Register } from './routes/Register';
-import { Onboarding } from './routes/Onboarding';
 import { QrResolve } from './routes/QrResolve';
-import { RequireAuth, RequireOnboarded, RequireRole } from './routes/ProtectedRoute';
-import { AppShell } from './routes/patient/AppShell';
-import { Home } from './routes/patient/Home';
-import { Agenda } from './routes/patient/Agenda';
-import { Farmacia } from './routes/patient/Farmacia';
-import { Perfil } from './routes/patient/Perfil';
-import { Wallet } from './routes/patient/Wallet';
-import { Asistente } from './routes/patient/Asistente';
-import { SaludMenu } from './routes/salud/SaludMenu';
-import { Ficha } from './routes/salud/Ficha';
-import { Examenes } from './routes/salud/Examenes';
-import { Dental } from './routes/salud/Dental';
-import { Hospitalizaciones } from './routes/salud/Hospitalizaciones';
-import { Agendamientos } from './routes/salud/Agendamientos';
-import { Qr } from './routes/salud/Qr';
-import { Subir } from './routes/salud/Subir';
-import { MedicoShell } from './routes/medico/MedicoShell';
-import { Agenda as MedicoAgenda } from './routes/medico/Agenda';
-import { Cita as MedicoCita } from './routes/medico/Cita';
-import { Ficha as MedicoFicha } from './routes/medico/Ficha';
-import { Liquidaciones as MedicoLiquidaciones } from './routes/medico/Liquidaciones';
-import { Perfil as MedicoPerfil } from './routes/medico/Perfil';
-import { Inicio as EmpresaInicio } from './routes/empresa/Inicio';
-import { Servicios as EmpresaServicios } from './routes/empresa/Servicios';
-import { Promociones as EmpresaPromociones } from './routes/empresa/Promociones';
-import { Agendas as EmpresaAgendas } from './routes/empresa/Agendas';
-import { Info as EmpresaInfo } from './routes/empresa/Info';
-import { Funcionarios as EmpresaFuncionarios } from './routes/empresa/Funcionarios';
-import { Crm as EmpresaCrm } from './routes/empresa/Crm';
-import { Inicio as AdminInicio } from './routes/admin/Inicio';
-import { Clinicas as AdminClinicas } from './routes/admin/Clinicas';
-import { Usuarios as AdminUsuarios } from './routes/admin/Usuarios';
-import { Config as AdminConfig } from './routes/admin/Config';
-import { Finanzas as AdminFinanzas } from './routes/admin/Finanzas';
-import { Auditoria as AdminAuditoria } from './routes/admin/Auditoria';
-import { Integraciones as AdminIntegraciones } from './routes/admin/Integraciones';
-import { Consolidado as AdminCrmConsolidado } from './routes/admin/crm/Consolidado';
-import { DetalleClinica as AdminCrmDetalle } from './routes/admin/crm/DetalleClinica';
-import { Liquidaciones as AdminCrmLiquidaciones } from './routes/admin/crm/Liquidaciones';
-import { CampanasClinica as AdminCrmCampanas } from './routes/admin/crm/CampanasClinica';
-import { CampanasEmpresa } from './routes/empresa/CampanasEmpresa';
-import { Inicio as AsegInicio } from './routes/aseguradora/Inicio';
-import { Convenios as AsegConvenios } from './routes/aseguradora/Convenios';
-import { Autorizaciones as AsegAutorizaciones } from './routes/aseguradora/Autorizaciones';
-import { Liquidaciones as AsegLiquidaciones } from './routes/aseguradora/Liquidaciones';
-import { Padron as AsegPadron } from './routes/aseguradora/Padron';
-import { Red as AsegRed } from './routes/aseguradora/Red';
+
+/** Carga diferida de un export con nombre: cada rol baja en su propio chunk,
+ *  no en el paquete inicial. Mejora la primera carga en conexiones lentas. */
+function lazyNamed<M extends Record<string, unknown>, K extends keyof M>(
+  factory: () => Promise<M>,
+  name: K,
+) {
+  return lazy(async () => ({ default: (await factory())[name] as ComponentType }));
+}
+
+// ── Paciente ──
+const Onboarding = lazyNamed(() => import('./routes/Onboarding'), 'Onboarding');
+const AppShell = lazyNamed(() => import('./routes/patient/AppShell'), 'AppShell');
+const Home = lazyNamed(() => import('./routes/patient/Home'), 'Home');
+const Agenda = lazyNamed(() => import('./routes/patient/Agenda'), 'Agenda');
+const Farmacia = lazyNamed(() => import('./routes/patient/Farmacia'), 'Farmacia');
+const Perfil = lazyNamed(() => import('./routes/patient/Perfil'), 'Perfil');
+const Wallet = lazyNamed(() => import('./routes/patient/Wallet'), 'Wallet');
+const Asistente = lazyNamed(() => import('./routes/patient/Asistente'), 'Asistente');
+const SaludMenu = lazyNamed(() => import('./routes/salud/SaludMenu'), 'SaludMenu');
+const Ficha = lazyNamed(() => import('./routes/salud/Ficha'), 'Ficha');
+const Examenes = lazyNamed(() => import('./routes/salud/Examenes'), 'Examenes');
+const Dental = lazyNamed(() => import('./routes/salud/Dental'), 'Dental');
+const Hospitalizaciones = lazyNamed(() => import('./routes/salud/Hospitalizaciones'), 'Hospitalizaciones');
+const Agendamientos = lazyNamed(() => import('./routes/salud/Agendamientos'), 'Agendamientos');
+const Qr = lazyNamed(() => import('./routes/salud/Qr'), 'Qr');
+const Subir = lazyNamed(() => import('./routes/salud/Subir'), 'Subir');
+
+// ── Médico ──
+const MedicoShell = lazyNamed(() => import('./routes/medico/MedicoShell'), 'MedicoShell');
+const MedicoAgenda = lazyNamed(() => import('./routes/medico/Agenda'), 'Agenda');
+const MedicoCita = lazyNamed(() => import('./routes/medico/Cita'), 'Cita');
+const MedicoFicha = lazyNamed(() => import('./routes/medico/Ficha'), 'Ficha');
+const MedicoLiquidaciones = lazyNamed(() => import('./routes/medico/Liquidaciones'), 'Liquidaciones');
+const MedicoPerfil = lazyNamed(() => import('./routes/medico/Perfil'), 'Perfil');
+
+// ── Empresa / Cliente ──
+const EmpresaInicio = lazyNamed(() => import('./routes/empresa/Inicio'), 'Inicio');
+const EmpresaServicios = lazyNamed(() => import('./routes/empresa/Servicios'), 'Servicios');
+const EmpresaPromociones = lazyNamed(() => import('./routes/empresa/Promociones'), 'Promociones');
+const EmpresaAgendas = lazyNamed(() => import('./routes/empresa/Agendas'), 'Agendas');
+const EmpresaInfo = lazyNamed(() => import('./routes/empresa/Info'), 'Info');
+const EmpresaFuncionarios = lazyNamed(() => import('./routes/empresa/Funcionarios'), 'Funcionarios');
+const EmpresaCrm = lazyNamed(() => import('./routes/empresa/Crm'), 'Crm');
+const CampanasEmpresa = lazyNamed(() => import('./routes/empresa/CampanasEmpresa'), 'CampanasEmpresa');
+
+// ── Administrador ──
+const AdminInicio = lazyNamed(() => import('./routes/admin/Inicio'), 'Inicio');
+const AdminClinicas = lazyNamed(() => import('./routes/admin/Clinicas'), 'Clinicas');
+const AdminUsuarios = lazyNamed(() => import('./routes/admin/Usuarios'), 'Usuarios');
+const AdminConfig = lazyNamed(() => import('./routes/admin/Config'), 'Config');
+const AdminFinanzas = lazyNamed(() => import('./routes/admin/Finanzas'), 'Finanzas');
+const AdminAuditoria = lazyNamed(() => import('./routes/admin/Auditoria'), 'Auditoria');
+const AdminIntegraciones = lazyNamed(() => import('./routes/admin/Integraciones'), 'Integraciones');
+const AdminCrmConsolidado = lazyNamed(() => import('./routes/admin/crm/Consolidado'), 'Consolidado');
+const AdminCrmDetalle = lazyNamed(() => import('./routes/admin/crm/DetalleClinica'), 'DetalleClinica');
+const AdminCrmLiquidaciones = lazyNamed(() => import('./routes/admin/crm/Liquidaciones'), 'Liquidaciones');
+const AdminCrmCampanas = lazyNamed(() => import('./routes/admin/crm/CampanasClinica'), 'CampanasClinica');
+
+// ── Aseguradora / Prestador ──
+const AsegInicio = lazyNamed(() => import('./routes/aseguradora/Inicio'), 'Inicio');
+const AsegConvenios = lazyNamed(() => import('./routes/aseguradora/Convenios'), 'Convenios');
+const AsegAutorizaciones = lazyNamed(() => import('./routes/aseguradora/Autorizaciones'), 'Autorizaciones');
+const AsegLiquidaciones = lazyNamed(() => import('./routes/aseguradora/Liquidaciones'), 'Liquidaciones');
+const AsegPadron = lazyNamed(() => import('./routes/aseguradora/Padron'), 'Padron');
+const AsegRed = lazyNamed(() => import('./routes/aseguradora/Red'), 'Red');
+
+/** Indicador breve mientras baja el chunk de la sección (redes lentas). */
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center py-24">
+      <div className="w-8 h-8 rounded-full border-2 border-[#CDEEE1] border-t-teal animate-spin" />
+    </div>
+  );
+}
 
 function App() {
   return (
     <AuthProvider>
       <AppFrame>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/qr/:token" element={<QrResolve />} />
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/qr/:token" element={<QrResolve />} />
 
-          <Route element={<RequireAuth />}>
-            {/* ── Paciente ── */}
-            <Route element={<RequireRole role="paciente" />}>
-              <Route path="/onboarding" element={<Onboarding />} />
-              <Route element={<RequireOnboarded />}>
-                <Route path="/app" element={<AppShell />}>
-                  <Route index element={<Home />} />
-                  <Route path="agenda" element={<Agenda />} />
-                  <Route path="farmacia" element={<Farmacia />} />
-                  <Route path="perfil" element={<Perfil />} />
-                  <Route path="perfil/billetera" element={<Wallet />} />
-                  <Route path="salud" element={<SaludMenu />} />
-                  <Route path="salud/ficha" element={<Ficha />} />
-                  <Route path="salud/examenes" element={<Examenes />} />
-                  <Route path="salud/dental" element={<Dental />} />
-                  <Route path="salud/hospitalizaciones" element={<Hospitalizaciones />} />
-                  <Route path="salud/agendamientos" element={<Agendamientos />} />
-                  <Route path="salud/qr" element={<Qr />} />
-                  <Route path="salud/subir" element={<Subir />} />
+            <Route element={<RequireAuth />}>
+              {/* ── Paciente ── */}
+              <Route element={<RequireRole role="paciente" />}>
+                <Route path="/onboarding" element={<Onboarding />} />
+                <Route element={<RequireOnboarded />}>
+                  <Route path="/app" element={<AppShell />}>
+                    <Route index element={<Home />} />
+                    <Route path="agenda" element={<Agenda />} />
+                    <Route path="farmacia" element={<Farmacia />} />
+                    <Route path="perfil" element={<Perfil />} />
+                    <Route path="perfil/billetera" element={<Wallet />} />
+                    <Route path="salud" element={<SaludMenu />} />
+                    <Route path="salud/ficha" element={<Ficha />} />
+                    <Route path="salud/examenes" element={<Examenes />} />
+                    <Route path="salud/dental" element={<Dental />} />
+                    <Route path="salud/hospitalizaciones" element={<Hospitalizaciones />} />
+                    <Route path="salud/agendamientos" element={<Agendamientos />} />
+                    <Route path="salud/qr" element={<Qr />} />
+                    <Route path="salud/subir" element={<Subir />} />
+                  </Route>
+                  {/* Asistente WhatsApp: pantalla completa (sin barra de tabs). */}
+                  <Route path="/app/asistente" element={<Asistente />} />
                 </Route>
-                {/* Asistente WhatsApp: pantalla completa (sin barra de tabs). */}
-                <Route path="/app/asistente" element={<Asistente />} />
+              </Route>
+
+              {/* ── Médico ── */}
+              <Route element={<RequireRole role="medico" />}>
+                <Route path="/medico" element={<MedicoShell />}>
+                  <Route index element={<MedicoAgenda />} />
+                  <Route path="liquidaciones" element={<MedicoLiquidaciones />} />
+                  <Route path="perfil" element={<MedicoPerfil />} />
+                  <Route path="cita/:citaId" element={<MedicoCita />} />
+                  <Route path="ficha/:patientId" element={<MedicoFicha />} />
+                </Route>
+              </Route>
+
+              {/* ── Empresa / Cliente ── */}
+              <Route element={<RequireRole role="empresa" />}>
+                <Route path="/empresa" element={<EmpresaInicio />} />
+                <Route path="/empresa/agendas" element={<EmpresaAgendas />} />
+                <Route path="/empresa/servicios" element={<EmpresaServicios />} />
+                <Route path="/empresa/promociones" element={<EmpresaPromociones />} />
+                <Route path="/empresa/info" element={<EmpresaInfo />} />
+                <Route path="/empresa/funcionarios" element={<EmpresaFuncionarios />} />
+                <Route path="/empresa/crm" element={<EmpresaCrm />} />
+                <Route path="/empresa/campanas" element={<CampanasEmpresa />} />
+              </Route>
+
+              {/* ── Administrador ── */}
+              <Route element={<RequireRole role="admin" />}>
+                <Route path="/admin" element={<AdminInicio />} />
+                <Route path="/admin/clinicas" element={<AdminClinicas />} />
+                <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+                <Route path="/admin/config" element={<AdminConfig />} />
+                <Route path="/admin/finanzas" element={<AdminFinanzas />} />
+                <Route path="/admin/auditoria" element={<AdminAuditoria />} />
+                <Route path="/admin/integraciones" element={<AdminIntegraciones />} />
+                <Route path="/admin/crm" element={<AdminCrmConsolidado />} />
+                <Route path="/admin/crm/liquidaciones" element={<AdminCrmLiquidaciones />} />
+                <Route path="/admin/crm/:clinicId/campanas" element={<AdminCrmCampanas />} />
+                <Route path="/admin/crm/:clinicId" element={<AdminCrmDetalle />} />
+              </Route>
+
+              {/* ── Aseguradora / Prestador ── */}
+              <Route element={<RequireRole role="aseguradora" />}>
+                <Route path="/aseguradora" element={<AsegInicio />} />
+                <Route path="/aseguradora/convenios" element={<AsegConvenios />} />
+                <Route path="/aseguradora/autorizaciones" element={<AsegAutorizaciones />} />
+                <Route path="/aseguradora/liquidaciones" element={<AsegLiquidaciones />} />
+                <Route path="/aseguradora/afiliados" element={<AsegPadron />} />
+                <Route path="/aseguradora/red" element={<AsegRed />} />
               </Route>
             </Route>
 
-            {/* ── Médico ── */}
-            <Route element={<RequireRole role="medico" />}>
-              <Route path="/medico" element={<MedicoShell />}>
-                <Route index element={<MedicoAgenda />} />
-                <Route path="liquidaciones" element={<MedicoLiquidaciones />} />
-                <Route path="perfil" element={<MedicoPerfil />} />
-                <Route path="cita/:citaId" element={<MedicoCita />} />
-                <Route path="ficha/:patientId" element={<MedicoFicha />} />
-              </Route>
-            </Route>
-
-            {/* ── Empresa / Cliente ── */}
-            <Route element={<RequireRole role="empresa" />}>
-              <Route path="/empresa" element={<EmpresaInicio />} />
-              <Route path="/empresa/agendas" element={<EmpresaAgendas />} />
-              <Route path="/empresa/servicios" element={<EmpresaServicios />} />
-              <Route path="/empresa/promociones" element={<EmpresaPromociones />} />
-              <Route path="/empresa/info" element={<EmpresaInfo />} />
-              <Route path="/empresa/funcionarios" element={<EmpresaFuncionarios />} />
-              <Route path="/empresa/crm" element={<EmpresaCrm />} />
-              <Route path="/empresa/campanas" element={<CampanasEmpresa />} />
-            </Route>
-
-            {/* ── Administrador ── */}
-            <Route element={<RequireRole role="admin" />}>
-              <Route path="/admin" element={<AdminInicio />} />
-              <Route path="/admin/clinicas" element={<AdminClinicas />} />
-              <Route path="/admin/usuarios" element={<AdminUsuarios />} />
-              <Route path="/admin/config" element={<AdminConfig />} />
-              <Route path="/admin/finanzas" element={<AdminFinanzas />} />
-              <Route path="/admin/auditoria" element={<AdminAuditoria />} />
-              <Route path="/admin/integraciones" element={<AdminIntegraciones />} />
-              <Route path="/admin/crm" element={<AdminCrmConsolidado />} />
-              <Route path="/admin/crm/liquidaciones" element={<AdminCrmLiquidaciones />} />
-              <Route path="/admin/crm/:clinicId/campanas" element={<AdminCrmCampanas />} />
-              <Route path="/admin/crm/:clinicId" element={<AdminCrmDetalle />} />
-            </Route>
-
-            {/* ── Aseguradora / Prestador ── */}
-            <Route element={<RequireRole role="aseguradora" />}>
-              <Route path="/aseguradora" element={<AsegInicio />} />
-              <Route path="/aseguradora/convenios" element={<AsegConvenios />} />
-              <Route path="/aseguradora/autorizaciones" element={<AsegAutorizaciones />} />
-              <Route path="/aseguradora/liquidaciones" element={<AsegLiquidaciones />} />
-              <Route path="/aseguradora/afiliados" element={<AsegPadron />} />
-              <Route path="/aseguradora/red" element={<AsegRed />} />
-            </Route>
-          </Route>
-
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </AppFrame>
     </AuthProvider>
   );

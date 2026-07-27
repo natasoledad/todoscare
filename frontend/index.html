@@ -1,14 +1,48 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0E7C6B" />
     <title>TODOSCARE</title>
+    <!-- Precarga de las 2 fuentes clave (cuerpo y títulos), auto-alojadas. -->
+    <link rel="preload" href="/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/manrope-700.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      /* Splash inline: se pinta al instante (antes de descargar React),
+         para que en conexiones lentas no se vea una pantalla en blanco.
+         React reemplaza el contenido de #root al montar. */
+      #tc-splash {
+        position: fixed; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 18px;
+        background: #F4F7F6; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      #tc-splash .logo {
+        width: 64px; height: 64px; border-radius: 18px;
+        background: linear-gradient(135deg, #0FA98C, #0B7A66);
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-size: 34px; font-weight: 800;
+        box-shadow: 0 8px 24px rgba(11,122,102,.22);
+      }
+      #tc-splash .name { font-size: 20px; font-weight: 800; letter-spacing: .5px; color: #16302B; }
+      #tc-splash .name span { color: #0FA98C; }
+      #tc-splash .spin {
+        width: 26px; height: 26px; border-radius: 50%;
+        border: 3px solid #CDEEE1; border-top-color: #0FA98C;
+        animation: tc-spin .8s linear infinite;
+      }
+      @keyframes tc-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="tc-splash">
+        <div class="logo">T</div>
+        <div class="name">TODOS<span>CARE</span></div>
+        <div class="spin"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
