@@ -147,6 +147,7 @@ class CitaAgendaOut(BaseModel):
     estado: str
     monto: float | None          # facturado, o precio estimado del servicio
     facturado: bool              # ya hay ingreso asentado en el ledger para esta cita
+    pagado: bool = False         # ya se registró un pago de caja ligado a esta cita (Tanda 2)
 
 
 class AgendaDiaOut(BaseModel):

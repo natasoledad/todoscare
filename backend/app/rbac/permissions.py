@@ -38,6 +38,7 @@ class Resource(str, Enum):
     PROMOCIONES = "promociones"
     INFO_EMPRESA = "info_empresa"
     FUNCIONARIOS_B2B = "funcionarios_b2b"
+    CAJAS = "cajas"  # arqueo diario: abrir/cerrar caja, registrar pagos y gastos
 
     # --- Médico (Spec Medico §3) ---
     OWN_AGENDA = "own_agenda"

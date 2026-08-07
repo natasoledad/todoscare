@@ -78,3 +78,40 @@ class PaymentSplit(Base, AuditMixin, TenantMixin):
     # inmutable en el ledger. El monto NO es editable — solo su estado.
     estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendiente")  # pendiente | conciliado
     conciliado_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CashRegister(Base, AuditMixin, TenantMixin):
+    """Caja diaria de un colaborador (arqueo operativo). El dinero que entra se
+    registra como CashPayment y ADEMÁS asienta un movimiento inmutable en el
+    ledger — la caja es el control del día, el ledger sigue siendo la fuente de
+    verdad. created_at = apertura."""
+
+    __tablename__ = "cash_registers"
+
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("branches.id"))
+    responsable_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="abierta")  # abierta | cerrada
+    abono_inicial: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    fondo_fijo: Mapped[float | None] = mapped_column(Numeric(14, 2))  # efectivo que queda tras el cierre
+    cerrada_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    cerrada_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+
+
+class CashPayment(Base, AuditMixin, TenantMixin):
+    """Un movimiento de caja: pago recibido (+) o gasto (−). Cada uno asienta un
+    LedgerEntry inmutable ('cobro' o 'egreso'). Puede ligarse a una cita, lo que
+    conecta con la 'situación de pago' de la agenda (Tanda 1)."""
+
+    __tablename__ = "cash_payments"
+
+    cash_register_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cash_registers.id"), nullable=False, index=True)
+    patient_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"))
+    appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("appointments.id"))
+    ledger_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("ledger_entries.id"))
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pago")  # pago | gasto
+    medio: Mapped[str] = mapped_column(String(30), nullable=False)  # efectivo | debito | credito | transferencia | convenio | otro
+    convenio: Mapped[str | None] = mapped_column(String(120))  # Fonasa, Isapre X, Convenio empresa…
+    monto: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    referencia: Mapped[str | None] = mapped_column(String(120))
+    boleta: Mapped[str | None] = mapped_column(String(120))
+    glosa: Mapped[str | None] = mapped_column(String(255))  # descripción (útil en gastos)

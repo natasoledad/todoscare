@@ -630,3 +630,35 @@ export interface AgendaDia {
   por_estado: Record<string, number>;
   citas: CitaAgenda[];
 }
+
+// ---- Cajas (Módulo de arqueo diario) ----
+export interface MovimientoCaja {
+  id: string;
+  tipo: string;        // pago | gasto
+  medio: string;
+  monto: number;
+  convenio: string | null;
+  referencia: string | null;
+  boleta: string | null;
+  glosa: string | null;
+  paciente_nombre: string | null;
+  appointment_id: string | null;
+  fecha: string;
+}
+export interface Caja {
+  id: string;
+  responsable_id: string;
+  responsable_nombre: string;
+  estado: string;      // abierta | cerrada
+  abono_inicial: number;
+  fondo_fijo: number | null;
+  abierta_at: string;
+  cerrada_at: string | null;
+  recaudado: number;
+  gastos: number;
+  total: number;
+}
+export interface CajaDetalle extends Caja {
+  por_medio: Record<string, number>;
+  transacciones: MovimientoCaja[];
+}

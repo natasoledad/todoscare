@@ -1,5 +1,7 @@
 import type {
   AgendaDia,
+  Caja,
+  CajaDetalle,
   CitaAgenda,
   AdminKpis,
   AuditEntry,
@@ -44,6 +46,7 @@ import type {
   Me,
   Medicamento,
   Movimiento,
+  MovimientoCaja,
   Odontograma,
   OnboardingInput,
   Orden,
@@ -214,6 +217,15 @@ export const api = {
     funcionarios: () => get<Funcionario[]>('/empresa/funcionarios'),
     altaFuncionario: (correo: string) => post<Funcionario>('/empresa/funcionarios', { correo }),
     bajaFuncionario: (id: string) => del(`/empresa/funcionarios/${id}`),
+  },
+  cajas: {
+    lista: (estado?: string) => get<Caja[]>(`/empresa/cajas${estado ? `?estado=${estado}` : ''}`),
+    miCaja: () => get<CajaDetalle | null>('/empresa/cajas/mi-caja'),
+    detalle: (id: string) => get<CajaDetalle>(`/empresa/cajas/${id}`),
+    abrir: (abono_inicial: number) => post<CajaDetalle>('/empresa/cajas', { abono_inicial }),
+    movimiento: (id: string, body: { tipo: string; medio: string; monto: number; patient_id?: string; appointment_id?: string; convenio?: string; referencia?: string; boleta?: string; glosa?: string }) =>
+      post<MovimientoCaja>(`/empresa/cajas/${id}/movimientos`, body),
+    cerrar: (id: string, fondo_fijo: number) => post<CajaDetalle>(`/empresa/cajas/${id}/cerrar`, { fondo_fijo }),
   },
   admin: {
     inicio: () => get<AdminKpis>('/admin/inicio'),

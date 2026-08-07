@@ -47,6 +47,7 @@ const MedicoPerfil = lazyNamed(() => import('./routes/medico/Perfil'), 'Perfil')
 // ── Empresa / Cliente ──
 const EmpresaInicio = lazyNamed(() => import('./routes/empresa/Inicio'), 'Inicio');
 const EmpresaAgendaClinica = lazyNamed(() => import('./routes/empresa/AgendaClinica'), 'AgendaClinica');
+const EmpresaCajas = lazyNamed(() => import('./routes/empresa/Cajas'), 'Cajas');
 const EmpresaServicios = lazyNamed(() => import('./routes/empresa/Servicios'), 'Servicios');
 const EmpresaPromociones = lazyNamed(() => import('./routes/empresa/Promociones'), 'Promociones');
 const EmpresaAgendas = lazyNamed(() => import('./routes/empresa/Agendas'), 'Agendas');
@@ -136,6 +137,7 @@ function App() {
               <Route element={<RequireRole role="empresa" />}>
                 <Route path="/empresa" element={<EmpresaInicio />} />
                 <Route path="/empresa/agenda-clinica" element={<EmpresaAgendaClinica />} />
+                <Route path="/empresa/cajas" element={<EmpresaCajas />} />
                 <Route path="/empresa/agendas" element={<EmpresaAgendas />} />
                 <Route path="/empresa/servicios" element={<EmpresaServicios />} />
                 <Route path="/empresa/promociones" element={<EmpresaPromociones />} />

@@ -33,8 +33,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Downgrade schema."""
+    """Downgrade schema.
+
+    El predicado viejo (solo `deleted_at IS NULL`) NO excluye las citas
+    canceladas, así que una cancelada que solapa a una activa —perfectamente
+    válida bajo el predicado nuevo— impediría re-crear la constraint. Antes de
+    volver al predicado viejo, marcamos como borradas (deleted_at) las citas
+    canceladas para que salgan del índice sin perder el registro histórico.
+    """
     op.execute("ALTER TABLE appointments DROP CONSTRAINT appointments_no_overlap")
+    op.execute("UPDATE appointments SET deleted_at = now() WHERE estado = 'cancelada' AND deleted_at IS NULL")
     op.execute(
         "ALTER TABLE appointments ADD CONSTRAINT appointments_no_overlap "
         "EXCLUDE USING gist (professional_id WITH =, slot WITH &&) "

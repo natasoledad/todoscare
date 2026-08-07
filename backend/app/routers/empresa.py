@@ -9,7 +9,7 @@ from sqlalchemy.orm import aliased
 
 from app.core.database import get_db
 from app.models.catalog import CatalogItem, Promotion, Specialty
-from app.models.finance import Company, CompanyEmployee, LedgerEntry
+from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
 from app.models.scheduling import Appointment, AvailabilityBlock
@@ -171,6 +171,23 @@ async def agenda_dia(
         ).all()
         facturado = {ref.split(":", 1)[1]: float(m) for ref, m in led}
 
+    # Situación de pago recibido: citas con al menos un pago de caja (Tanda 2).
+    pagadas: set[uuid.UUID] = set()
+    if appt_ids:
+        pag_rows = (
+            await db.execute(
+                select(CashPayment.appointment_id)
+                .where(
+                    CashPayment.clinic_id == clinic_id,
+                    CashPayment.tipo == "pago",
+                    CashPayment.deleted_at.is_(None),
+                    CashPayment.appointment_id.in_(appt_ids),
+                )
+                .distinct()
+            )
+        ).scalars().all()
+        pagadas = set(pag_rows)
+
     citas: list[CitaAgendaOut] = []
     por_estado: dict[str, int] = {}
     for appt, pac_nombre, prof_nombre, serv_nombre, serv_precio in rows:
@@ -189,6 +206,7 @@ async def agenda_dia(
                 estado=appt.estado,
                 monto=facturado[str(appt.id)] if fact else (float(serv_precio) if serv_precio is not None else None),
                 facturado=fact,
+                pagado=appt.id in pagadas,
             )
         )
     return AgendaDiaOut(fecha=day, total=len(citas), por_estado=por_estado, citas=citas)
