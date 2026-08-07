@@ -37,6 +37,8 @@ class Patient(Base, AuditMixin, TenantMixin):
     ficha: Mapped[dict | None] = mapped_column(JSONB)
     ficha_completa_bonus_otorgado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     onboarding_completado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Habilitar/deshabilitar paciente (Tanda 4): bloquea al paciente sin borrarlo.
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     # Atribución de marketing: la campaña que trajo a este paciente (UTM/ref al
     # registrarse). Permite medir conversiones e ingresos reales por campaña.
     origen_campana_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("marketing_campaigns.id"), index=True)

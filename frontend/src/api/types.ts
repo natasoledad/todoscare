@@ -699,3 +699,35 @@ export interface PlanTratamiento {
   items: PlanItem[];
   fecha: string;
 }
+
+// ---- Tanda 4: pacientes con deuda + panel de desempeño ----
+export interface PacienteLista {
+  id: string;
+  nombre: string;
+  rut: string;
+  activo: boolean;
+  n_tratamientos: number;
+  deuda: number;
+}
+export interface DesempenoProfesional {
+  nombre: string;
+  atenciones: number;
+  ventas: number;
+  a_pagar: number;
+  pct: number | null;
+}
+export interface DesempenoGrupo {
+  grupo: string;
+  cantidad: number;
+  monto: number;
+  ticket_medio: number;
+}
+export interface Desempeno {
+  periodo: string;
+  ventas: number;
+  recaudado: number;
+  atenciones: number;
+  ticket_medio: number;
+  por_profesional: DesempenoProfesional[];
+  por_grupo: DesempenoGrupo[];
+}

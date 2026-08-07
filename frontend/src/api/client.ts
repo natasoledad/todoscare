@@ -3,6 +3,8 @@ import type {
   Caja,
   CajaDetalle,
   CitaAgenda,
+  Desempeno,
+  PacienteLista,
   AdminKpis,
   AuditEntry,
   AuthOut,
@@ -208,6 +210,15 @@ export const api = {
       return get<AgendaDia>(`/empresa/agenda${qs ? `?${qs}` : ''}`);
     },
     cambiarEstadoCita: (id: string, estado: string) => patch<CitaAgenda>(`/empresa/citas/${id}/estado`, { estado }),
+    pacientes: (activo?: boolean, q?: string) => {
+      const p = new URLSearchParams();
+      if (activo !== undefined) p.set('activo', String(activo));
+      if (q) p.set('q', q);
+      const qs = p.toString();
+      return get<PacienteLista[]>(`/empresa/pacientes${qs ? `?${qs}` : ''}`);
+    },
+    cambiarEstadoPaciente: (id: string, activo: boolean) => patch<PacienteLista>(`/empresa/pacientes/${id}/estado`, { activo }),
+    desempeno: (period?: string) => get<Desempeno>(`/empresa/desempeno${period ? `?period=${period}` : ''}`),
     profesionales: () => get<Profesional[]>('/empresa/profesionales'),
     sucursales: () => get<Branch[]>('/empresa/sucursales'),
     agendas: (professionalId?: string) => get<Bloque[]>(`/empresa/agendas${professionalId ? `?professional_id=${professionalId}` : ''}`),

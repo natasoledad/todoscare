@@ -3,13 +3,14 @@ from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.database import get_db
 from app.models.catalog import CatalogItem, Promotion, Specialty
-from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry
+from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
 from app.models.scheduling import Appointment, AvailabilityBlock
@@ -24,6 +25,11 @@ from app.schemas.empresa import (
     BranchOut,
     CambiarEstadoIn,
     CitaAgendaOut,
+    DesempenoGrupo,
+    DesempenoOut,
+    DesempenoProfesional,
+    PacienteEstadoIn,
+    PacienteListaOut,
     FuncionarioIn,
     FuncionarioOut,
     InfoEmpresaOut,
@@ -38,6 +44,7 @@ from app.schemas.empresa import (
     ServicioUpdate,
     ServicioVendido,
 )
+from app.services.crm import month_bounds
 from app.services.medico import audit
 from app.tenancy.context import TenantContext
 
@@ -256,6 +263,153 @@ async def cambiar_estado_cita(
         estado=appt.estado,
         monto=float(service.precio) if service else None,
         facturado=False,
+    )
+
+
+# ────────────────── pacientes (listado con deudas) — Tanda 4 ──────────────────
+@router.get("/pacientes", response_model=list[PacienteListaOut])
+async def listar_pacientes(
+    activo: bool | None = None,
+    q: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
+) -> list[PacienteListaOut]:
+    """Pacientes de la clínica con nº de tratamientos y DEUDA (facturado − pagado),
+    calculada del ledger vs. los cobros de caja — nunca almacenada."""
+    clinic_id = empresa_clinic_id(ctx)
+
+    query = (
+        select(Patient, User.nombre)
+        .join(User, User.id == Patient.user_id)
+        .where(Patient.clinic_id == clinic_id, Patient.deleted_at.is_(None))
+    )
+    if activo is not None:
+        query = query.where(Patient.activo.is_(activo))
+    if q:
+        query = query.where(User.nombre.ilike(f"%{q}%"))
+    rows = (await db.execute(query.order_by(User.nombre))).all()
+
+    # nº de tratamientos = atenciones completadas
+    trat = dict(
+        (await db.execute(
+            select(Appointment.patient_id, func.count(Appointment.id))
+            .where(Appointment.clinic_id == clinic_id, Appointment.estado == "completada", Appointment.deleted_at.is_(None))
+            .group_by(Appointment.patient_id)
+        )).all()
+    )
+    # facturado por paciente (ingresos ligados a sus citas)
+    facturado = dict(
+        (await db.execute(
+            select(Appointment.patient_id, func.coalesce(func.sum(LedgerEntry.monto), 0))
+            .join(Appointment, func.cast(func.split_part(LedgerEntry.ref, ":", 2), PgUUID) == Appointment.id)
+            .where(LedgerEntry.clinic_id == clinic_id, LedgerEntry.tipo == "ingreso", LedgerEntry.ref.like("appointment:%"))
+            .group_by(Appointment.patient_id)
+        )).all()
+    )
+    # pagado por paciente (cobros de caja ligados a sus citas)
+    pagado = dict(
+        (await db.execute(
+            select(Appointment.patient_id, func.coalesce(func.sum(CashPayment.monto), 0))
+            .join(Appointment, Appointment.id == CashPayment.appointment_id)
+            .where(CashPayment.clinic_id == clinic_id, CashPayment.tipo == "pago", CashPayment.deleted_at.is_(None))
+            .group_by(Appointment.patient_id)
+        )).all()
+    )
+
+    out: list[PacienteListaOut] = []
+    for p, nombre in rows:
+        deuda = float(facturado.get(p.id, 0)) - float(pagado.get(p.id, 0))
+        out.append(PacienteListaOut(id=p.id, nombre=nombre, rut=p.rut, activo=p.activo, n_tratamientos=int(trat.get(p.id, 0)), deuda=round(max(deuda, 0.0), 2)))
+    return out
+
+
+@router.patch("/pacientes/{patient_id}/estado", response_model=PacienteListaOut)
+async def cambiar_estado_paciente(
+    patient_id: uuid.UUID,
+    payload: PacienteEstadoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> PacienteListaOut:
+    clinic_id = empresa_clinic_id(ctx)
+    p = await db.get(Patient, patient_id)
+    if p is None or p.deleted_at is not None or p.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Paciente no encontrado")
+    p.activo = payload.activo
+    audit(db, ctx, clinic_id=clinic_id, accion="habilitar_paciente" if payload.activo else "deshabilitar_paciente", recurso=f"patient:{patient_id}")
+    await db.commit()
+    user = await db.get(User, p.user_id)
+    return PacienteListaOut(id=p.id, nombre=user.nombre if user else "", rut=p.rut, activo=p.activo, n_tratamientos=0, deuda=0.0)
+
+
+# ────────────────── panel de desempeño ampliado — Tanda 4 ──────────────────
+@router.get("/desempeno", response_model=DesempenoOut)
+async def desempeno(
+    period: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CRM_KPIS_CLINICA, Action.VER)),
+) -> DesempenoOut:
+    """Panel de desempeño: ventas y recaudación del mes, por profesional (con
+    monto a pagar según su split) y por grupo de servicio (con ticket medio).
+    Todo calculado del ledger + agenda; nada se almacena."""
+    clinic_id = empresa_clinic_id(ctx)
+    start, end = month_bounds(period)
+
+    ventas = float((await db.execute(
+        select(func.coalesce(func.sum(LedgerEntry.monto), 0)).where(
+            LedgerEntry.clinic_id == clinic_id, LedgerEntry.tipo == "ingreso",
+            LedgerEntry.ref.like("appointment:%"),
+            func.date(LedgerEntry.created_at) >= start, func.date(LedgerEntry.created_at) < end,
+        )
+    )).scalar_one())
+    recaudado = float((await db.execute(
+        select(func.coalesce(func.sum(CashPayment.monto), 0)).where(
+            CashPayment.clinic_id == clinic_id, CashPayment.tipo == "pago", CashPayment.deleted_at.is_(None),
+            func.date(CashPayment.created_at) >= start, func.date(CashPayment.created_at) < end,
+        )
+    )).scalar_one())
+
+    # por profesional: desde los splits del período (una ingreso → un split del tratante)
+    prof_rows = (await db.execute(
+        select(User.nombre, func.count(PaymentSplit.id), func.coalesce(func.sum(LedgerEntry.monto), 0), func.coalesce(func.sum(PaymentSplit.monto), 0))
+        .join(LedgerEntry, LedgerEntry.id == PaymentSplit.ledger_entry_id)
+        .join(User, User.id == PaymentSplit.beneficiario_id)
+        .where(
+            PaymentSplit.clinic_id == clinic_id,
+            func.date(LedgerEntry.created_at) >= start, func.date(LedgerEntry.created_at) < end,
+        )
+        .group_by(User.nombre)
+        .order_by(func.coalesce(func.sum(LedgerEntry.monto), 0).desc())
+    )).all()
+    por_profesional = [
+        DesempenoProfesional(
+            nombre=n, atenciones=int(c), ventas=float(v), a_pagar=float(ap),
+            pct=round(float(ap) / float(v) * 100, 1) if float(v) else None,
+        )
+        for n, c, v, ap in prof_rows
+    ]
+
+    # por grupo de servicio: atenciones completadas del período por especialidad
+    grupo_rows = (await db.execute(
+        select(Specialty.nombre, func.count(Appointment.id), func.coalesce(func.sum(CatalogItem.precio), 0))
+        .join(CatalogItem, CatalogItem.id == Appointment.service_id)
+        .join(Specialty, Specialty.id == CatalogItem.specialty_id, isouter=True)
+        .where(
+            Appointment.clinic_id == clinic_id, Appointment.estado == "completada", Appointment.deleted_at.is_(None),
+            func.date(func.lower(Appointment.slot)) >= start, func.date(func.lower(Appointment.slot)) < end,
+        )
+        .group_by(Specialty.nombre)
+        .order_by(func.coalesce(func.sum(CatalogItem.precio), 0).desc())
+    )).all()
+    por_grupo = [
+        DesempenoGrupo(grupo=g or "Sin especialidad", cantidad=int(c), monto=float(m), ticket_medio=round(float(m) / int(c), 2) if int(c) else 0.0)
+        for g, c, m in grupo_rows
+    ]
+
+    atenciones = sum(p.atenciones for p in por_profesional)
+    ticket = round(ventas / atenciones, 2) if atenciones else 0.0
+    return DesempenoOut(
+        periodo=start.strftime("%Y-%m"), ventas=ventas, recaudado=recaudado,
+        atenciones=atenciones, ticket_medio=ticket, por_profesional=por_profesional, por_grupo=por_grupo,
     )
 
 

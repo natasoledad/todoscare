@@ -159,3 +159,43 @@ class AgendaDiaOut(BaseModel):
 
 class CambiarEstadoIn(BaseModel):
     estado: str
+
+
+# ---- Tanda 4: pacientes (listado con deudas) ----
+class PacienteListaOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    rut: str
+    activo: bool
+    n_tratamientos: int
+    deuda: float
+
+
+class PacienteEstadoIn(BaseModel):
+    activo: bool
+
+
+# ---- Tanda 4: panel de desempeño ----
+class DesempenoProfesional(BaseModel):
+    nombre: str
+    atenciones: int
+    ventas: float
+    a_pagar: float
+    pct: float | None
+
+
+class DesempenoGrupo(BaseModel):
+    grupo: str
+    cantidad: int
+    monto: float
+    ticket_medio: float
+
+
+class DesempenoOut(BaseModel):
+    periodo: str
+    ventas: float
+    recaudado: float
+    atenciones: int
+    ticket_medio: float
+    por_profesional: list[DesempenoProfesional]
+    por_grupo: list[DesempenoGrupo]
