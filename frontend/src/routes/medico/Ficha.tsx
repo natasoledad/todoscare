@@ -4,6 +4,7 @@ import { BackHeader } from '../../components/BackHeader';
 import { StatusTag } from '../../components/ListRow';
 import { api } from '../../api/client';
 import type { FichaPaciente } from '../../api/types';
+import { PlanesSection, SignosVitalesSection } from './FichaExtras';
 
 const FICHA_LABELS: Record<string, string> = {
   fecha_nacimiento: 'Fecha de nacimiento',
@@ -87,6 +88,10 @@ export function Ficha() {
             </div>
           </div>
         )}
+
+        <SignosVitalesSection patientId={patientId} />
+
+        <PlanesSection patientId={patientId} />
 
         <div>
           <div className="font-heading font-bold text-[13px] text-ink mb-2">Odontograma</div>

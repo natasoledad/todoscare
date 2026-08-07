@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -92,3 +92,51 @@ class QrAccessLog(Base, AuditMixin, TenantMixin):
     accedido_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     profesional_nombre: Mapped[str | None] = mapped_column(String(255))
     fecha: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class VitalSigns(Base, AuditMixin, TenantMixin):
+    """Signos vitales de una atención (Tanda 3 — vista médica). Todas las
+    medidas son opcionales; se registra lo que se toma. created_at = fecha."""
+
+    __tablename__ = "vital_signs"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("appointments.id"))
+    presion_sistolica: Mapped[int | None] = mapped_column(Integer)   # mmHg
+    presion_diastolica: Mapped[int | None] = mapped_column(Integer)  # mmHg
+    fc_ppm: Mapped[int | None] = mapped_column(Integer)              # frecuencia cardíaca
+    fr_rpm: Mapped[int | None] = mapped_column(Integer)              # frecuencia respiratoria
+    spo2: Mapped[int | None] = mapped_column(Integer)                # saturación %
+    glicemia: Mapped[int | None] = mapped_column(Integer)           # mg/dl
+    eva: Mapped[int | None] = mapped_column(Integer)                # dolor 0-10
+    peso_kg: Mapped[float | None] = mapped_column(Numeric(6, 2))
+    talla_cm: Mapped[float | None] = mapped_column(Numeric(6, 2))
+    temperatura: Mapped[float | None] = mapped_column(Numeric(4, 1))  # °C
+    notas: Mapped[str | None] = mapped_column(String(500))
+
+
+class TreatmentPlan(Base, AuditMixin, TenantMixin):
+    """Plan de tratamiento / presupuesto (Tanda 3). El total se calcula de los
+    ítems, no se guarda. Odontología y medicina."""
+
+    __tablename__ = "treatment_plans"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    titulo: Mapped[str] = mapped_column(String(255), nullable=False)
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="propuesto")
+    # propuesto | aceptado | en_curso | completado | rechazado
+    notas: Mapped[str | None] = mapped_column(String(1000))
+
+
+class TreatmentPlanItem(Base, AuditMixin, TenantMixin):
+    __tablename__ = "treatment_plan_items"
+
+    plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("treatment_plans.id"), nullable=False, index=True)
+    service_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("catalog_items.id"))
+    descripcion: Mapped[str] = mapped_column(String(255), nullable=False)
+    pieza: Mapped[str | None] = mapped_column(String(10))  # diente (odontología, notación FDI)
+    cantidad: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    precio_unit: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendiente")  # pendiente | realizado

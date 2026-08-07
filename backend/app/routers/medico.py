@@ -14,6 +14,9 @@ from app.models.clinical import (
     MedicalRecord,
     Odontogram,
     Prescription,
+    TreatmentPlan,
+    TreatmentPlanItem,
+    VitalSigns,
 )
 from app.models.identity import User
 from app.models.patient import Patient
@@ -31,11 +34,18 @@ from app.schemas.medico import (
     LiquidacionOut,
     OrdenInput,
     OrdenOut,
+    PlanEstadoIn,
+    PlanIn,
+    PlanItemEstadoIn,
+    PlanItemOut,
+    PlanOut,
     PrescripcionInput,
     PrescripcionOut,
     PrescripcionResult,
     ProntuarioInput,
     ProntuarioOut,
+    SignosVitalesIn,
+    SignosVitalesOut,
 )
 from app.services.finance import liquidar_atencion
 from app.services.medico import audit, get_own_appointment, get_treated_patient
@@ -455,3 +465,153 @@ async def mis_liquidaciones(
         )
         for split, ledger in rows
     ]
+
+
+# ═══════════════════════ Tanda 3: signos vitales ═══════════════════════
+@router.post("/pacientes/{patient_id}/signos-vitales", response_model=SignosVitalesOut, status_code=status.HTTP_201_CREATED)
+async def registrar_signos(
+    patient_id: uuid.UUID,
+    payload: SignosVitalesIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
+) -> SignosVitalesOut:
+    patient = await get_treated_patient(db, ctx, patient_id)
+    v = VitalSigns(clinic_id=patient.clinic_id, patient_id=patient_id, professional_id=ctx.user_id, **payload.model_dump())
+    db.add(v)
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="registrar_signos_vitales", recurso=f"patient:{patient_id}")
+    await db.commit()
+    await db.refresh(v)
+    return _signos_out(v)
+
+
+@router.get("/pacientes/{patient_id}/signos-vitales", response_model=list[SignosVitalesOut])
+async def listar_signos(
+    patient_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> list[SignosVitalesOut]:
+    patient = await get_treated_patient(db, ctx, patient_id)
+    rows = (
+        await db.execute(
+            select(VitalSigns).where(VitalSigns.patient_id == patient_id, VitalSigns.deleted_at.is_(None)).order_by(VitalSigns.created_at.desc())
+        )
+    ).scalars().all()
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="ver_signos_vitales", recurso=f"patient:{patient_id}")
+    await db.commit()
+    return [_signos_out(v) for v in rows]
+
+
+def _signos_out(v: VitalSigns) -> SignosVitalesOut:
+    return SignosVitalesOut(
+        id=v.id, fecha=v.created_at, appointment_id=v.appointment_id,
+        presion_sistolica=v.presion_sistolica, presion_diastolica=v.presion_diastolica,
+        fc_ppm=v.fc_ppm, fr_rpm=v.fr_rpm, spo2=v.spo2, glicemia=v.glicemia, eva=v.eva,
+        peso_kg=float(v.peso_kg) if v.peso_kg is not None else None,
+        talla_cm=float(v.talla_cm) if v.talla_cm is not None else None,
+        temperatura=float(v.temperatura) if v.temperatura is not None else None,
+        notas=v.notas,
+    )
+
+
+# ═══════════════════════ Tanda 3: planes de tratamiento ═══════════════════════
+PLAN_ESTADOS = {"propuesto", "aceptado", "en_curso", "completado", "rechazado"}
+
+
+async def _plan_out(db: AsyncSession, plan: TreatmentPlan) -> PlanOut:
+    items = (
+        await db.execute(
+            select(TreatmentPlanItem).where(TreatmentPlanItem.plan_id == plan.id, TreatmentPlanItem.deleted_at.is_(None)).order_by(TreatmentPlanItem.created_at)
+        )
+    ).scalars().all()
+    items_out = [
+        PlanItemOut(
+            id=i.id, descripcion=i.descripcion, pieza=i.pieza, cantidad=i.cantidad,
+            precio_unit=float(i.precio_unit), service_id=i.service_id, estado=i.estado,
+            subtotal=round(i.cantidad * float(i.precio_unit), 2),
+        )
+        for i in items
+    ]
+    total = round(sum(x.subtotal for x in items_out), 2)
+    return PlanOut(id=plan.id, titulo=plan.titulo, estado=plan.estado, notas=plan.notas, total=total, items=items_out, fecha=plan.created_at)
+
+
+async def _own_plan(db: AsyncSession, ctx: TenantContext, plan_id: uuid.UUID) -> TreatmentPlan:
+    plan = await db.get(TreatmentPlan, plan_id)
+    if plan is None or plan.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Plan no encontrado")
+    await get_treated_patient(db, ctx, plan.patient_id)  # valida relación de tratamiento + clínica
+    return plan
+
+
+@router.get("/pacientes/{patient_id}/planes", response_model=list[PlanOut])
+async def listar_planes(
+    patient_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> list[PlanOut]:
+    patient = await get_treated_patient(db, ctx, patient_id)
+    planes = (
+        await db.execute(
+            select(TreatmentPlan).where(TreatmentPlan.patient_id == patient_id, TreatmentPlan.deleted_at.is_(None)).order_by(TreatmentPlan.created_at.desc())
+        )
+    ).scalars().all()
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="ver_planes_tratamiento", recurso=f"patient:{patient_id}")
+    await db.commit()
+    return [await _plan_out(db, p) for p in planes]
+
+
+@router.post("/pacientes/{patient_id}/planes", response_model=PlanOut, status_code=status.HTTP_201_CREATED)
+async def crear_plan(
+    patient_id: uuid.UUID,
+    payload: PlanIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
+) -> PlanOut:
+    patient = await get_treated_patient(db, ctx, patient_id)
+    plan = TreatmentPlan(clinic_id=patient.clinic_id, patient_id=patient_id, professional_id=ctx.user_id, titulo=payload.titulo, notas=payload.notas)
+    db.add(plan)
+    await db.flush()
+    for it in payload.items:
+        db.add(TreatmentPlanItem(clinic_id=patient.clinic_id, plan_id=plan.id, **it.model_dump()))
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="crear_plan_tratamiento", recurso=f"patient:{patient_id}")
+    await db.commit()
+    await db.refresh(plan)
+    return await _plan_out(db, plan)
+
+
+@router.patch("/planes/{plan_id}/estado", response_model=PlanOut)
+async def cambiar_estado_plan(
+    plan_id: uuid.UUID,
+    payload: PlanEstadoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> PlanOut:
+    if payload.estado not in PLAN_ESTADOS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Estado inválido: {payload.estado}")
+    plan = await _own_plan(db, ctx, plan_id)
+    plan.estado = payload.estado
+    audit(db, ctx, clinic_id=plan.clinic_id, accion="cambiar_estado_plan", recurso=f"treatment_plan:{plan.id}")
+    await db.commit()
+    await db.refresh(plan)
+    return await _plan_out(db, plan)
+
+
+@router.patch("/planes/{plan_id}/items/{item_id}/estado", response_model=PlanOut)
+async def cambiar_estado_item(
+    plan_id: uuid.UUID,
+    item_id: uuid.UUID,
+    payload: PlanItemEstadoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> PlanOut:
+    if payload.estado not in ("pendiente", "realizado"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Estado inválido (pendiente | realizado)")
+    plan = await _own_plan(db, ctx, plan_id)
+    item = await db.get(TreatmentPlanItem, item_id)
+    if item is None or item.plan_id != plan.id or item.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ítem no encontrado")
+    item.estado = payload.estado
+    audit(db, ctx, clinic_id=plan.clinic_id, accion="cambiar_estado_item_plan", recurso=f"treatment_plan_item:{item.id}")
+    await db.commit()
+    await db.refresh(plan)
+    return await _plan_out(db, plan)

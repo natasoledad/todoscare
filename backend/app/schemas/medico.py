@@ -120,3 +120,63 @@ class LiquidacionOut(BaseModel):
     monto: float
     base: float | None
     ref: str | None
+
+
+# ---- Tanda 3: signos vitales ----
+class SignosVitalesIn(BaseModel):
+    appointment_id: uuid.UUID | None = None
+    presion_sistolica: int | None = None
+    presion_diastolica: int | None = None
+    fc_ppm: int | None = None
+    fr_rpm: int | None = None
+    spo2: int | None = None
+    glicemia: int | None = None
+    eva: int | None = None
+    peso_kg: float | None = None
+    talla_cm: float | None = None
+    temperatura: float | None = None
+    notas: str | None = None
+
+
+class SignosVitalesOut(SignosVitalesIn):
+    id: uuid.UUID
+    fecha: datetime
+
+
+# ---- Tanda 3: planes de tratamiento / presupuestos ----
+class PlanItemIn(BaseModel):
+    descripcion: str = Field(min_length=1)
+    pieza: str | None = None
+    cantidad: int = Field(default=1, ge=1)
+    precio_unit: float = Field(default=0, ge=0)
+    service_id: uuid.UUID | None = None
+
+
+class PlanItemOut(PlanItemIn):
+    id: uuid.UUID
+    estado: str
+    subtotal: float
+
+
+class PlanIn(BaseModel):
+    titulo: str = Field(min_length=1)
+    notas: str | None = None
+    items: list[PlanItemIn] = []
+
+
+class PlanOut(BaseModel):
+    id: uuid.UUID
+    titulo: str
+    estado: str
+    notas: str | None
+    total: float
+    items: list[PlanItemOut]
+    fecha: datetime
+
+
+class PlanEstadoIn(BaseModel):
+    estado: str
+
+
+class PlanItemEstadoIn(BaseModel):
+    estado: str

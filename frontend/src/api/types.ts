@@ -662,3 +662,40 @@ export interface CajaDetalle extends Caja {
   por_medio: Record<string, number>;
   transacciones: MovimientoCaja[];
 }
+
+// ---- Tanda 3: signos vitales + planes de tratamiento ----
+export interface SignosVitales {
+  id: string;
+  fecha: string;
+  appointment_id: string | null;
+  presion_sistolica: number | null;
+  presion_diastolica: number | null;
+  fc_ppm: number | null;
+  fr_rpm: number | null;
+  spo2: number | null;
+  glicemia: number | null;
+  eva: number | null;
+  peso_kg: number | null;
+  talla_cm: number | null;
+  temperatura: number | null;
+  notas: string | null;
+}
+export interface PlanItem {
+  id: string;
+  descripcion: string;
+  pieza: string | null;
+  cantidad: number;
+  precio_unit: number;
+  service_id: string | null;
+  estado: string;
+  subtotal: number;
+}
+export interface PlanTratamiento {
+  id: string;
+  titulo: string;
+  estado: string;
+  notas: string | null;
+  total: number;
+  items: PlanItem[];
+  fecha: string;
+}

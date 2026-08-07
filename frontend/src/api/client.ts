@@ -50,6 +50,8 @@ import type {
   Odontograma,
   OnboardingInput,
   Orden,
+  PlanTratamiento,
+  SignosVitales,
   PatientMe,
   PlanAdmin,
   PrescripcionResult,
@@ -187,6 +189,14 @@ export const api = {
     cerrar: (citaId: string) => post<Cierre>(`/medico/citas/${citaId}/cerrar`),
     noShow: (citaId: string) => patch<Cierre>(`/medico/citas/${citaId}/no-show`),
     liquidaciones: () => get<Liquidacion[]>('/medico/liquidaciones'),
+    signos: (patientId: string) => get<SignosVitales[]>(`/medico/pacientes/${patientId}/signos-vitales`),
+    registrarSignos: (patientId: string, body: Partial<Omit<SignosVitales, 'id' | 'fecha'>>) =>
+      post<SignosVitales>(`/medico/pacientes/${patientId}/signos-vitales`, body),
+    planes: (patientId: string) => get<PlanTratamiento[]>(`/medico/pacientes/${patientId}/planes`),
+    crearPlan: (patientId: string, body: { titulo: string; notas?: string; items: { descripcion: string; pieza?: string; cantidad: number; precio_unit: number }[] }) =>
+      post<PlanTratamiento>(`/medico/pacientes/${patientId}/planes`, body),
+    cambiarEstadoPlan: (planId: string, estado: string) => patch<PlanTratamiento>(`/medico/planes/${planId}/estado`, { estado }),
+    cambiarEstadoItem: (planId: string, itemId: string, estado: string) => patch<PlanTratamiento>(`/medico/planes/${planId}/items/${itemId}/estado`, { estado }),
   },
   empresa: {
     inicio: () => get<EmpresaKpis>('/empresa/inicio'),
