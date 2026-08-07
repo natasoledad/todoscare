@@ -609,3 +609,24 @@ export interface SucursalCercana {
   geo: { lat: number; lng: number } | null;
   distancia_km: number | null;
 }
+
+// ---- Agenda de la clínica (vista gerencia) ----
+export interface CitaAgenda {
+  id: string;
+  inicio: string;
+  fin: string;
+  paciente_id: string;
+  paciente_nombre: string;
+  profesional_id: string;
+  profesional_nombre: string;
+  servicio_nombre: string | null;
+  estado: string;
+  monto: number | null;
+  facturado: boolean;
+}
+export interface AgendaDia {
+  fecha: string;
+  total: number;
+  por_estado: Record<string, number>;
+  citas: CitaAgenda[];
+}

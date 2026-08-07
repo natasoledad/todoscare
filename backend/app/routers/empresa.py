@@ -1,10 +1,11 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.database import get_db
 from app.models.catalog import CatalogItem, Promotion, Specialty
@@ -16,10 +17,13 @@ from app.models.tenant import Branch, Clinic
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource, RoleCode
 from app.schemas.empresa import (
+    AgendaDiaOut,
     BloqueIn,
     BloqueOut,
     BloqueUpdate,
     BranchOut,
+    CambiarEstadoIn,
+    CitaAgendaOut,
     FuncionarioIn,
     FuncionarioOut,
     InfoEmpresaOut,
@@ -34,9 +38,16 @@ from app.schemas.empresa import (
     ServicioUpdate,
     ServicioVendido,
 )
+from app.services.medico import audit
 from app.tenancy.context import TenantContext
 
 router = APIRouter(prefix="/empresa", tags=["empresa"])
+
+# Estados de cita enriquecidos (Tanda 1). El estado es un String libre en el
+# modelo, así que ampliar el flujo no requiere migración. 'completada' NO se
+# fija desde aquí: nace del cierre del médico, que además asienta el ingreso.
+ESTADOS_CITA = ["confirmada", "en_sala_espera", "en_atencion", "completada", "no_show", "cancelada"]
+ESTADOS_EDITABLES_EMPRESA = {"confirmada", "en_sala_espera", "en_atencion", "no_show", "cancelada"}
 
 
 def empresa_clinic_id(ctx: TenantContext) -> uuid.UUID:
@@ -110,6 +121,123 @@ async def inicio(
         servicios_activos=servicios_activos,
         promos_activas=promos_activas,
         mas_vendidos=[ServicioVendido(nombre=n, cantidad=c) for n, c in vendidos],
+    )
+
+
+# ────────────────── agenda del día de la clínica (gerencia) ──────────────────
+@router.get("/agenda", response_model=AgendaDiaOut)
+async def agenda_dia(
+    fecha: date | None = None,
+    professional_id: uuid.UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
+) -> AgendaDiaOut:
+    """Agenda del día de TODA la clínica (todos los profesionales) para gerencia:
+    paciente, profesional, estado y situación de pago por cita. La 'situación'
+    se calcula del ledger inmutable (¿hay 'ingreso' asentado para esta cita?),
+    nunca se guarda — mismo principio que el CRM."""
+    clinic_id = empresa_clinic_id(ctx)
+    day = fecha or datetime.now(timezone.utc).date()
+
+    PacienteUser = aliased(User)
+    Prof = aliased(User)
+    q = (
+        select(Appointment, PacienteUser.nombre, Prof.nombre, CatalogItem.nombre, CatalogItem.precio)
+        .join(Patient, Patient.id == Appointment.patient_id)
+        .join(PacienteUser, PacienteUser.id == Patient.user_id)
+        .join(Prof, Prof.id == Appointment.professional_id)
+        .outerjoin(CatalogItem, CatalogItem.id == Appointment.service_id)
+        .where(
+            Appointment.clinic_id == clinic_id,
+            Appointment.deleted_at.is_(None),
+            func.date(func.lower(Appointment.slot)) == day,
+        )
+    )
+    if professional_id:
+        q = q.where(Appointment.professional_id == professional_id)
+    rows = (await db.execute(q.order_by(func.lower(Appointment.slot)))).all()
+
+    # Situación de pago: ingresos ya asentados por cita (ref = appointment:<id>).
+    appt_ids = [appt.id for appt, *_ in rows]
+    facturado: dict[str, float] = {}
+    if appt_ids:
+        refs = [f"appointment:{i}" for i in appt_ids]
+        led = (
+            await db.execute(
+                select(LedgerEntry.ref, func.coalesce(func.sum(LedgerEntry.monto), 0))
+                .where(LedgerEntry.clinic_id == clinic_id, LedgerEntry.tipo == "ingreso", LedgerEntry.ref.in_(refs))
+                .group_by(LedgerEntry.ref)
+            )
+        ).all()
+        facturado = {ref.split(":", 1)[1]: float(m) for ref, m in led}
+
+    citas: list[CitaAgendaOut] = []
+    por_estado: dict[str, int] = {}
+    for appt, pac_nombre, prof_nombre, serv_nombre, serv_precio in rows:
+        por_estado[appt.estado] = por_estado.get(appt.estado, 0) + 1
+        fact = str(appt.id) in facturado
+        citas.append(
+            CitaAgendaOut(
+                id=appt.id,
+                inicio=appt.slot.lower,
+                fin=appt.slot.upper,
+                paciente_id=appt.patient_id,
+                paciente_nombre=pac_nombre,
+                profesional_id=appt.professional_id,
+                profesional_nombre=prof_nombre,
+                servicio_nombre=serv_nombre,
+                estado=appt.estado,
+                monto=facturado[str(appt.id)] if fact else (float(serv_precio) if serv_precio is not None else None),
+                facturado=fact,
+            )
+        )
+    return AgendaDiaOut(fecha=day, total=len(citas), por_estado=por_estado, citas=citas)
+
+
+@router.patch("/citas/{appointment_id}/estado", response_model=CitaAgendaOut)
+async def cambiar_estado_cita(
+    appointment_id: uuid.UUID,
+    payload: CambiarEstadoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> CitaAgendaOut:
+    """Recepción/gerencia mueve el estado operativo de la cita (llegó, en sala,
+    en atención, faltó, anuló). 'completada' se reserva al cierre del médico —
+    porque ese paso asienta el ingreso en el ledger."""
+    clinic_id = empresa_clinic_id(ctx)
+    nuevo = payload.estado
+    if nuevo not in ESTADOS_EDITABLES_EMPRESA:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Estado inválido. Para 'completada' usa el cierre de atención del médico." if nuevo == "completada" else f"Estado inválido: {nuevo}",
+        )
+    appt = await db.get(Appointment, appointment_id)
+    if appt is None or appt.deleted_at is not None or appt.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cita no encontrada")
+    if appt.estado == "completada":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La cita ya fue cerrada por el médico")
+    antes = appt.estado
+    appt.estado = nuevo
+    audit(db, ctx, clinic_id=clinic_id, accion="cambiar_estado_cita", recurso=f"appointment:{appt.id}", antes={"estado": antes}, despues={"estado": nuevo})
+    await db.commit()
+    await db.refresh(appt)
+
+    pac = await db.get(Patient, appt.patient_id)
+    pac_user = await db.get(User, pac.user_id) if pac else None
+    prof = await db.get(User, appt.professional_id)
+    service = await db.get(CatalogItem, appt.service_id) if appt.service_id else None
+    return CitaAgendaOut(
+        id=appt.id,
+        inicio=appt.slot.lower,
+        fin=appt.slot.upper,
+        paciente_id=appt.patient_id,
+        paciente_nombre=pac_user.nombre if pac_user else "",
+        profesional_id=appt.professional_id,
+        profesional_nombre=prof.nombre if prof else "",
+        servicio_nombre=service.nombre if service else None,
+        estado=appt.estado,
+        monto=float(service.precio) if service else None,
+        facturado=False,
     )
 
 

@@ -7,6 +7,7 @@ import { api } from '../../api/client';
 import type { EmpresaKpis } from '../../api/types';
 
 const MODULES = [
+  { id: 'agenda-clinica', icon: '🗓️', t: 'Agenda de la clínica', d: 'Citas del día, estado y situación de pago' },
   { id: 'crm', icon: '📈', t: 'Indicadores (CRM)', d: 'Ingresos, margen, ocupación de tu clínica' },
   { id: 'agendas', icon: '📅', t: 'Configurar agendas', d: 'Horarios por profesional y sucursal' },
   { id: 'servicios', icon: '🏷️', t: 'Productos y servicios', d: 'Catálogo y precios' },

@@ -132,3 +132,29 @@ class FuncionarioOut(BaseModel):
     nombre: str
     correo: str
     estado: str
+
+
+# ---- agenda de la clínica (vista gerencia) ----
+class CitaAgendaOut(BaseModel):
+    id: uuid.UUID
+    inicio: datetime
+    fin: datetime
+    paciente_id: uuid.UUID
+    paciente_nombre: str
+    profesional_id: uuid.UUID
+    profesional_nombre: str
+    servicio_nombre: str | None
+    estado: str
+    monto: float | None          # facturado, o precio estimado del servicio
+    facturado: bool              # ya hay ingreso asentado en el ledger para esta cita
+
+
+class AgendaDiaOut(BaseModel):
+    fecha: date
+    total: int
+    por_estado: dict[str, int]
+    citas: list[CitaAgendaOut]
+
+
+class CambiarEstadoIn(BaseModel):
+    estado: str

@@ -1,4 +1,6 @@
 import type {
+  AgendaDia,
+  CitaAgenda,
   AdminKpis,
   AuditEntry,
   AuthOut,
@@ -185,6 +187,14 @@ export const api = {
   },
   empresa: {
     inicio: () => get<EmpresaKpis>('/empresa/inicio'),
+    agenda: (fecha?: string, professionalId?: string) => {
+      const p = new URLSearchParams();
+      if (fecha) p.set('fecha', fecha);
+      if (professionalId) p.set('professional_id', professionalId);
+      const qs = p.toString();
+      return get<AgendaDia>(`/empresa/agenda${qs ? `?${qs}` : ''}`);
+    },
+    cambiarEstadoCita: (id: string, estado: string) => patch<CitaAgenda>(`/empresa/citas/${id}/estado`, { estado }),
     profesionales: () => get<Profesional[]>('/empresa/profesionales'),
     sucursales: () => get<Branch[]>('/empresa/sucursales'),
     agendas: (professionalId?: string) => get<Bloque[]>(`/empresa/agendas${professionalId ? `?professional_id=${professionalId}` : ''}`),
