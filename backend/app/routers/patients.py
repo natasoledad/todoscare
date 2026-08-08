@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password
+from app.models.catalog import Promotion
 from app.models.identity import Role, RoleAssignment, User
 from app.models.marketing import MarketingCampaign
 from app.models.patient import Dependent, Patient, TycAcceptance, TycVersion
@@ -20,6 +21,7 @@ from app.schemas.patients import (
     FichaUpdateInput,
     OnboardingInput,
     PatientMeOut,
+    PromocionPacienteOut,
     RegisterInput,
     TycVersionOut,
     WalletOut,
@@ -166,6 +168,38 @@ async def get_me(
     patient = await get_own_patient(db, ctx)
     user = await db.get(User, ctx.user_id)
     return await _patient_out(db, patient, user)
+
+
+@router.get("/patients/me/promociones", response_model=list[PromocionPacienteOut])
+async def list_my_promociones(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.OWN_MEDICAL_RECORD, Action.VER)),
+) -> list[PromocionPacienteOut]:
+    """Promociones vigentes de la clínica del paciente (solo estado 'Activa').
+    El paciente ve ofertas reales de su clínica, no contenido de demo."""
+    patient = await get_own_patient(db, ctx)
+    today = datetime.now(timezone.utc).date()
+    rows = (
+        await db.execute(
+            select(Promotion)
+            .where(
+                Promotion.clinic_id == patient.clinic_id,
+                Promotion.estado == "Activa",
+                Promotion.deleted_at.is_(None),
+            )
+            .order_by(Promotion.created_at.desc())
+        )
+    ).scalars().all()
+    # Filtra por vigencia si está definida (fechas abiertas => siempre vigente).
+    vigentes = [
+        p for p in rows
+        if (p.vigencia_inicio is None or p.vigencia_inicio <= today)
+        and (p.vigencia_fin is None or p.vigencia_fin >= today)
+    ]
+    return [
+        PromocionPacienteOut(id=p.id, nombre=p.nombre, descuento=p.descuento, segmento=p.segmento)
+        for p in vigentes
+    ]
 
 
 @router.post("/patients/onboarding", response_model=PatientMeOut)

@@ -63,8 +63,8 @@ export function Agendas() {
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm text-ink">{b.professional_nombre}</div>
               <div className="mt-0.5 text-xs text-sub">
-                {b.branch_nombre} · {new Date(b.inicio).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                {' – '}{new Date(b.fin).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                {b.branch_nombre} · {new Date(b.inicio).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                {' – '}{new Date(b.fin).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
             <div onClick={() => eliminar(b.id)} className="cursor-pointer text-[13px] font-bold text-danger">Quitar</div>

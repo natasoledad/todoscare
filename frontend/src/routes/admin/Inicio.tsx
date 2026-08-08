@@ -54,7 +54,7 @@ export function Inicio() {
         <Kpi label="Clínicas" value={kpis ? String(kpis.clinicas) : '—'} />
         <Kpi label="Pacientes" value={kpis ? String(kpis.pacientes) : '—'} />
         <Kpi label="Citas hoy" value={kpis ? String(kpis.citas_hoy) : '—'} />
-        <Kpi label="Ingresos del mes" value={kpis ? `$${kpis.ingresos_mes.toLocaleString('es-MX')}` : '—'} />
+        <Kpi label="Ingresos del mes" value={kpis ? `$${kpis.ingresos_mes.toLocaleString('es-CL')}` : '—'} />
       </div>
 
       <div className="px-5 pt-5 font-heading font-bold text-[13px] text-ink">Acceso total</div>

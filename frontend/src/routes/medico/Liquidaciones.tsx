@@ -33,7 +33,7 @@ export function Liquidaciones() {
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-[13.5px] text-ink">Atención cerrada</div>
               <div className="text-xs text-sub">
-                {new Date(r.fecha).toLocaleDateString('es-MX')}
+                {new Date(r.fecha).toLocaleDateString('es-CL')}
                 {r.base != null && ` · base $${r.base}`}
               </div>
             </div>

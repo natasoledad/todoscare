@@ -88,7 +88,7 @@ export function Wallet() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-[13.5px] text-ink">{tx.motivo || tx.tipo}</div>
-              <div className="mt-0.5 text-[11.5px] text-sub">{new Date(tx.fecha).toLocaleDateString('es-MX')}</div>
+              <div className="mt-0.5 text-[11.5px] text-sub">{new Date(tx.fecha).toLocaleDateString('es-CL')}</div>
             </div>
             <div className="text-right shrink-0">
               {tx.puntos != null && <div className={`font-heading font-bold text-[12.5px] ${tx.puntos < 0 ? 'text-danger' : 'text-teal'}`}>{tx.puntos > 0 ? '+' : ''}{tx.puntos} pts</div>}

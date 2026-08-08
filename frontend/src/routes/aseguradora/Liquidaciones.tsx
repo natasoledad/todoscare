@@ -59,7 +59,7 @@ export function Liquidaciones() {
                 <div className="mt-0.5 text-xs text-sub">Período {s.periodo}</div>
               </div>
               <div className="text-right shrink-0">
-                <div className="font-heading font-bold text-[15px] text-ink tabular-nums">${s.monto.toLocaleString('es-MX')}</div>
+                <div className="font-heading font-bold text-[15px] text-ink tabular-nums">${s.monto.toLocaleString('es-CL')}</div>
                 <StatusTag label={s.estado === 'pagado' ? 'Pagado' : 'Pendiente'} tone={s.estado === 'pagado' ? 'teal' : 'warn'} />
               </div>
             </div>

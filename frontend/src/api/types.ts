@@ -140,6 +140,14 @@ export interface Promocion {
   estado: 'Activa' | 'Borrador';
 }
 
+/** Promoción vigente que ve el paciente en su Inicio (solo lectura). */
+export interface PromocionPaciente {
+  id: string;
+  nombre: string;
+  descuento: string | null;
+  segmento: string | null;
+}
+
 export interface InfoEmpresa {
   clinic_id: string;
   razon_social: string;

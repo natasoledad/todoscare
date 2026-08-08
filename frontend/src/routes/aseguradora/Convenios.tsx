@@ -52,7 +52,7 @@ export function Convenios() {
             <div key={a.arancel_id} className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3.5">
               <div className="min-w-0">
                 <div className="font-semibold text-[14px] text-ink truncate">{a.servicio}</div>
-                <div className="mt-0.5 text-xs text-sub">Copago ${a.copago.toLocaleString('es-MX')}</div>
+                <div className="mt-0.5 text-xs text-sub">Copago ${a.copago.toLocaleString('es-CL')}</div>
               </div>
               <div className="font-heading font-bold text-[15px] text-teal-dark tabular-nums">{a.cobertura_pct}%</div>
             </div>
@@ -92,7 +92,7 @@ export function Convenios() {
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-semibold text-sm text-ink truncate">{c.clinica}</div>
-                <div className="mt-0.5 text-xs text-sub">{c.aranceles} arancel(es){c.vigencia_fin ? ` · hasta ${new Date(c.vigencia_fin).toLocaleDateString('es-MX')}` : ''}</div>
+                <div className="mt-0.5 text-xs text-sub">{c.aranceles} arancel(es){c.vigencia_fin ? ` · hasta ${new Date(c.vigencia_fin).toLocaleDateString('es-CL')}` : ''}</div>
               </div>
               <StatusTag label={c.vigente ? 'Vigente' : 'Vencido'} tone={c.vigente ? 'teal' : 'warn'} />
             </div>

@@ -54,7 +54,7 @@ export function Liquidaciones() {
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="font-semibold text-[14px] text-ink truncate">{r.prestador}</div>
-                <div className="mt-0.5 text-xs text-sub truncate">{r.razon_social} · {new Date(r.fecha).toLocaleDateString('es-MX')}</div>
+                <div className="mt-0.5 text-xs text-sub truncate">{r.razon_social} · {new Date(r.fecha).toLocaleDateString('es-CL')}</div>
               </div>
               <div className="font-heading font-bold text-[15px] text-ink tabular-nums shrink-0">{money(r.monto)}</div>
             </div>

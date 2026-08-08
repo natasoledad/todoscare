@@ -141,6 +141,12 @@ async def main() -> None:
         r = await client.get("/farmacia/medicamentos", headers=h)
         results.append(("farmacia/medicamentos paciente nuevo -> vacío", r.json() == []))
 
+        # ---- promociones vigentes de la clínica (solo 'Activa') ----
+        r = await client.get("/patients/me/promociones", headers=camila_h)
+        promos = r.json()
+        results.append(("promociones -> solo activas (2 de seed, no la Borrador)", r.status_code == 200 and len(promos) == 2))
+        results.append(("promociones no incluyen borradores", all(p["nombre"] != "Primera telemedicina gratis" for p in promos)))
+
         # ---- billetera ----
         # 100 (registro) + 200 (onboarding) + 25*2 (2 dependientes) + 20 (examen subido) = 370
         r = await client.get("/billetera", headers=h)

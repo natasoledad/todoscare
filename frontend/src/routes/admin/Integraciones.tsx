@@ -67,7 +67,7 @@ export function Integraciones() {
               <div className="font-semibold text-[13px] text-ink">{EVENTO_LABEL[e.tipo] ?? e.tipo}</div>
               <div className="text-[11px] text-sub truncate">{e.direccion === 'inbound' ? '↓ entrante' : '↑ saliente'} · {e.ref ?? '—'}</div>
             </div>
-            <div className="text-[11px] text-sub whitespace-nowrap">{e.estado} · {new Date(e.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div className="text-[11px] text-sub whitespace-nowrap">{e.estado} · {new Date(e.fecha).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
         ))}
       </div>

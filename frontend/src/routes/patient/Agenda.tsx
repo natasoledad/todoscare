@@ -10,7 +10,7 @@ import type { Cita, Servicio, Slot } from '../../api/types';
 type Step = 'list' | 'slots' | 'confirm';
 
 function formatSlot(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 }
 
 export function Agenda() {
@@ -123,7 +123,7 @@ export function Agenda() {
       <div className="w-[78px] h-[78px] rounded-full bg-teal-soft flex items-center justify-center text-4xl">✅</div>
       <div className="mt-4 font-heading font-extrabold text-xl text-ink">Cita confirmada</div>
       <div className="mt-1.5 text-sm leading-relaxed text-sub">
-        {cita?.servicio_nombre} · {cita && new Date(cita.inicio).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
+        {cita?.servicio_nombre} · {cita && new Date(cita.inicio).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
       </div>
       <div className="mt-1 text-xs text-sub">{cita?.ubicacion}</div>
       <div className="mt-[18px] w-full flex flex-col gap-2.5">

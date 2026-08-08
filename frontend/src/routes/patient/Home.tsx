@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api/client';
-import type { Cita } from '../../api/types';
+import type { Cita, PromocionPaciente } from '../../api/types';
 
 const ACTIONS = [
   { id: 'agenda', label: 'Agendar consulta', icon: '📅', to: '/app/agenda' },
@@ -11,21 +11,21 @@ const ACTIONS = [
   { id: 'farmacia', label: 'Farmacia', icon: '💊', to: '/app/farmacia' },
 ];
 
-const PROMOS = [
-  { title: 'Chequeo preventivo -20%', color: '#FCEFE7' },
-  { title: 'Odontología familiar 2x1', color: '#EAF1FF' },
-];
+// Paleta rotativa para las tarjetas de promoción (solo estética).
+const PROMO_COLORS = ['#FCEFE7', '#EAF1FF', '#E9FBF4', '#FBF3E9'];
 
 export function Home() {
   const navigate = useNavigate();
   const { patient } = useAuth();
   const [proximaCita, setProximaCita] = useState<Cita | null>(null);
+  const [promos, setPromos] = useState<PromocionPaciente[]>([]);
 
   useEffect(() => {
     api.agenda.mias().then((citas) => {
       const proxima = citas.filter((c) => c.estado === 'confirmada').sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
       setProximaCita(proxima ?? null);
     });
+    api.patients.promociones().then(setPromos).catch(() => setPromos([]));
   }, []);
 
   if (!patient) return null;
@@ -51,12 +51,18 @@ export function Home() {
       </div>
 
       {proximaCita && (
-        <div className="mx-5 mt-3 rounded-2xl border border-teal-soft bg-teal-soft px-4 py-3">
-          <div className="font-heading font-bold text-[13px] text-teal-dark">Próxima cita</div>
-          <div className="mt-0.5 text-[12.5px] text-ink">
-            {proximaCita.servicio_nombre} · {new Date(proximaCita.inicio).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
+        <button
+          onClick={() => navigate('/app/agenda')}
+          className="mx-5 mt-3 w-[calc(100%-2.5rem)] text-left rounded-2xl border border-teal-soft bg-teal-soft px-4 py-3 flex items-center gap-2"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="font-heading font-bold text-[13px] text-teal-dark">Próxima cita</div>
+            <div className="mt-0.5 text-[12.5px] text-ink">
+              {proximaCita.servicio_nombre} · {new Date(proximaCita.inicio).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
+            </div>
           </div>
-        </div>
+          <div className="text-teal-dark text-lg shrink-0">›</div>
+        </button>
       )}
 
       <div className="px-5 pt-5 font-heading font-bold text-[13px] text-ink">Acciones rápidas</div>
@@ -88,14 +94,24 @@ export function Home() {
         <div className="text-[#C6D2CE] text-lg">›</div>
       </div>
 
-      <div className="px-5 pt-[22px] font-heading font-bold text-[13px] text-ink">Promociones para ti</div>
-      <div className="px-5 pt-2.5 flex gap-2.5 overflow-x-auto scrollhide">
-        {PROMOS.map((p) => (
-          <div key={p.title} style={{ background: p.color }} className="min-w-[160px] rounded-2xl p-3.5 text-[12.5px] leading-snug font-bold text-ink">
-            {p.title}
+      {promos.length > 0 && (
+        <>
+          <div className="px-5 pt-[22px] font-heading font-bold text-[13px] text-ink">Promociones para ti</div>
+          <div className="px-5 pt-2.5 flex gap-2.5 overflow-x-auto scrollhide">
+            {promos.map((p, i) => (
+              <div
+                key={p.id}
+                style={{ background: PROMO_COLORS[i % PROMO_COLORS.length] }}
+                className="min-w-[160px] rounded-2xl p-3.5"
+              >
+                <div className="text-[12.5px] leading-snug font-bold text-ink">{p.nombre}</div>
+                {p.descuento && <div className="mt-1 text-[11px] font-semibold text-teal-dark">{p.descuento}</div>}
+                {p.segmento && <div className="mt-0.5 text-[10.5px] text-sub">{p.segmento}</div>}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
 }

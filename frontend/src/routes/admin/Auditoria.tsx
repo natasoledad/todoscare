@@ -38,7 +38,7 @@ export function Auditoria() {
           <div key={i} className="rounded-2xl border border-border bg-white px-4 py-3">
             <div className="flex justify-between items-start gap-2">
               <div className="font-semibold text-[13px] text-ink">{ACCION_LABEL[r.accion] ?? r.accion}</div>
-              <div className="text-[11px] text-sub whitespace-nowrap">{new Date(r.fecha).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</div>
+              <div className="text-[11px] text-sub whitespace-nowrap">{new Date(r.fecha).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</div>
             </div>
             <div className="mt-0.5 text-xs text-sub">{r.actor ?? 'Sistema'} · {r.recurso}</div>
           </div>

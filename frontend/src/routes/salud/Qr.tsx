@@ -56,7 +56,7 @@ export function Qr() {
             {accesos.map((a, i) => (
               <div key={i} className="flex justify-between rounded-2xl border border-border bg-white px-4 py-3 text-[13px]">
                 <span className="text-ink font-medium">{a.profesional_nombre || 'Profesional'}</span>
-                <span className="text-sub">{new Date(a.fecha).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                <span className="text-sub">{new Date(a.fecha).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}</span>
               </div>
             ))}
           </>

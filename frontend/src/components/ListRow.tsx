@@ -34,7 +34,11 @@ export function Chevron() {
   return <div className="text-[#C6D2CE] text-lg shrink-0">›</div>;
 }
 
-export function StatusTag({ label, tone = 'teal' }: { label: string; tone?: 'teal' | 'warn' }) {
-  const classes = tone === 'teal' ? 'text-teal bg-teal-soft' : 'text-warn bg-warn-bg';
+export function StatusTag({ label, tone = 'teal' }: { label: string; tone?: 'teal' | 'warn' | 'danger' | 'muted' }) {
+  const classes =
+    tone === 'teal' ? 'text-teal bg-teal-soft'
+    : tone === 'danger' ? 'text-danger bg-[#F7E7E4]'
+    : tone === 'muted' ? 'text-sub bg-[#EEF2F1]'
+    : 'text-warn bg-warn-bg';
   return <span className={`font-heading font-bold text-[11px] px-2.5 py-1 rounded-full shrink-0 ${classes}`}>{label}</span>;
 }

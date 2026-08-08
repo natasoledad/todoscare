@@ -4,20 +4,39 @@ import { Button } from '../../components/Button';
 import { Chevron } from '../../components/ListRow';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api/client';
+import { money } from '../../lib/citas';
 import type { EmpresaKpis } from '../../api/types';
 
-const MODULES = [
-  { id: 'agenda-clinica', icon: '🗓️', t: 'Agenda de la clínica', d: 'Citas del día, estado y situación de pago' },
-  { id: 'cajas', icon: '💰', t: 'Cajas', d: 'Arqueo diario: abrir, cobrar, gastos y cierre' },
-  { id: 'pacientes', icon: '🧑‍🤝‍🧑', t: 'Pacientes', d: 'Listado con deudas y habilitar/deshabilitar' },
-  { id: 'desempeno', icon: '📊', t: 'Panel de desempeño', d: 'Ventas por profesional y grupo, ticket medio' },
-  { id: 'crm', icon: '📈', t: 'Indicadores (CRM)', d: 'Ingresos, margen, ocupación de tu clínica' },
-  { id: 'gestion-crm', icon: '📇', t: 'Gestión CRM', d: 'Tareas, encuestas de satisfacción y plantillas' },
-  { id: 'agendas', icon: '📅', t: 'Configurar agendas', d: 'Horarios por profesional y sucursal' },
-  { id: 'servicios', icon: '🏷️', t: 'Productos y servicios', d: 'Catálogo y precios' },
-  { id: 'promociones', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },
-  { id: 'info', icon: 'ℹ️', t: 'Información de la empresa', d: 'Datos, responsable, ubicaciones' },
-  { id: 'funcionarios', icon: '👥', t: 'Funcionarios (B2B)', d: 'Nómina cubierta y planes' },
+/** Módulos de gestión agrupados por área, para que el portal no sea una lista
+ *  plana de 11 ítems: Operación (día a día), Gestión (análisis y relación) y
+ *  Configuración (catálogos y datos de la empresa). */
+const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string; d: string }[] }[] = [
+  {
+    titulo: 'Operación del día',
+    items: [
+      { id: 'agenda-clinica', icon: '🗓️', t: 'Agenda de la clínica', d: 'Citas del día, estado y situación de pago' },
+      { id: 'cajas', icon: '💰', t: 'Cajas', d: 'Arqueo diario: abrir, cobrar, gastos y cierre' },
+      { id: 'pacientes', icon: '🧑‍🤝‍🧑', t: 'Pacientes', d: 'Listado con deudas y habilitar/deshabilitar' },
+    ],
+  },
+  {
+    titulo: 'Gestión y análisis',
+    items: [
+      { id: 'desempeno', icon: '📊', t: 'Panel de desempeño', d: 'Ventas por profesional y grupo, ticket medio' },
+      { id: 'crm', icon: '📈', t: 'Indicadores (CRM)', d: 'Ingresos, margen, ocupación y campañas' },
+      { id: 'gestion-crm', icon: '📇', t: 'Gestión CRM', d: 'Tareas, encuestas de satisfacción y plantillas' },
+    ],
+  },
+  {
+    titulo: 'Configuración',
+    items: [
+      { id: 'agendas', icon: '📅', t: 'Configurar agendas', d: 'Horarios por profesional y sucursal' },
+      { id: 'servicios', icon: '🏷️', t: 'Productos y servicios', d: 'Catálogo y precios' },
+      { id: 'promociones', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },
+      { id: 'info', icon: 'ℹ️', t: 'Información de la empresa', d: 'Datos, responsable, ubicaciones' },
+      { id: 'funcionarios', icon: '👥', t: 'Funcionarios (B2B)', d: 'Nómina cubierta y planes' },
+    ],
+  },
 ];
 
 function Kpi({ label, value }: { label: string; value: string }) {
@@ -50,7 +69,7 @@ export function Inicio() {
 
       <div className="mx-5 mt-3.5 grid grid-cols-2 gap-2.5">
         <Kpi label="Citas hoy" value={kpis ? String(kpis.citas_hoy) : '—'} />
-        <Kpi label="Ingresos del mes" value={kpis ? `$${kpis.ingresos_mes.toLocaleString('es-MX')}` : '—'} />
+        <Kpi label="Ingresos del mes" value={kpis ? money(kpis.ingresos_mes) : '—'} />
         <Kpi label="Servicios activos" value={kpis ? String(kpis.servicios_activos) : '—'} />
         <Kpi label="Promos activas" value={kpis ? String(kpis.promos_activas) : '—'} />
       </div>
@@ -69,23 +88,27 @@ export function Inicio() {
         </>
       )}
 
-      <div className="px-5 pt-5 font-heading font-bold text-[13px] text-ink">Gestión</div>
-      <div className="px-5 pt-2.5 flex flex-col gap-2.5">
-        {MODULES.map((m) => (
-          <div
-            key={m.id}
-            onClick={() => navigate(`/empresa/${m.id}`)}
-            className="flex items-center gap-3.5 bg-white border border-border rounded-2xl px-4 py-3.5 cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-xl bg-teal-soft flex items-center justify-center text-xl shrink-0">{m.icon}</div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-[14.5px] text-ink">{m.t}</div>
-              <div className="mt-0.5 text-xs text-sub">{m.d}</div>
-            </div>
-            <Chevron />
+      {SECCIONES.map((sec) => (
+        <div key={sec.titulo}>
+          <div className="px-5 pt-5 font-heading font-bold text-[13px] text-ink">{sec.titulo}</div>
+          <div className="px-5 pt-2.5 flex flex-col gap-2.5">
+            {sec.items.map((m) => (
+              <div
+                key={m.id}
+                onClick={() => navigate(`/empresa/${m.id}`)}
+                className="flex items-center gap-3.5 bg-white border border-border rounded-2xl px-4 py-3.5 cursor-pointer"
+              >
+                <div className="w-11 h-11 rounded-xl bg-teal-soft flex items-center justify-center text-xl shrink-0">{m.icon}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-[14.5px] text-ink">{m.t}</div>
+                  <div className="mt-0.5 text-xs text-sub">{m.d}</div>
+                </div>
+                <Chevron />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
 
       <div className="px-5 pt-6">
         <Button onClick={() => { logout(); navigate('/'); }} variant="outline" className="w-full">

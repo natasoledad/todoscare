@@ -30,7 +30,7 @@ export function Agendamientos() {
             <div className="w-10 h-10 rounded-[10px] bg-[#F2F6F5] flex items-center justify-center text-lg shrink-0">🩺</div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm text-ink">{c.servicio_nombre}</div>
-              <div className="mt-0.5 text-xs text-sub">{new Date(c.inicio).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+              <div className="mt-0.5 text-xs text-sub">{new Date(c.inicio).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}</div>
             </div>
             <StatusTag label={ESTADO_LABEL[c.estado] || c.estado} tone={c.estado === 'confirmada' ? 'warn' : c.estado === 'completada' ? 'teal' : 'warn'} />
           </div>

@@ -23,7 +23,7 @@ export function Hospitalizaciones() {
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm text-ink">{h.motivo}</div>
               <div className="mt-0.5 text-xs text-sub">
-                {h.centro} · {h.ingreso && new Date(h.ingreso).toLocaleDateString('es-MX')}
+                {h.centro} · {h.ingreso && new Date(h.ingreso).toLocaleDateString('es-CL')}
               </div>
             </div>
           </div>

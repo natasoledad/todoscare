@@ -100,7 +100,7 @@ export function Cita() {
         <div className="rounded-2xl bg-gradient-to-br from-teal to-teal-dark text-white p-4">
           <div className="font-heading font-extrabold text-lg">{cita.paciente_nombre}</div>
           <div className="text-[12.5px] opacity-85 mt-0.5">
-            {cita.servicio_nombre} · {new Date(cita.inicio).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}
+            {cita.servicio_nombre} · {new Date(cita.inicio).toLocaleString('es-CL', { dateStyle: 'medium', timeStyle: 'short' })}
           </div>
           <button
             onClick={() => navigate(`/medico/ficha/${cita.patient_id}`)}

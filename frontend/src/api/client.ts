@@ -61,6 +61,7 @@ import type {
   PlanTratamiento,
   SignosVitales,
   PatientMe,
+  PromocionPaciente,
   PlanAdmin,
   PrescripcionResult,
   Profesional,
@@ -152,6 +153,7 @@ export const api = {
     me: () => get<PatientMe>('/patients/me'),
     onboarding: (input: OnboardingInput) => post<PatientMe>('/patients/onboarding', input),
     updateFicha: (input: FichaUpdateInput) => patch<PatientMe>('/patients/me/ficha', input),
+    promociones: () => get<PromocionPaciente[]>('/patients/me/promociones'),
   },
   agenda: {
     servicios: () => get<Servicio[]>('/agenda/servicios'),

@@ -10,6 +10,15 @@ class ClinicPublicOut(BaseModel):
     pais: str
 
 
+class PromocionPacienteOut(BaseModel):
+    """Promoción vigente que ve el paciente en su Inicio (solo lectura)."""
+
+    id: uuid.UUID
+    nombre: str
+    descuento: str | None = None
+    segmento: str | None = None
+
+
 class TycVersionOut(BaseModel):
     id: uuid.UUID
     pais: str

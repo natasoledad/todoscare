@@ -4,14 +4,8 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { StatusTag } from '../../components/ListRow';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api/client';
+import { estadoCita, hhmm } from '../../lib/citas';
 import type { CitaMedico } from '../../api/types';
-
-const ESTADO: Record<string, { label: string; tone: 'teal' | 'warn' }> = {
-  confirmada: { label: 'Confirmada', tone: 'warn' },
-  completada: { label: 'Atendida', tone: 'teal' },
-  cancelada: { label: 'Cancelada', tone: 'warn' },
-  no_show: { label: 'No asistió', tone: 'warn' },
-};
 
 export function Agenda() {
   const navigate = useNavigate();
@@ -42,14 +36,14 @@ export function Agenda() {
             className="flex items-center gap-3.5 bg-white border border-border rounded-2xl px-4 py-3.5 cursor-pointer"
           >
             <div className="w-11 h-11 rounded-xl bg-teal-soft flex items-center justify-center text-lg shrink-0 font-heading font-bold text-teal-dark">
-              {new Date(c.inicio).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+              {hhmm(c.inicio)}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-[14.5px] text-ink">{c.paciente_nombre}</div>
               <div className="mt-0.5 text-xs text-sub">{c.servicio_nombre}</div>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <StatusTag {...ESTADO[c.estado] ?? { label: c.estado, tone: 'warn' }} />
+              {(() => { const m = estadoCita(c.estado); return <StatusTag label={m.label} tone={m.tone} />; })()}
               {c.atendida && <span className="text-[10px] text-teal font-heading font-bold">✓ atendida</span>}
             </div>
           </div>

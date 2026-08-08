@@ -37,7 +37,7 @@ export function Examenes() {
             <div className="w-10 h-10 rounded-[10px] bg-[#F2F6F5] flex items-center justify-center text-lg shrink-0">🧪</div>
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm text-ink truncate">{ex.nombre}</div>
-              <div className="mt-0.5 text-xs text-sub">{new Date(ex.fecha).toLocaleDateString('es-MX')}</div>
+              <div className="mt-0.5 text-xs text-sub">{new Date(ex.fecha).toLocaleDateString('es-CL')}</div>
             </div>
             <StatusTag label={ex.estado === 'listo' ? 'Listo' : ex.estado === 'en_proceso' ? 'En proceso' : ex.estado} tone={ex.estado === 'listo' ? 'teal' : 'warn'} />
           </div>

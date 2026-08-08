@@ -4,19 +4,9 @@ import { BackHeader } from '../../components/BackHeader';
 import { BottomSheet } from '../../components/BottomSheet';
 import { Button } from '../../components/Button';
 import { api, ApiError } from '../../api/client';
+import { estadoCita, hhmm, money } from '../../lib/citas';
 import type { AgendaDia, CitaAgenda, Profesional } from '../../api/types';
 
-/** Estados operativos de una cita, con etiqueta y color (leyenda tipo tablero
- *  de gerencia). 'completada' se fija en el cierre del médico, no aquí. */
-const ESTADOS: Record<string, { label: string; dot: string; chip: string }> = {
-  confirmada:     { label: 'Confirmada',     dot: 'bg-teal',       chip: 'bg-teal-soft text-teal-dark' },
-  en_sala_espera: { label: 'En sala',        dot: 'bg-[#B98900]',  chip: 'bg-warn-bg text-warn' },
-  en_atencion:    { label: 'En atención',    dot: 'bg-[#2B6CB0]',  chip: 'bg-[#E6EFF7] text-[#2B6CB0]' },
-  completada:     { label: 'Atendida',       dot: 'bg-[#0B7A66]',  chip: 'bg-[#DFF3EC] text-teal-dark' },
-  no_show:        { label: 'Faltó',          dot: 'bg-[#C86B5E]',  chip: 'bg-[#F7E7E4] text-danger' },
-  cancelada:      { label: 'Anulada',        dot: 'bg-sub',        chip: 'bg-[#EEF2F1] text-sub' },
-};
-const estadoMeta = (e: string) => ESTADOS[e] ?? { label: e, dot: 'bg-sub', chip: 'bg-[#EEF2F1] text-sub' };
 // Transiciones que puede hacer recepción/gerencia (no 'completada').
 const ACCIONES: { estado: string; label: string }[] = [
   { estado: 'confirmada', label: 'Confirmada' },
@@ -26,8 +16,6 @@ const ACCIONES: { estado: string; label: string }[] = [
   { estado: 'cancelada', label: 'Anular cita' },
 ];
 
-const money = (n: number | null) => (n == null ? '—' : `$${n.toLocaleString('es-CL')}`);
-const hhmm = (iso: string) => new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export function AgendaClinica() {
@@ -94,7 +82,7 @@ export function AgendaClinica() {
       <div className="px-5 pt-3 flex flex-wrap gap-1.5">
         <span className="rounded-full bg-ink text-white text-[11px] font-semibold px-2.5 py-1">{data?.total ?? 0} citas</span>
         {Object.entries(resumen).map(([e, n]) => {
-          const m = estadoMeta(e);
+          const m = estadoCita(e);
           return <span key={e} className={`rounded-full text-[11px] font-semibold px-2.5 py-1 ${m.chip}`}>{m.label}: {n}</span>;
         })}
       </div>
@@ -103,7 +91,7 @@ export function AgendaClinica() {
       <div className="flex-1 overflow-y-auto scrollhide px-5 pt-3 pb-24 flex flex-col gap-2">
         {data && data.citas.length === 0 && <div className="text-center text-sm text-sub py-10">Sin citas este día.</div>}
         {data?.citas.map((c) => {
-          const m = estadoMeta(c.estado);
+          const m = estadoCita(c.estado);
           return (
             <button
               key={c.id}

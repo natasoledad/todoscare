@@ -46,7 +46,7 @@ export function Inicio() {
         <Kpi label="Afiliados" value={kpis ? String(kpis.afiliados) : '—'} />
         <Kpi label="Autorizaciones pend." value={kpis ? String(kpis.autorizaciones_pendientes) : '—'} />
         <Kpi label="Atenciones del mes" value={kpis ? String(kpis.atenciones_mes) : '—'} />
-        <Kpi label="Por liquidar" value={kpis ? `$${kpis.por_liquidar.toLocaleString('es-MX')}` : '—'} />
+        <Kpi label="Por liquidar" value={kpis ? `$${kpis.por_liquidar.toLocaleString('es-CL')}` : '—'} />
       </div>
 
       <div className="px-5 pt-5 font-heading font-bold text-[13px] text-ink">Gestión</div>

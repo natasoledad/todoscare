@@ -73,7 +73,7 @@ export function Config() {
           <div key={t.id} className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3">
             <div>
               <div className="font-semibold text-[13.5px] text-ink">{t.pais} · v{t.version}</div>
-              <div className="text-xs text-sub">Publicado {new Date(t.publicado_en).toLocaleDateString('es-MX')}</div>
+              <div className="text-xs text-sub">Publicado {new Date(t.publicado_en).toLocaleDateString('es-CL')}</div>
             </div>
           </div>
         ))}

@@ -27,7 +27,7 @@ export function Finanzas() {
             ].map(([label, val], i) => (
               <div key={label as string} className={`flex justify-between px-2.5 py-3 ${i < 2 ? 'border-b border-[#F2F6F5]' : ''}`}>
                 <div className="text-[13px] text-sub">{label as string}</div>
-                <div className="text-[13px] font-semibold text-ink tabular-nums">${(val as number).toLocaleString('es-MX')}</div>
+                <div className="text-[13px] font-semibold text-ink tabular-nums">${(val as number).toLocaleString('es-CL')}</div>
               </div>
             ))}
           </div>
@@ -42,9 +42,9 @@ export function Finanzas() {
           <div key={i} className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3">
             <div>
               <div className="font-semibold text-[13px] text-ink capitalize">{e.tipo}</div>
-              <div className="text-xs text-sub">{new Date(e.fecha).toLocaleDateString('es-MX')}{e.ref ? ` · ${e.ref}` : ''}</div>
+              <div className="text-xs text-sub">{new Date(e.fecha).toLocaleDateString('es-CL')}{e.ref ? ` · ${e.ref}` : ''}</div>
             </div>
-            <div className="font-heading font-bold text-sm text-ink tabular-nums">${e.monto.toLocaleString('es-MX')} {e.moneda}</div>
+            <div className="font-heading font-bold text-sm text-ink tabular-nums">${e.monto.toLocaleString('es-CL')} {e.moneda}</div>
           </div>
         ))}
       </div>

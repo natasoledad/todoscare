@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { CrmDetalleClinica } from '../../api/types';
 
-export const money = (n: number) => `$${Math.round(n).toLocaleString('es-MX')}`;
+export const money = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
 
 export function pct(n: number | null): string {
   if (n === null) return '—';
