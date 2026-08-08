@@ -2,17 +2,19 @@ import uuid
 from datetime import datetime, time, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.catalog import CatalogItem
 from app.models.clinical import (
+    ClinicalDocument,
     ExamOrder,
     ExamResult,
     Hospitalization,
     MedicalRecord,
     Odontogram,
+    Periodontogram,
     Prescription,
     TreatmentPlan,
     TreatmentPlanItem,
@@ -27,7 +29,11 @@ from app.schemas.medico import (
     AlertaClinica,
     CierreOut,
     CitaMedicoOut,
+    DocumentoIn,
+    DocumentoOut,
     EnmiendaInput,
+    PeriodontogramaIn,
+    PeriodontogramaOut,
     ExamenFichaOut,
     FichaPacienteOut,
     HospitalizacionFichaOut,
@@ -615,3 +621,106 @@ async def cambiar_estado_item(
     await db.commit()
     await db.refresh(plan)
     return await _plan_out(db, plan)
+
+
+# ═══════════════════════ Tanda 5: documentos clínicos ═══════════════════════
+DOC_TIPOS = {"consentimiento", "licencia", "interconsulta", "otro"}
+
+
+def _doc_out(d: ClinicalDocument) -> DocumentoOut:
+    return DocumentoOut(id=d.id, tipo=d.tipo, titulo=d.titulo, contenido=d.contenido, estado=d.estado, fecha=d.created_at)
+
+
+@router.get("/pacientes/{patient_id}/documentos", response_model=list[DocumentoOut])
+async def listar_documentos(
+    patient_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> list[DocumentoOut]:
+    patient = await get_treated_patient(db, ctx, patient_id)
+    rows = (
+        await db.execute(
+            select(ClinicalDocument).where(ClinicalDocument.patient_id == patient_id, ClinicalDocument.deleted_at.is_(None)).order_by(ClinicalDocument.created_at.desc())
+        )
+    ).scalars().all()
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="ver_documentos_clinicos", recurso=f"patient:{patient_id}")
+    await db.commit()
+    return [_doc_out(d) for d in rows]
+
+
+@router.post("/pacientes/{patient_id}/documentos", response_model=DocumentoOut, status_code=status.HTTP_201_CREATED)
+async def crear_documento(
+    patient_id: uuid.UUID,
+    payload: DocumentoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
+) -> DocumentoOut:
+    if payload.tipo not in DOC_TIPOS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tipo inválido: {payload.tipo}")
+    patient = await get_treated_patient(db, ctx, patient_id)
+    doc = ClinicalDocument(
+        clinic_id=patient.clinic_id, patient_id=patient_id, professional_id=ctx.user_id,
+        tipo=payload.tipo, titulo=payload.titulo, contenido=payload.contenido,
+    )
+    db.add(doc)
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="crear_documento_clinico", recurso=f"patient:{patient_id}")
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_out(doc)
+
+
+@router.patch("/documentos/{doc_id}/anular", response_model=DocumentoOut)
+async def anular_documento(
+    doc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> DocumentoOut:
+    doc = await db.get(ClinicalDocument, doc_id)
+    if doc is None or doc.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Documento no encontrado")
+    await get_treated_patient(db, ctx, doc.patient_id)  # valida tratamiento + clínica
+    doc.estado = "anulado"
+    audit(db, ctx, clinic_id=doc.clinic_id, accion="anular_documento_clinico", recurso=f"clinical_document:{doc.id}")
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_out(doc)
+
+
+# ═══════════════════════ Tanda 5: periodontograma ═══════════════════════
+@router.get("/pacientes/{patient_id}/periodontograma", response_model=PeriodontogramaOut | None)
+async def ultimo_periodontograma(
+    patient_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> PeriodontogramaOut | None:
+    patient = await get_treated_patient(db, ctx, patient_id)
+    rows = (
+        await db.execute(
+            select(Periodontogram).where(Periodontogram.patient_id == patient_id, Periodontogram.deleted_at.is_(None)).order_by(Periodontogram.created_at.desc())
+        )
+    ).scalars().all()
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="ver_periodontograma", recurso=f"patient:{patient_id}")
+    await db.commit()
+    if not rows:
+        return None
+    p = rows[0]
+    return PeriodontogramaOut(id=p.id, datos=p.datos, notas=p.notas, fecha=p.created_at, tomas_anteriores=len(rows) - 1)
+
+
+@router.post("/pacientes/{patient_id}/periodontograma", response_model=PeriodontogramaOut, status_code=status.HTTP_201_CREATED)
+async def guardar_periodontograma(
+    patient_id: uuid.UUID,
+    payload: PeriodontogramaIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
+) -> PeriodontogramaOut:
+    patient = await get_treated_patient(db, ctx, patient_id)
+    p = Periodontogram(clinic_id=patient.clinic_id, patient_id=patient_id, professional_id=ctx.user_id, datos=payload.datos, notas=payload.notas)
+    db.add(p)
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="guardar_periodontograma", recurso=f"patient:{patient_id}")
+    await db.commit()
+    await db.refresh(p)
+    prev = (
+        await db.execute(select(func.count(Periodontogram.id)).where(Periodontogram.patient_id == patient_id, Periodontogram.deleted_at.is_(None)))
+    ).scalar_one()
+    return PeriodontogramaOut(id=p.id, datos=p.datos, notas=p.notas, fecha=p.created_at, tomas_anteriores=int(prev) - 1)

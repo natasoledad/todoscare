@@ -731,3 +731,20 @@ export interface Desempeno {
   por_profesional: DesempenoProfesional[];
   por_grupo: DesempenoGrupo[];
 }
+
+// ---- Tanda 5: documentos clínicos + periodontograma ----
+export interface DocumentoClinico {
+  id: string;
+  tipo: string;
+  titulo: string;
+  contenido: string | null;
+  estado: string;
+  fecha: string;
+}
+export interface Periodontograma {
+  id: string;
+  datos: Record<string, { ps?: number; sangrado?: boolean }>;
+  notas: string | null;
+  fecha: string;
+  tomas_anteriores: number;
+}

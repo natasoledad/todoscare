@@ -4,7 +4,9 @@ import type {
   CajaDetalle,
   CitaAgenda,
   Desempeno,
+  DocumentoClinico,
   PacienteLista,
+  Periodontograma,
   AdminKpis,
   AuditEntry,
   AuthOut,
@@ -199,6 +201,12 @@ export const api = {
       post<PlanTratamiento>(`/medico/pacientes/${patientId}/planes`, body),
     cambiarEstadoPlan: (planId: string, estado: string) => patch<PlanTratamiento>(`/medico/planes/${planId}/estado`, { estado }),
     cambiarEstadoItem: (planId: string, itemId: string, estado: string) => patch<PlanTratamiento>(`/medico/planes/${planId}/items/${itemId}/estado`, { estado }),
+    documentos: (patientId: string) => get<DocumentoClinico[]>(`/medico/pacientes/${patientId}/documentos`),
+    crearDocumento: (patientId: string, body: { tipo: string; titulo: string; contenido?: string }) => post<DocumentoClinico>(`/medico/pacientes/${patientId}/documentos`, body),
+    anularDocumento: (docId: string) => patch<DocumentoClinico>(`/medico/documentos/${docId}/anular`),
+    periodontograma: (patientId: string) => get<Periodontograma | null>(`/medico/pacientes/${patientId}/periodontograma`),
+    guardarPeriodontograma: (patientId: string, datos: Record<string, { ps?: number; sangrado?: boolean }>, notas?: string) =>
+      post<Periodontograma>(`/medico/pacientes/${patientId}/periodontograma`, { datos, notas }),
   },
   empresa: {
     inicio: () => get<EmpresaKpis>('/empresa/inicio'),

@@ -180,3 +180,33 @@ class PlanEstadoIn(BaseModel):
 
 class PlanItemEstadoIn(BaseModel):
     estado: str
+
+
+# ---- Tanda 5: documentos clínicos ----
+class DocumentoIn(BaseModel):
+    tipo: str          # consentimiento | licencia | interconsulta | otro
+    titulo: str = Field(min_length=1)
+    contenido: str | None = None
+
+
+class DocumentoOut(BaseModel):
+    id: uuid.UUID
+    tipo: str
+    titulo: str
+    contenido: str | None
+    estado: str
+    fecha: datetime
+
+
+# ---- Tanda 5: periodontograma ----
+class PeriodontogramaIn(BaseModel):
+    datos: dict          # { "1.6": {"ps": 3, "sangrado": true}, ... }
+    notas: str | None = None
+
+
+class PeriodontogramaOut(BaseModel):
+    id: uuid.UUID
+    datos: dict
+    notas: str | None
+    fecha: datetime
+    tomas_anteriores: int

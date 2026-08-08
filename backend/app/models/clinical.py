@@ -140,3 +140,31 @@ class TreatmentPlanItem(Base, AuditMixin, TenantMixin):
     cantidad: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     precio_unit: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
     estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendiente")  # pendiente | realizado
+
+
+class ClinicalDocument(Base, AuditMixin, TenantMixin):
+    """Documentos clínicos (Tanda 5): consentimiento informado, licencia médica,
+    interconsulta, etc. Contenido libre + estado (emitido/anulado). Solo el
+    profesional tratante, auditado."""
+
+    __tablename__ = "clinical_documents"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(30), nullable=False)  # consentimiento | licencia | interconsulta | otro
+    titulo: Mapped[str] = mapped_column(String(255), nullable=False)
+    contenido: Mapped[str | None] = mapped_column(String(4000))
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="emitido")  # emitido | anulado
+
+
+class Periodontogram(Base, AuditMixin, TenantMixin):
+    """Periodontograma (Tanda 5). Cada fila es una toma (snapshot) — se guarda
+    el histórico. `datos` = { "1.6": {"ps": 3, "sangrado": true}, ... } en
+    notación FDI. Odontología."""
+
+    __tablename__ = "periodontograms"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    datos: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    notas: Mapped[str | None] = mapped_column(String(500))
