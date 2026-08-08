@@ -3,9 +3,9 @@ import { BottomSheet } from '../../components/BottomSheet';
 import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
+import { money } from '../../lib/citas';
 import type { DocumentoClinico, PlanItem, PlanTratamiento, SignosVitales } from '../../api/types';
 
-const money = (n: number) => `$${n.toLocaleString('es-CL')}`;
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
 
 // ─────────────────────────── Signos vitales ───────────────────────────

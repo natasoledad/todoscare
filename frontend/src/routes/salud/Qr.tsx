@@ -24,6 +24,20 @@ export function Qr() {
     })();
   }, []);
 
+  const compartir = async () => {
+    const url = `${window.location.origin}/qr/${qr?.token}`;
+    // Web Share API en móvil; si no está disponible, cae a imprimir.
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'QR de emergencia · TODOSCARE', text: 'Mi ficha clínica de emergencia', url });
+        return;
+      } catch {
+        /* el usuario canceló el diálogo de compartir */
+      }
+    }
+    window.print();
+  };
+
   if (!qr) return null;
 
   return (
@@ -42,10 +56,7 @@ export function Qr() {
           </div>
           <div className="text-[11.5px] text-sub text-center">Acceso de solo lectura · válido con verificación médica</div>
         </div>
-        <Button className="w-full">Compartir / imprimir QR</Button>
-        <Button variant="ghost" className="w-full">
-          Agregar a la pantalla de bloqueo
-        </Button>
+        <Button onClick={compartir} className="w-full">Compartir / imprimir QR</Button>
         <div className="rounded-2xl bg-warn-bg border border-warn-border p-3.5 text-xs leading-relaxed text-[#8A6A00]">
           🔒 Cada acceso queda registrado con fecha, hora y profesional que consultó.
         </div>

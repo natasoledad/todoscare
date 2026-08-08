@@ -5,6 +5,7 @@ import { BottomSheet } from '../../components/BottomSheet';
 import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
+import { money } from '../../lib/citas';
 import type { Caja, CajaDetalle } from '../../api/types';
 
 const MEDIOS = [
@@ -16,7 +17,6 @@ const MEDIOS = [
   { id: 'otro', label: 'Otro' },
 ];
 const medioLabel = (id: string) => MEDIOS.find((m) => m.id === id)?.label ?? id;
-const money = (n: number | null | undefined) => (n == null ? '—' : `$${n.toLocaleString('es-CL')}`);
 const fechaCorta = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' });
 const horaCorta = (iso: string) => new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
 

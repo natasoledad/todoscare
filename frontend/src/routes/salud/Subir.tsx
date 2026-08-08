@@ -10,6 +10,7 @@ export function Subir() {
   const { refreshMe } = useAuth();
   const [examenes, setExamenes] = useState<Examen[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = () => api.salud.examenes().then(setExamenes);
@@ -20,10 +21,16 @@ export function Subir() {
 
   const onFile = async (file: File) => {
     setUploading(true);
-    await api.salud.subirExamen(file);
-    await load();
-    await refreshMe();
-    setUploading(false);
+    setError(null);
+    try {
+      await api.salud.subirExamen(file);
+      await load();
+      await refreshMe();
+    } catch {
+      setError('No se pudo subir el archivo. Intenta nuevamente.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -48,9 +55,13 @@ export function Subir() {
         >
           {uploading ? 'Subiendo…' : '📎 Subir imagen o PDF'}
         </div>
-        <div className="rounded-2xl border-[1.5px] border-dashed border-[#B9D4CE] text-center text-teal-dark font-heading font-bold text-sm py-5">
+        {error && <div className="text-xs text-danger">{error}</div>}
+        <button
+          onClick={() => navigate('/app/asistente')}
+          className="rounded-2xl border-[1.5px] border-dashed border-[#B9D4CE] text-center text-teal-dark font-heading font-bold text-sm py-5"
+        >
           💬 Enviar por WhatsApp al asistente
-        </div>
+        </button>
 
         {examenes.map((ex) => (
           <div key={ex.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3.5">

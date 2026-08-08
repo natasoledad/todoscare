@@ -52,7 +52,11 @@ export function Perfil() {
         <div className="relative mt-3.5 h-1.5 rounded-full bg-[#EDF2F1]">
           <div className="absolute inset-y-0 left-0 rounded-full bg-teal" style={{ width: `${((idx + 1) / LEVELS.length) * 100}%` }} />
         </div>
-        <div className="mt-2.5 text-xs text-sub">Completa tu ficha clínica para llegar a Oro (+300 pts)</div>
+        <div className="mt-2.5 text-xs text-sub">
+          {idx < LEVELS.length - 1
+            ? `Suma puntos con tus atenciones para llegar a ${LEVELS[idx + 1]}.`
+            : 'Estás en el nivel máximo. ¡Gracias por tu fidelidad!'}
+        </div>
       </div>
 
       <div className="px-5 pt-5 font-heading font-bold text-[13px] text-ink">Datos personales</div>

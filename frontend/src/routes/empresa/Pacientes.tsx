@@ -4,9 +4,8 @@ import { BackHeader } from '../../components/BackHeader';
 import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api } from '../../api/client';
+import { money } from '../../lib/citas';
 import type { PacienteLista } from '../../api/types';
-
-const money = (n: number) => `$${n.toLocaleString('es-CL')}`;
 
 export function Pacientes() {
   const navigate = useNavigate();

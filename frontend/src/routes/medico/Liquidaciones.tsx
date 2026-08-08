@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { api } from '../../api/client';
+import { money } from '../../lib/citas';
 import type { Liquidacion } from '../../api/types';
 
 export function Liquidaciones() {
@@ -22,7 +23,7 @@ export function Liquidaciones() {
 
       <div className="mx-5 mt-2.5 rounded-2xl px-[18px] py-4 text-white bg-gradient-to-br from-teal to-teal-dark">
         <div className="font-heading font-semibold text-[11px] uppercase tracking-wider opacity-85">Total acumulado</div>
-        <div className="mt-1 font-heading font-extrabold text-[26px]">${total.toFixed(2)}</div>
+        <div className="mt-1 font-heading font-extrabold text-[26px]">{money(total)}</div>
       </div>
 
       <div className="px-5 pt-4 flex flex-col gap-2.5">
@@ -34,10 +35,10 @@ export function Liquidaciones() {
               <div className="font-semibold text-[13.5px] text-ink">Atención cerrada</div>
               <div className="text-xs text-sub">
                 {new Date(r.fecha).toLocaleDateString('es-CL')}
-                {r.base != null && ` · base $${r.base}`}
+                {r.base != null && ` · base ${money(r.base)}`}
               </div>
             </div>
-            <div className="font-heading font-bold text-sm text-teal">+${r.monto.toFixed(2)}</div>
+            <div className="font-heading font-bold text-sm text-teal">+{money(r.monto)}</div>
           </div>
         ))}
       </div>

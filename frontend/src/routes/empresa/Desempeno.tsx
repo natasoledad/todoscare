@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BackHeader } from '../../components/BackHeader';
 import { api } from '../../api/client';
+import { money } from '../../lib/citas';
 import type { Desempeno as DesempenoData } from '../../api/types';
-
-const money = (n: number) => `$${Math.round(n).toLocaleString('es-CL')}`;
 
 function Tile({ label, value, tone }: { label: string; value: string; tone?: 'good' }) {
   return (

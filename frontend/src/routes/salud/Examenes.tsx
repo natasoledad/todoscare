@@ -11,6 +11,7 @@ export function Examenes() {
   const { refreshMe } = useAuth();
   const [examenes, setExamenes] = useState<Examen[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = () => api.salud.examenes().then(setExamenes);
@@ -21,10 +22,16 @@ export function Examenes() {
 
   const onFile = async (file: File) => {
     setUploading(true);
-    await api.salud.subirExamen(file);
-    await load();
-    await refreshMe();
-    setUploading(false);
+    setError(null);
+    try {
+      await api.salud.subirExamen(file);
+      await load();
+      await refreshMe();
+    } catch {
+      setError('No se pudo subir el examen. Intenta nuevamente.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -56,6 +63,7 @@ export function Examenes() {
         >
           {uploading ? 'Subiendo…' : '📎 Subir examen (imagen o PDF)'}
         </div>
+        {error && <div className="text-xs text-danger">{error}</div>}
       </div>
     </div>
   );

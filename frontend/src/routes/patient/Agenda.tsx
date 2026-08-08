@@ -5,6 +5,7 @@ import { BackHeader } from '../../components/BackHeader';
 import { ListRow, Chevron } from '../../components/ListRow';
 import { Button } from '../../components/Button';
 import { api, ApiError } from '../../api/client';
+import { money } from '../../lib/citas';
 import type { Cita, Servicio, Slot } from '../../api/types';
 
 type Step = 'list' | 'slots' | 'confirm';
@@ -86,7 +87,7 @@ export function Agenda() {
               key={sp.id}
               icon={sp.icono}
               title={sp.nombre}
-              subtitle={`${sp.duracion_min} min · $${sp.precio}`}
+              subtitle={`${sp.duracion_min} min · ${money(sp.precio)}`}
               trailing={<Chevron />}
               onClick={() => loadSlots(sp)}
             />
@@ -100,7 +101,7 @@ export function Agenda() {
     return (
       <div className="h-full flex flex-col">
         <BackHeader title={selectedServicio.nombre} onBack={back} />
-        <div className="px-6 pt-1.5 text-[13px] text-sub">Horarios disponibles hoy · cerca de tu ubicación</div>
+        <div className="px-6 pt-1.5 text-[13px] text-sub">Elige un horario disponible</div>
         {error && <div className="mx-6 mt-2 text-xs text-danger">{error}</div>}
         <div className="px-5 pt-[18px] grid grid-cols-2 gap-2.5 overflow-y-auto scrollhide pb-[90px]">
           {slots.length === 0 && <div className="col-span-2 text-center text-sm text-sub py-6">No hay horarios disponibles.</div>}

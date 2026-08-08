@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { Button } from '../../components/Button';
 import { api } from '../../api/client';
+import { money } from '../../lib/citas';
 import type { Medicamento } from '../../api/types';
 
 export function Farmacia() {
+  const navigate = useNavigate();
   const [medicamentos, setMedicamentos] = useState<Medicamento[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,15 +32,17 @@ export function Farmacia() {
               <div className="font-semibold text-sm text-ink">{m.nombre}</div>
               <div className="mt-0.5 text-xs text-sub">{m.cantidad}</div>
             </div>
-            {m.precio != null && <div className="font-heading font-bold text-sm text-ink">${m.precio}</div>}
+            {m.precio != null && <div className="font-heading font-bold text-sm text-ink">{money(m.precio)}</div>}
           </div>
         ))}
 
-        {medicamentos.length > 0 && <Button className="w-full mt-1">Enviar pedido por WhatsApp</Button>}
+        {medicamentos.length > 0 && (
+          <Button onClick={() => navigate('/app/asistente')} className="w-full mt-1">Enviar pedido por WhatsApp</Button>
+        )}
 
         <div className="mt-1.5 flex items-center gap-2.5 rounded-2xl bg-[#F2F6F5] p-3.5">
           <span className="text-lg">📍</span>
-          <span className="text-[12.5px] leading-snug text-sub">Farmacia más cercana: a 800 m de tu ubicación</span>
+          <span className="text-[12.5px] leading-snug text-sub">Retira en la farmacia de tu clínica o solicita despacho por el asistente.</span>
         </div>
       </div>
     </div>

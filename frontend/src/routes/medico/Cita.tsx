@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { BackHeader } from '../../components/BackHeader';
 import { Button } from '../../components/Button';
 import { api, ApiError } from '../../api/client';
+import { estadoCita, money } from '../../lib/citas';
 import type { AlertaClinica, CitaMedico, Prontuario } from '../../api/types';
 
 export function Cita() {
@@ -40,14 +41,22 @@ export function Cita() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [citaId]);
 
+  const [atencionError, setAtencionError] = useState<string | null>(null);
+
   const registrarAtencion = async () => {
     setSavingAtencion(true);
-    await api.medico.registrarAtencion(citaId, { motivo, evolucion, diagnostico });
-    setMotivo('');
-    setEvolucion('');
-    setDiagnostico('');
-    await load();
-    setSavingAtencion(false);
+    setAtencionError(null);
+    try {
+      await api.medico.registrarAtencion(citaId, { motivo, evolucion, diagnostico });
+      setMotivo('');
+      setEvolucion('');
+      setDiagnostico('');
+      await load();
+    } catch (e) {
+      setAtencionError(e instanceof ApiError ? String(e.detail) : 'No se pudo guardar en el prontuario');
+    } finally {
+      setSavingAtencion(false);
+    }
   };
 
   const prescribir = async (confirmar: boolean) => {
@@ -77,15 +86,23 @@ export function Cita() {
   };
 
   const cerrar = async () => {
-    const res = await api.medico.cerrar(citaId);
-    setCierreMsg(`✅ Atención cerrada. Liquidación: $${res.split_monto ?? 0}`);
-    await load();
+    try {
+      const res = await api.medico.cerrar(citaId);
+      setCierreMsg(`✅ Atención cerrada. Liquidación: ${money(res.split_monto ?? 0)}`);
+      await load();
+    } catch (e) {
+      setCierreMsg(e instanceof ApiError ? String(e.detail) : 'No se pudo cerrar la atención');
+    }
   };
 
   const noShow = async () => {
-    await api.medico.noShow(citaId);
-    setCierreMsg('Cita marcada como "no asistió".');
-    await load();
+    try {
+      await api.medico.noShow(citaId);
+      setCierreMsg('Cita marcada como "no asistió".');
+      await load();
+    } catch (e) {
+      setCierreMsg(e instanceof ApiError ? String(e.detail) : 'No se pudo actualizar la cita');
+    }
   };
 
   if (!cita) return <div className="h-full flex items-center justify-center text-sub text-sm">Cargando…</div>;
@@ -139,6 +156,7 @@ export function Cita() {
                 className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal resize-none" />
               <input value={diagnostico} onChange={(e) => setDiagnostico(e.target.value)} placeholder="Diagnóstico"
                 className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+              {atencionError && <div className="text-xs text-danger">{atencionError}</div>}
               <Button onClick={registrarAtencion} disabled={!motivo || savingAtencion} className="w-full">
                 {savingAtencion ? 'Guardando…' : 'Guardar en prontuario'}
               </Button>
@@ -192,7 +210,7 @@ export function Cita() {
 
         {cierreMsg && <div className="rounded-2xl bg-teal-soft border border-[#CDEEE1] p-3.5 text-[13px] text-teal-dark font-semibold text-center">{cierreMsg}</div>}
         {cerrada && !cierreMsg && (
-          <div className="rounded-2xl bg-[#F2F6F5] p-3.5 text-[13px] text-sub text-center">Esta cita está {cita.estado}.</div>
+          <div className="rounded-2xl bg-[#F2F6F5] p-3.5 text-[13px] text-sub text-center">Esta cita está {estadoCita(cita.estado).label.toLowerCase()}.</div>
         )}
       </div>
     </div>
