@@ -748,3 +748,37 @@ export interface Periodontograma {
   fecha: string;
   tomas_anteriores: number;
 }
+
+// ---- Tanda 6: gestión CRM ----
+export interface Tarea {
+  id: string;
+  titulo: string;
+  descripcion: string | null;
+  patient_id: string | null;
+  estado: string;
+  vencimiento: string | null;
+  fecha: string;
+}
+export interface Encuesta {
+  id: string;
+  paciente_nombre: string | null;
+  estado: string;
+  score: number | null;
+  comentario: string | null;
+  fecha: string;
+  respondida_at: string | null;
+}
+export interface EncuestaResumen {
+  enviadas: number;
+  respondidas: number;
+  tasa_respuesta: number;
+  promedio: number | null;
+  nps: number | null;
+}
+export interface Plantilla {
+  id: string;
+  nombre: string;
+  canal: string;
+  asunto: string | null;
+  cuerpo: string;
+}

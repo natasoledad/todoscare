@@ -12,6 +12,7 @@ const MODULES = [
   { id: 'pacientes', icon: '🧑‍🤝‍🧑', t: 'Pacientes', d: 'Listado con deudas y habilitar/deshabilitar' },
   { id: 'desempeno', icon: '📊', t: 'Panel de desempeño', d: 'Ventas por profesional y grupo, ticket medio' },
   { id: 'crm', icon: '📈', t: 'Indicadores (CRM)', d: 'Ingresos, margen, ocupación de tu clínica' },
+  { id: 'gestion-crm', icon: '📇', t: 'Gestión CRM', d: 'Tareas, encuestas de satisfacción y plantillas' },
   { id: 'agendas', icon: '📅', t: 'Configurar agendas', d: 'Horarios por profesional y sucursal' },
   { id: 'servicios', icon: '🏷️', t: 'Productos y servicios', d: 'Catálogo y precios' },
   { id: 'promociones', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },
