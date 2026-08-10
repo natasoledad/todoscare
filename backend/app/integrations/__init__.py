@@ -13,4 +13,4 @@ Así el resto de la plataforma (agenda, ledger, ficha) se integra con el
 mundo exterior por una única frontera tipada y auditable.
 """
 
-SUPPORTED = ("whatsapp", "lab", "farmacia", "pago", "mapas", "push")
+SUPPORTED = ("whatsapp", "lab", "farmacia", "pago", "mapas", "push", "tributario")

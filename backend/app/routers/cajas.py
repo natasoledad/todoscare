@@ -14,10 +14,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.integrations import tributario as tributario_conn
 from app.models.finance import CashPayment, CashRegister, LedgerEntry
 from app.models.identity import User
 from app.models.patient import Patient
 from app.models.scheduling import Appointment
+from app.models.tenant import Clinic
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource
 from app.routers.empresa import empresa_clinic_id
@@ -246,6 +248,34 @@ async def registrar_movimiento(
     )
     db.add(mov)
     await db.flush()
+
+    # Emisión tributaria (Tanda 7): un pago puede emitir su documento (boleta
+    # SII en Chile / Nota Fiscal en Brasil) en la misma transacción. El conector
+    # valida que esté habilitado (409 si no). El folio queda en mov.boleta.
+    tax_document_id = None
+    if payload.emitir_boleta and payload.tipo == "pago":
+        tipo_doc = payload.tipo_documento
+        if tipo_doc is None:
+            clinic = await db.get(Clinic, clinic_id)
+            defaults = {"CL": "boleta_electronica", "BR": "nfse"}
+            tipo_doc = defaults.get(clinic.pais if clinic else "", "")
+        receptor = None
+        if payload.receptor_tax_id or payload.receptor_nombre:
+            receptor = {"tax_id": payload.receptor_tax_id, "nombre": payload.receptor_nombre}
+        doc = await tributario_conn.emitir(
+            db,
+            clinic_id,
+            tipo_documento=tipo_doc,
+            items=[{"descripcion": payload.glosa or "Atención", "cantidad": 1, "precio_unitario": float(payload.monto)}],
+            receptor=receptor,
+            appointment_id=mov.appointment_id,
+            cash_payment_id=mov.id,
+            ledger_entry_id=mov.ledger_entry_id,
+            actor_id=ctx.user_id,
+        )
+        mov.boleta = f"{doc.tipo_documento} #{doc.folio}"
+        tax_document_id = doc.id
+
     audit(db, ctx, clinic_id=clinic_id, accion=f"caja_{payload.tipo}", recurso=f"cash_payment:{mov.id}")
     await db.commit()
     await db.refresh(mov)
@@ -258,7 +288,7 @@ async def registrar_movimiento(
     return MovimientoOut(
         id=mov.id, tipo=mov.tipo, medio=mov.medio, monto=float(mov.monto), convenio=mov.convenio,
         referencia=mov.referencia, boleta=mov.boleta, glosa=mov.glosa, paciente_nombre=nombre,
-        appointment_id=mov.appointment_id, fecha=mov.created_at,
+        appointment_id=mov.appointment_id, fecha=mov.created_at, tax_document_id=tax_document_id,
     )
 
 

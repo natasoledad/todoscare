@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.routers import admin, agenda, aseguradora, auth, cajas, crm, crm_gestion, empresa, farmacia, integraciones, medico, patients, salud, wallet
+from app.routers import admin, agenda, aseguradora, auth, cajas, crm, crm_gestion, empresa, farmacia, integraciones, medico, patients, salud, tributario, wallet
 
 app = FastAPI(title="TODOSCARE API", version="0.1.0")
 
@@ -31,6 +31,7 @@ app.include_router(crm.router)
 app.include_router(crm_gestion.router)
 app.include_router(aseguradora.router)
 app.include_router(integraciones.router)
+app.include_router(tributario.router)
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)

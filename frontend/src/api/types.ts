@@ -790,3 +790,71 @@ export interface Plantilla {
   asunto: string | null;
   cuerpo: string;
 }
+
+// ── Tanda 7: documentos tributarios electrónicos (SII Chile / Nota Fiscal Brasil) ──
+export interface TributarioTipos {
+  pais: string | null;
+  tipos: string[];
+  habilitado: boolean;
+}
+export interface TaxEmisor {
+  id: string;
+  pais: string;
+  tax_id: string;
+  razon_social: string;
+  giro: string | null;
+  direccion: string | null;
+  config: Record<string, unknown> | null;
+}
+export interface TaxEmisorInput {
+  tax_id: string;
+  razon_social: string;
+  giro?: string;
+  direccion?: string;
+  config?: Record<string, unknown>;
+}
+export interface TaxFolio {
+  id: string;
+  tipo_documento: string;
+  serie: string | null;
+  desde: number;
+  hasta: number;
+  siguiente: number;
+  disponibles: number;
+  caf_ref: string | null;
+  activo: boolean;
+}
+export interface TaxDocResumen {
+  id: string;
+  pais: string;
+  jurisdiccion: string;
+  organo: string;
+  tipo_documento: string;
+  codigo: string | null;
+  serie: string | null;
+  folio: number;
+  receptor_nombre: string | null;
+  neto: number;
+  impuesto: number;
+  total: number;
+  moneda: string;
+  estado: string;
+  track_id: string | null;
+  emitido_at: string;
+}
+export interface TaxDoc extends TaxDocResumen {
+  receptor_tax_id: string | null;
+  exento: number;
+  impuesto_detalle: Record<string, unknown> | null;
+  items: Array<Record<string, unknown>> | null;
+  sello: string | null;
+  motivo: string | null;
+  referencia_id: string | null;
+  xml: string | null;
+}
+export interface EmitirTributarioInput {
+  tipo_documento: string;
+  items: Array<{ descripcion: string; cantidad: number; precio_unitario: number }>;
+  receptor?: { tax_id?: string; nombre?: string };
+  serie?: string;
+}

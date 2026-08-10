@@ -35,10 +35,10 @@ async def main() -> None:
 
         # ---- KPIs + aislamiento de sub-rol ----
         r = await client.get("/admin/inicio", headers=superh)
-        results.append(("super_admin inicio alcance=plataforma, 2 clínicas", r.json()["alcance"] == "plataforma" and r.json()["clinicas"] == 2))
+        results.append(("super_admin inicio alcance=plataforma, 3 clínicas", r.json()["alcance"] == "plataforma" and r.json()["clinicas"] == 3))
 
         r = await client.get("/admin/clinicas", headers=superh)
-        results.append(("super_admin ve 2 clínicas", len(r.json()) == 2))
+        results.append(("super_admin ve 3 clínicas", len(r.json()) == 3))
         r = await client.get("/admin/clinicas", headers=admin_a)
         results.append(("clinic_admin.a ve solo 1 clínica (la suya)", len(r.json()) == 1 and r.json()[0]["razon_social"] == "Clínica Demo A"))
 
@@ -65,7 +65,7 @@ async def main() -> None:
         results.append(("el admin del tenant nuevo ve solo su clínica", len(r.json()) == 1 and r.json()[0]["razon_social"] == "Clínica Nueva CDMX"))
 
         r = await client.get("/admin/inicio", headers=superh)
-        results.append(("ahora la plataforma tiene 3 clínicas", r.json()["clinicas"] == 3))
+        results.append(("ahora la plataforma tiene 4 clínicas", r.json()["clinicas"] == 4))
 
         # ---- clinic_admin NO puede crear tenants ni planes (§2) ----
         r = await client.post("/admin/clinicas", headers=admin_a, json={

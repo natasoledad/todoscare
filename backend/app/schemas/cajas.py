@@ -25,6 +25,14 @@ class MovimientoIn(BaseModel):
     referencia: str | None = None
     boleta: str | None = None
     glosa: str | None = None
+    # Emisión tributaria (Tanda 7): si el conector 'tributario' está habilitado,
+    # al registrar un pago se emite el documento del país (boleta SII / Nota
+    # Fiscal Brasil) y su folio queda en `boleta`. tipo_documento se autodetecta
+    # por país si no se especifica. Solo aplica a movimientos tipo 'pago'.
+    emitir_boleta: bool = False
+    tipo_documento: str | None = None
+    receptor_tax_id: str | None = None
+    receptor_nombre: str | None = None
 
 
 class MovimientoOut(BaseModel):
@@ -39,6 +47,7 @@ class MovimientoOut(BaseModel):
     paciente_nombre: str | None
     appointment_id: uuid.UUID | None
     fecha: datetime
+    tax_document_id: uuid.UUID | None = None  # documento tributario emitido, si lo hubo
 
 
 class CajaOut(BaseModel):

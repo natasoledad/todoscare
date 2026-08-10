@@ -53,7 +53,7 @@ async def main() -> None:
         r = await client.get("/crm/consolidado", headers=superh)
         cons = r.json()
         check("super_admin ve consolidado global (alcance=plataforma)", r.status_code == 200 and cons["alcance"] == "plataforma")
-        check("consolidado: 2 clínicas y filas por clínica", cons["n_clinicas"] == 2 and len(cons["clinicas"]) == 2)
+        check("consolidado: 3 clínicas y filas por clínica", cons["n_clinicas"] == 3 and len(cons["clinicas"]) == 3)
         check("consolidado: ingresos del mes > 0 (del ledger)", cons["ingresos_totales"] > 0)
         check("consolidado: variación vs mes anterior calculada (no None)", cons["variacion"] is not None)
 
