@@ -5,11 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.dialects.postgresql import Range
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.database import get_db
 from app.models.catalog import CatalogItem, Promotion, Specialty
+from app.models.facility import Room
 from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
@@ -39,6 +41,9 @@ from app.schemas.empresa import (
     PromocionIn,
     PromocionOut,
     PromocionUpdate,
+    RecintoIn,
+    RecintoOut,
+    RecintoUpdate,
     ServicioAdminOut,
     ServicioIn,
     ServicioUpdate,
@@ -445,6 +450,7 @@ async def sucursales(
 async def _bloque_out(db: AsyncSession, block: AvailabilityBlock) -> BloqueOut:
     prof = await db.get(User, block.professional_id)
     branch = await db.get(Branch, block.branch_id)
+    room = await db.get(Room, block.room_id) if block.room_id else None
     return BloqueOut(
         id=block.id,
         professional_id=block.professional_id,
@@ -452,8 +458,18 @@ async def _bloque_out(db: AsyncSession, block: AvailabilityBlock) -> BloqueOut:
         branch_nombre=branch.nombre if branch else "",
         inicio=block.rango.lower,
         fin=block.rango.upper,
+        room_id=block.room_id,
+        room_nombre=room.nombre if room else None,
         reglas=block.reglas,
     )
+
+
+async def _validar_recinto(db: AsyncSession, clinic_id: uuid.UUID, room_id: uuid.UUID | None) -> None:
+    if room_id is None:
+        return
+    room = await db.get(Room, room_id)
+    if room is None or room.deleted_at is not None or room.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Recinto inválido")
 
 
 @router.get("/agendas", response_model=list[BloqueOut])
@@ -482,15 +498,21 @@ async def crear_bloque(
     branch = await db.get(Branch, payload.branch_id)
     if branch is None or branch.clinic_id != clinic_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sucursal inválida")
+    await _validar_recinto(db, clinic_id, payload.room_id)
     block = AvailabilityBlock(
         clinic_id=clinic_id,
         branch_id=payload.branch_id,
         professional_id=payload.professional_id,
+        room_id=payload.room_id,
         rango=Range(payload.inicio, payload.fin),
         reglas=payload.reglas,
     )
     db.add(block)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "El recinto ya está ocupado por otro profesional en ese horario") from None
     await db.refresh(block)
     return await _bloque_out(db, block)
 
@@ -518,7 +540,14 @@ async def editar_bloque(
     block.rango = Range(inicio, fin)
     if payload.reglas is not None:
         block.reglas = payload.reglas
-    await db.commit()
+    if payload.room_id is not None:
+        await _validar_recinto(db, clinic_id, payload.room_id)
+        block.room_id = payload.room_id
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "El recinto ya está ocupado por otro profesional en ese horario") from None
     await db.refresh(block)
     return await _bloque_out(db, block)
 
@@ -532,6 +561,84 @@ async def eliminar_bloque(
     clinic_id = empresa_clinic_id(ctx)
     block = await _own_block(db, clinic_id, block_id)
     await db.delete(block)  # soft delete via listener
+    await db.commit()
+
+
+# ─────────────────────────── recintos (salas/boxes) ───────────────────────────
+def _recinto_out(r: Room) -> RecintoOut:
+    return RecintoOut(id=r.id, nombre=r.nombre, numero=r.numero, tipo=r.tipo, activo=r.activo, branch_id=r.branch_id)
+
+
+@router.get("/recintos", response_model=list[RecintoOut])
+async def list_recintos(
+    tipo: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
+) -> list[RecintoOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    q = select(Room).where(Room.clinic_id == clinic_id, Room.deleted_at.is_(None))
+    if tipo in ("medica", "dental"):
+        q = q.where(Room.tipo == tipo)
+    rows = (await db.execute(q.order_by(Room.tipo, Room.numero))).scalars().all()
+    return [_recinto_out(r) for r in rows]
+
+
+@router.post("/recintos", response_model=RecintoOut, status_code=status.HTTP_201_CREATED)
+async def crear_recinto(
+    payload: RecintoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.CREAR)),
+) -> RecintoOut:
+    clinic_id = empresa_clinic_id(ctx)
+    if payload.tipo not in ("medica", "dental"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tipo de recinto inválido (medica | dental)")
+    if payload.branch_id is not None:
+        branch = await db.get(Branch, payload.branch_id)
+        if branch is None or branch.clinic_id != clinic_id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sucursal inválida")
+    room = Room(clinic_id=clinic_id, branch_id=payload.branch_id, nombre=payload.nombre, numero=payload.numero, tipo=payload.tipo)
+    db.add(room)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Ya existe un recinto {payload.tipo} con el número {payload.numero}") from None
+    await db.refresh(room)
+    return _recinto_out(room)
+
+
+async def _own_recinto(db: AsyncSession, clinic_id: uuid.UUID, room_id: uuid.UUID) -> Room:
+    room = await db.get(Room, room_id)
+    if room is None or room.deleted_at is not None or room.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Recinto no encontrado")
+    return room
+
+
+@router.patch("/recintos/{room_id}", response_model=RecintoOut)
+async def editar_recinto(
+    room_id: uuid.UUID,
+    payload: RecintoUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> RecintoOut:
+    clinic_id = empresa_clinic_id(ctx)
+    room = await _own_recinto(db, clinic_id, room_id)
+    for k, v in payload.model_dump(exclude_none=True).items():
+        setattr(room, k, v)
+    await db.commit()
+    await db.refresh(room)
+    return _recinto_out(room)
+
+
+@router.delete("/recintos/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_recinto(
+    room_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.ELIMINAR)),
+) -> None:
+    clinic_id = empresa_clinic_id(ctx)
+    room = await _own_recinto(db, clinic_id, room_id)
+    await db.delete(room)  # soft delete via listener
     await db.commit()
 
 

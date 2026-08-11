@@ -34,6 +34,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
 from app.models.catalog import CatalogItem, Specialty
 from app.models.clinical import EmergencyQr, ExamOrder, ExamResult, Hospitalization, MedicalRecord, Odontogram
+from app.models.facility import Room
 from app.models.identity import User
 from app.models.patient import Patient, TycAcceptance
 from app.models.scheduling import Appointment, AvailabilityBlock
@@ -159,11 +160,23 @@ def _next_business_day(base: datetime, delta_days: int) -> datetime:
     return d
 
 
-async def _seed_professional(db, clinic, branch, nombre, email, especialidad, icono, cadencia, precio, telefono, recinto):
+async def get_or_create_room(db, clinic, branch, tipo: str, numero: int, nombre: str) -> Room:
+    row = (
+        await db.execute(select(Room).where(Room.clinic_id == clinic.id, Room.tipo == tipo, Room.numero == numero))
+    ).scalar_one_or_none()
+    if row:
+        return row
+    row = Room(clinic_id=clinic.id, branch_id=branch.id, tipo=tipo, numero=numero, nombre=nombre)
+    db.add(row)
+    await db.flush()
+    return row
+
+
+async def _seed_professional(db, clinic, branch, nombre, email, especialidad, icono, cadencia, precio, telefono, room):
     """Usuario + rol médico + especialidad + servicio (con la cadencia) +
-    agenda lun–sáb 09:00–15:00 hasta AGENDA_HASTA, atada a su recinto
-    (sala/box numerado). `recinto` = {"sala": "Sala Médica 1", "num": 1,
-    "tipo": "medica"|"dental"}."""
+    agenda lun–sáb 09:00–15:00 hasta AGENDA_HASTA, atada a su recinto físico
+    (`room`, una sala médica o box dental). El EXCLUDE por recinto en
+    availability_blocks impide agendar a dos profesionales en la misma sala."""
     roles = {code.value: await get_or_create_role(db, code.value) for code in (RoleCode.MEDICO,)}
     user = await upsert_user(db, email, nombre, telefono)
     await assign_role(db, user.id, roles[RoleCode.MEDICO.value].id, clinic_id=clinic.id, branch_id=branch.id)
@@ -195,16 +208,16 @@ async def _seed_professional(db, clinic, branch, nombre, email, especialidad, ic
                 db.add(
                     AvailabilityBlock(
                         clinic_id=clinic.id, branch_id=branch.id, professional_id=user.id,
-                        specialty_id=specialty.id,
+                        specialty_id=specialty.id, room_id=room.id,
                         rango=Range(dia + timedelta(hours=9), dia + timedelta(hours=15)),
                         reglas={
                             "duracion_min": cadencia, "dias": "lun-sab", "horario": "09:00-15:00",
-                            "sala": recinto["sala"], "sala_num": recinto["num"], "recinto": recinto["tipo"],
+                            "sala": room.nombre, "sala_num": room.numero, "recinto": room.tipo,
                         },
                     )
                 )
             dia += timedelta(days=1)
-    return user, servicio
+    return user, servicio, room
 
 
 async def main() -> None:
@@ -233,13 +246,13 @@ async def main() -> None:
         assert len(MEDICOS) <= SALAS_MEDICAS, f"{len(MEDICOS)} médicos no caben en {SALAS_MEDICAS} salas médicas simultáneas"
         assert len(DENTISTAS) <= BOXES_DENTALES, f"{len(DENTISTAS)} dentistas no caben en {BOXES_DENTALES} boxes dentales"
 
-        profesionales: list[tuple[User, CatalogItem]] = []
+        profesionales: list[tuple[User, CatalogItem, Room]] = []
         for n, (nombre, email, esp, icono, cad, precio) in enumerate(MEDICOS):
-            recinto = {"sala": f"Sala Médica {n + 1}", "num": n + 1, "tipo": "medica"}
-            profesionales.append(await _seed_professional(db, clinic, branch, nombre, email, esp, icono, cad, precio, None, recinto))
+            sala = await get_or_create_room(db, clinic, branch, "medica", n + 1, f"Sala Médica {n + 1}")
+            profesionales.append(await _seed_professional(db, clinic, branch, nombre, email, esp, icono, cad, precio, None, sala))
         for n, (nombre, email, esp, icono, cad, precio) in enumerate(DENTISTAS):
-            recinto = {"sala": f"Box Dental {n + 1}", "num": n + 1, "tipo": "dental"}
-            profesionales.append(await _seed_professional(db, clinic, branch, nombre, email, esp, icono, cad, precio, None, recinto))
+            box = await get_or_create_room(db, clinic, branch, "dental", n + 1, f"Box Dental {n + 1}")
+            profesionales.append(await _seed_professional(db, clinic, branch, nombre, email, esp, icono, cad, precio, None, box))
 
         await db.commit()
 
@@ -263,8 +276,8 @@ async def main() -> None:
                 patient.direccion = p["direccion"]
                 patient.ficha = p["ficha"]
 
-            medico_user, medico_serv = profesionales[p["medico_idx"]]
-            dentista_user, dentista_serv = profesionales[len(MEDICOS) + p["dentista_idx"]]
+            medico_user, medico_serv, medico_room = profesionales[p["medico_idx"]]
+            dentista_user, dentista_serv, dentista_room = profesionales[len(MEDICOS) + p["dentista_idx"]]
 
             # Exámenes previos (realizados) — solo si aún no tiene.
             tiene_examenes = (await db.execute(select(ExamOrder).where(ExamOrder.patient_id == patient.id))).scalars().first()
@@ -310,10 +323,11 @@ async def main() -> None:
             if tiene_citas is None:
                 hoy = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
-                def cita(profesional, servicio, inicio, estado):
+                def cita(profesional, servicio, room, inicio, estado):
                     return Appointment(
                         clinic_id=clinic.id, branch_id=branch.id, professional_id=profesional.id, patient_id=patient.id,
-                        service_id=servicio.id, slot=Range(inicio, inicio + timedelta(minutes=servicio.duracion_min)), estado=estado,
+                        service_id=servicio.id, room_id=room.id,
+                        slot=Range(inicio, inicio + timedelta(minutes=servicio.duracion_min)), estado=estado,
                     )
 
                 # Offset distinto por paciente (00/45/90 min) para no colisionar
@@ -321,11 +335,11 @@ async def main() -> None:
                 off_med = timedelta(hours=9, minutes=45 * i)   # 09:00 / 09:45 / 10:30
                 off_den = timedelta(hours=13, minutes=45 * i)  # 13:00 / 13:45 / 14:30
 
-                db.add(cita(medico_user, medico_serv, _next_business_day(hoy, -7 - i) + off_med, "completada"))
+                db.add(cita(medico_user, medico_serv, medico_room, _next_business_day(hoy, -7 - i) + off_med, "completada"))
                 if hoy.weekday() != 6:  # citas de HOY (si hoy no es domingo)
-                    db.add(cita(medico_user, medico_serv, hoy + off_med, "confirmada"))
-                    db.add(cita(dentista_user, dentista_serv, hoy + off_den, "confirmada"))
-                db.add(cita(dentista_user, dentista_serv, _next_business_day(hoy, 3 + i) + off_den, "confirmada"))
+                    db.add(cita(medico_user, medico_serv, medico_room, hoy + off_med, "confirmada"))
+                    db.add(cita(dentista_user, dentista_serv, dentista_room, hoy + off_den, "confirmada"))
+                db.add(cita(dentista_user, dentista_serv, dentista_room, _next_business_day(hoy, 3 + i) + off_den, "confirmada"))
 
         await db.commit()
 
