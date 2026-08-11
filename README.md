@@ -238,6 +238,13 @@ design_handoff_todoscare/   # bundle de diseño original (prototipo + specs)
 - **Agenda anti doble-reserva**: `EXCLUDE USING gist` en `appointments`
   (constraint `appointments_no_overlap`) — lo garantiza Postgres, no el
   código de la API.
+- **Recintos (salas/boxes) como recurso finito**: cada sala médica o box dental
+  es un `Room` numerado; la agenda y las citas se atan a un `room_id` y dos
+  `EXCLUDE USING gist` (`availability_blocks_room_no_overlap` y
+  `appointments_room_no_overlap`) impiden agendar a dos profesionales en el
+  mismo recinto a la vez — igual que el anti doble-reserva por profesional, lo
+  garantiza Postgres. El portal Empresa gestiona los recintos y los asigna a
+  cada bloque de agenda.
 - **Ledger financiero inmutable**: solo INSERT a nivel de código (sin
   endpoint de edición); ver TODO en la migración inicial para el refuerzo
   a nivel de permisos de BD una vez exista un rol de aplicación dedicado.
