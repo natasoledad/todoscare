@@ -185,8 +185,8 @@ Crea la clínica **Clínica Visión** (Chile) con:
 
 - **Gestión** (portal Empresa `gestion@clinicavision.cl` y Administrador
   `admin@clinicavision.cl`).
-- **5 médicos** con agenda lun–sáb 09:00–15:00 y cadencias de 15, 20, 30, 60 y
-  45 min, y **3 dentistas** (general 30 min, periodoncia 60 min, ortodoncia
+- **4 médicos** con agenda lun–sáb 09:00–15:00 y cadencias de 15, 20, 30 y
+  60 min, y **3 dentistas** (general 30 min, periodoncia 60 min, ortodoncia
   30 min). La cadencia la fija la duración del servicio de cada profesional;
   todas las prestaciones se crean **exentas de IVA** (Chile). Dos accesos
   reales pedidos: `victoriacatarinabls@gmail.com` (médica) y

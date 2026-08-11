@@ -7,9 +7,9 @@ lado profesional (prestador):
 
   · Clínica Visión (país CL) + sede central + accesos de gestión (portal
     Empresa y Administrador de clínica).
-  · 5 médicos y 3 dentistas con agenda de lunes a sábado, 09:00–15:00, cada uno
+  · 4 médicos y 3 dentistas con agenda de lunes a sábado, 09:00–15:00, cada uno
     con su cadencia de horas (la cadencia la fija la duración del servicio):
-        médicos    → 15, 20, 30, 60 y 45 min
+        médicos    → 15, 20, 30 y 60 min
         dentistas  → 30 (general), 60 (periodoncia) y 30 (ortodoncia) min
   · 3 pacientes (Saulo Batistela, Natalia Silva, Joaquín Aburto) con ficha
     clínica, exámenes previos (laboratorio, Rx, ecografía), odontograma y
@@ -55,7 +55,6 @@ MEDICOS = [
     ("Dr. Tomás Herrera",      "tomas.herrera.higia@gmail.com", "Pediatría",        "🧒", 20, 32000),
     ("Dra. Paula Moretti",     "paula.moretti.higia@gmail.com", "Cardiología",      "❤️", 30, 45000),
     ("Dr. Ignacio Fuentes",    "ignacio.fuentes.higia@gmail.com", "Ginecología",    "🌸", 60, 50000),
-    ("Dra. Camila Rojas",      "camila.rojas.higia@gmail.com",  "Dermatología",     "🧴", 45, 40000),  # 5º médico
 ]
 DENTISTAS = [
     ("Dr. Bruno Batistela", "bancobastitela@gmail.com",      "Odontología General", "🦷", 30, 35000),
@@ -113,7 +112,7 @@ PACIENTES = [
             "antecedentes": "Hipertensión arterial (2020). Controlada.",
             "contacto_emergencia": "Saulo Batistela +56 9 5921 5416", "seguro": "No",
         },
-        "medico_idx": 4,   # Dra. Camila (Dermatología)
+        "medico_idx": 2,   # Dra. Paula (Cardiología) — control de su hipertensión
         "dentista_idx": 2, # Dr. Martín (Ortodoncia)
         "examenes": [
             ("imagenes", "Radiografía panorámica dental", {"tecnica": "Ortopantomografía", "conclusion": "Piezas presentes. Reabsorción ósea leve zona molar inferior."}),
@@ -282,8 +281,10 @@ async def main() -> None:
             tiene_citas = (await db.execute(select(Appointment).where(Appointment.patient_id == patient.id))).scalars().first()
             if tiene_citas is None:
                 hoy = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-                pasada = _next_business_day(hoy, -7 - i) + timedelta(hours=10)
-                proxima = _next_business_day(hoy, 3 + i) + timedelta(hours=11)
+                # Hora distinta por paciente (09/10/11 y 12/13/14): así no colisionan
+                # aunque compartan profesional y el mismo día tras ajustar domingos.
+                pasada = _next_business_day(hoy, -7 - i) + timedelta(hours=9 + i)
+                proxima = _next_business_day(hoy, 3 + i) + timedelta(hours=12 + i)
                 db.add(Appointment(
                     clinic_id=clinic.id, branch_id=branch.id, professional_id=medico_user.id, patient_id=patient.id,
                     service_id=medico_serv.id, slot=Range(pasada, pasada + timedelta(minutes=medico_serv.duracion_min)), estado="completada",
