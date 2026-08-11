@@ -1,0 +1,364 @@
+"""Datos ficticios para PRUEBAS de Higia — "Clínica Visión" (Chile).
+
+Idempotente. Correr con:  python -m app.seed_higia
+
+Crea un centro médico-dental listo para probar la gestión (portal Empresa) y el
+lado profesional (prestador):
+
+  · Clínica Visión (país CL) + sede central + accesos de gestión (portal
+    Empresa y Administrador de clínica).
+  · 4 médicos y 3 dentistas con agenda de lunes a sábado, 09:00–15:00, desde hoy
+    hasta el 30 de septiembre, cada uno con su cadencia (la fija la duración del
+    servicio):
+        médicos    → 15, 20, 30 y 60 min
+        dentistas  → 30 (general), 60 (periodoncia) y 30 (ortodoncia) min
+    Cada profesional ocupa un recinto numerado (4 Salas Médicas + 3 Boxes
+    Dentales): nunca se agenda a dos profesionales en el mismo recinto a la vez.
+  · 3 pacientes (Saulo Batistela, Natalia Silva, Joaquín Aburto) con ficha
+    clínica, exámenes previos (laboratorio, Rx, ecografía), odontograma y citas
+    para HOY, pasadas y futuras (para poblar la agenda del día y la futura).
+
+Nota: las prestaciones médicas/odontológicas se crean EXENTAS de IVA (Chile,
+D.L. 825 Art. 12 E) — coincide con la lógica tributaria de la plataforma.
+
+Contraseña de TODOS los usuarios (pacientes y profesionales/gestión): 123mudar
+"""
+
+import asyncio
+from datetime import date, datetime, timedelta, timezone
+
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import Range
+
+from app.core.database import AsyncSessionLocal
+from app.core.security import hash_password
+from app.models.catalog import CatalogItem, Specialty
+from app.models.clinical import EmergencyQr, ExamOrder, ExamResult, Hospitalization, MedicalRecord, Odontogram
+from app.models.facility import Room
+from app.models.identity import User
+from app.models.patient import Patient, TycAcceptance
+from app.models.scheduling import Appointment, AvailabilityBlock
+from app.models.wallet import WalletAccount
+from app.rbac.permissions import RoleCode
+from app.seed import (
+    assign_role,
+    get_or_create_branch,
+    get_or_create_clinic,
+    get_or_create_role,
+    get_or_create_specialty,
+    get_or_create_tyc,
+)
+
+PASSWORD = "123mudar"  # pacientes y profesionales/gestión (entorno de prueba)
+
+# Recintos físicos del centro: cada profesional ocupa su propia sala/box
+# numerado, de modo que NUNCA se generan agendas de dos profesionales en el
+# mismo recinto a la misma hora. Con 4 médicos y 3 dentistas se llenan
+# exactamente los recintos disponibles (4 salas + 3 boxes).
+SALAS_MEDICAS = 4
+BOXES_DENTALES = 3
+
+AGENDA_HASTA = date(2026, 9, 30)  # agenda futura hasta el 30 de septiembre
+
+# ── Profesionales: (nombre, email, especialidad, ícono, cadencia_min, precio) ──
+# La "agenda de N en N minutos" la determina la duración del servicio del
+# profesional; cada uno tiene su propia especialidad para no mezclar cadencias.
+MEDICOS = [
+    ("Dra. Victoria Catarina", "victoriacatarinabls@gmail.com", "Medicina General", "🩺", 15, 30000),
+    ("Dr. Tomás Herrera",      "tomas.herrera.higia@gmail.com", "Pediatría",        "🧒", 20, 32000),
+    ("Dra. Paula Moretti",     "paula.moretti.higia@gmail.com", "Cardiología",      "❤️", 30, 45000),
+    ("Dr. Ignacio Fuentes",    "ignacio.fuentes.higia@gmail.com", "Ginecología",    "🌸", 60, 50000),
+]
+DENTISTAS = [
+    ("Dr. Bruno Batistela", "bancobastitela@gmail.com",      "Odontología General", "🦷", 30, 35000),
+    ("Dra. Elena Vidal",    "elena.vidal.higia@gmail.com",   "Periodoncia",         "🦿", 60, 55000),
+    ("Dr. Martín Soto",     "martin.soto.higia@gmail.com",   "Ortodoncia",          "😬", 30, 48000),
+]
+
+# ── Pacientes: (nombre, email, rut, dirección, ficha, exámenes) ──
+PACIENTES = [
+    {
+        "nombre": "Saulo Batistela",
+        "email": "saulobatistela@gmail.com",
+        "rut": "26.482.157-3",
+        "direccion": "Av. Providencia 2134, depto 802, Providencia, Santiago",
+        "ficha": {
+            "fecha_nacimiento": "1988-02-17", "sexo": "Masculino", "grupo_sanguineo": "A+",
+            "alergias": "Ninguna conocida", "medicacion_actual": "Ninguna",
+            "antecedentes": "Fractura de tobillo (2015). Sin patologías crónicas.",
+            "contacto_emergencia": "Natalia Silva +56 9 5921 5416", "seguro": "Sí",
+        },
+        "medico_idx": 0,   # Dra. Victoria (Medicina General)
+        "dentista_idx": 0, # Dr. Bruno (Odontología General)
+        "examenes": [
+            ("laboratorio", "Hemograma completo", {"Hemoglobina": "15.1 g/dL", "Leucocitos": "6.800 /µL", "Plaquetas": "245.000 /µL", "conclusion": "Dentro de rango normal"}),
+            ("laboratorio", "Perfil lipídico", {"Colesterol total": "192 mg/dL", "HDL": "51 mg/dL", "LDL": "118 mg/dL", "Triglicéridos": "140 mg/dL", "conclusion": "Límite normal-alto"}),
+            ("imagenes", "Radiografía de tórax (PA)", {"tecnica": "Rx tórax PA y lateral", "conclusion": "Campos pulmonares libres. Silueta cardíaca normal."}),
+        ],
+    },
+    {
+        "nombre": "Natalia Silva",
+        "email": "saulobatistela@hotmail.com",
+        "rut": "24.117.905-6",
+        "direccion": "Calle Los Aromos 455, Ñuñoa, Santiago",
+        "ficha": {
+            "fecha_nacimiento": "1992-09-03", "sexo": "Femenino", "grupo_sanguineo": "O+",
+            "alergias": "AINEs (ibuprofeno)", "medicacion_actual": "Anticonceptivo oral",
+            "antecedentes": "Migraña ocasional.", "contacto_emergencia": "Saulo Batistela +56 9 5921 5416", "seguro": "Sí",
+        },
+        "medico_idx": 2,   # Dra. Paula (Cardiología)
+        "dentista_idx": 1, # Dra. Elena (Periodoncia)
+        "examenes": [
+            ("laboratorio", "Glicemia en ayunas", {"Glucosa": "88 mg/dL", "conclusion": "Normal"}),
+            ("imagenes", "Ecografía abdominal", {"tecnica": "Ecotomografía abdominal", "conclusion": "Hígado, vesícula y riñones sin hallazgos. Sin líquido libre."}),
+            ("laboratorio", "Orina completa", {"Aspecto": "Claro", "Leucocitos": "Negativo", "conclusion": "Sin signos de infección"}),
+        ],
+    },
+    {
+        "nombre": "Joaquín Aburto",
+        "email": "saulobatistela12@gmail.com",
+        "rut": "25.903.446-1",
+        "direccion": "Pasaje El Roble 78, Maipú, Santiago",
+        "ficha": {
+            "fecha_nacimiento": "1979-11-28", "sexo": "Masculino", "grupo_sanguineo": "B+",
+            "alergias": "Ninguna conocida", "medicacion_actual": "Losartán 50 mg/día",
+            "antecedentes": "Hipertensión arterial (2020). Controlada.",
+            "contacto_emergencia": "Saulo Batistela +56 9 5921 5416", "seguro": "No",
+        },
+        "medico_idx": 2,   # Dra. Paula (Cardiología) — control de su hipertensión
+        "dentista_idx": 2, # Dr. Martín (Ortodoncia)
+        "examenes": [
+            ("imagenes", "Radiografía panorámica dental", {"tecnica": "Ortopantomografía", "conclusion": "Piezas presentes. Reabsorción ósea leve zona molar inferior."}),
+            ("laboratorio", "Hemograma completo", {"Hemoglobina": "14.4 g/dL", "Leucocitos": "7.100 /µL", "conclusion": "Normal"}),
+            ("imagenes", "Ecografía tiroidea", {"tecnica": "Eco tiroides", "conclusion": "Glándula de tamaño normal, sin nódulos."}),
+        ],
+    },
+]
+
+
+async def upsert_user(db, email: str, nombre: str, telefono: str | None = None) -> User:
+    """Crea o actualiza el usuario (reaplica la contraseña de prueba en cada
+    corrida, para que re-ejecutar el seed deje los accesos siempre válidos)."""
+    row = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    if row is None:
+        row = User(email=email, password_hash=hash_password(PASSWORD), nombre=nombre, telefono=telefono)
+        db.add(row)
+        await db.flush()
+        return row
+    row.nombre = nombre
+    row.password_hash = hash_password(PASSWORD)
+    if telefono:
+        row.telefono = telefono
+    return row
+
+
+def _next_business_day(base: datetime, delta_days: int) -> datetime:
+    """base + delta_days, corrido al día siguiente si cae domingo (lun–sáb)."""
+    d = base + timedelta(days=delta_days)
+    if d.weekday() == 6:  # domingo
+        d += timedelta(days=1)
+    return d
+
+
+async def get_or_create_room(db, clinic, branch, tipo: str, numero: int, nombre: str) -> Room:
+    row = (
+        await db.execute(select(Room).where(Room.clinic_id == clinic.id, Room.tipo == tipo, Room.numero == numero))
+    ).scalar_one_or_none()
+    if row:
+        return row
+    row = Room(clinic_id=clinic.id, branch_id=branch.id, tipo=tipo, numero=numero, nombre=nombre)
+    db.add(row)
+    await db.flush()
+    return row
+
+
+async def _seed_professional(db, clinic, branch, nombre, email, especialidad, icono, cadencia, precio, telefono, room):
+    """Usuario + rol médico + especialidad + servicio (con la cadencia) +
+    agenda lun–sáb 09:00–15:00 hasta AGENDA_HASTA, atada a su recinto físico
+    (`room`, una sala médica o box dental). El EXCLUDE por recinto en
+    availability_blocks impide agendar a dos profesionales en la misma sala."""
+    roles = {code.value: await get_or_create_role(db, code.value) for code in (RoleCode.MEDICO,)}
+    user = await upsert_user(db, email, nombre, telefono)
+    await assign_role(db, user.id, roles[RoleCode.MEDICO.value].id, clinic_id=clinic.id, branch_id=branch.id)
+
+    specialty = await get_or_create_specialty(db, especialidad, icono)
+
+    # Servicio del profesional: su duración fija la cadencia de la agenda.
+    servicio = (
+        await db.execute(
+            select(CatalogItem).where(CatalogItem.clinic_id == clinic.id, CatalogItem.nombre == f"{especialidad} — consulta", CatalogItem.tipo == "servicio")
+        )
+    ).scalar_one_or_none()
+    if servicio is None:
+        servicio = CatalogItem(
+            clinic_id=clinic.id, specialty_id=specialty.id, tipo="servicio",
+            nombre=f"{especialidad} — consulta", precio=precio, duracion_min=cadencia,
+            afecto_iva=False,  # prestación de salud exenta de IVA (Chile)
+        )
+        db.add(servicio)
+        await db.flush()
+
+    # Agenda: lun–sáb, 09:00–15:00, desde hoy hasta AGENDA_HASTA (idempotente).
+    ya_tiene = (await db.execute(select(AvailabilityBlock).where(AvailabilityBlock.professional_id == user.id))).scalars().first()
+    if ya_tiene is None:
+        hoy = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        dia = hoy
+        while dia.date() <= AGENDA_HASTA:
+            if dia.weekday() != 6:  # domingo: cerrado
+                db.add(
+                    AvailabilityBlock(
+                        clinic_id=clinic.id, branch_id=branch.id, professional_id=user.id,
+                        specialty_id=specialty.id, room_id=room.id,
+                        rango=Range(dia + timedelta(hours=9), dia + timedelta(hours=15)),
+                        reglas={
+                            "duracion_min": cadencia, "dias": "lun-sab", "horario": "09:00-15:00",
+                            "sala": room.nombre, "sala_num": room.numero, "recinto": room.tipo,
+                        },
+                    )
+                )
+            dia += timedelta(days=1)
+    return user, servicio, room
+
+
+async def main() -> None:
+    async with AsyncSessionLocal() as db:
+        # Roles + T&C de Chile.
+        for code in RoleCode:
+            await get_or_create_role(db, code.value)
+        tyc_cl = await get_or_create_tyc(db, "CL")
+
+        clinic = await get_or_create_clinic(db, "Clínica Visión", "CL")
+        branch = await get_or_create_branch(db, clinic.id, "Clínica Visión — Sede Central")
+        if branch.direccion is None:
+            branch.direccion = "Av. Nueva Providencia 1881, Providencia, Santiago"
+            branch.geo = {"lat": -33.4265, "lng": -70.6167}
+
+        # ── Gestión del centro (Clínica Visión Empresa) ──
+        gestion = await upsert_user(db, "gestion@clinicavision.cl", "Clínica Visión (gestión)")
+        await assign_role(db, gestion.id, (await get_or_create_role(db, RoleCode.EMPRESA.value)).id, clinic_id=clinic.id)
+        admin = await upsert_user(db, "admin@clinicavision.cl", "Administración Clínica Visión")
+        await assign_role(db, admin.id, (await get_or_create_role(db, RoleCode.CLINIC_ADMIN.value)).id, clinic_id=clinic.id)
+
+        # ── Profesionales (prestadores) ──
+        # Cada profesional ocupa un recinto numerado; nunca dos en el mismo a la
+        # vez. Si hubiera más profesionales que recintos, se aborta (no se
+        # genera sobrecupo de salas/boxes).
+        assert len(MEDICOS) <= SALAS_MEDICAS, f"{len(MEDICOS)} médicos no caben en {SALAS_MEDICAS} salas médicas simultáneas"
+        assert len(DENTISTAS) <= BOXES_DENTALES, f"{len(DENTISTAS)} dentistas no caben en {BOXES_DENTALES} boxes dentales"
+
+        profesionales: list[tuple[User, CatalogItem, Room]] = []
+        for n, (nombre, email, esp, icono, cad, precio) in enumerate(MEDICOS):
+            sala = await get_or_create_room(db, clinic, branch, "medica", n + 1, f"Sala Médica {n + 1}")
+            profesionales.append(await _seed_professional(db, clinic, branch, nombre, email, esp, icono, cad, precio, None, sala))
+        for n, (nombre, email, esp, icono, cad, precio) in enumerate(DENTISTAS):
+            box = await get_or_create_room(db, clinic, branch, "dental", n + 1, f"Box Dental {n + 1}")
+            profesionales.append(await _seed_professional(db, clinic, branch, nombre, email, esp, icono, cad, precio, None, box))
+
+        await db.commit()
+
+        # ── Pacientes: usuario + ficha + wallet + T&C + exámenes + citas ──
+        for i, p in enumerate(PACIENTES):
+            user = await upsert_user(db, p["email"], p["nombre"], telefono="+56959215416")
+            await assign_role(db, user.id, (await get_or_create_role(db, RoleCode.PACIENTE.value)).id, clinic_id=clinic.id)
+
+            patient = (await db.execute(select(Patient).where(Patient.user_id == user.id))).scalar_one_or_none()
+            if patient is None:
+                patient = Patient(
+                    clinic_id=clinic.id, user_id=user.id, rut=p["rut"], direccion=p["direccion"],
+                    onboarding_completado=True, ficha_completa_bonus_otorgado=True, ficha=p["ficha"],
+                )
+                db.add(patient)
+                await db.flush()
+                db.add(TycAcceptance(patient_id=patient.id, tyc_version_id=tyc_cl.id, aceptado_en=datetime.now(timezone.utc)))
+                db.add(WalletAccount(clinic_id=clinic.id, patient_id=patient.id))
+            else:
+                patient.rut = p["rut"]
+                patient.direccion = p["direccion"]
+                patient.ficha = p["ficha"]
+
+            medico_user, medico_serv, medico_room = profesionales[p["medico_idx"]]
+            dentista_user, dentista_serv, dentista_room = profesionales[len(MEDICOS) + p["dentista_idx"]]
+
+            # Exámenes previos (realizados) — solo si aún no tiene.
+            tiene_examenes = (await db.execute(select(ExamOrder).where(ExamOrder.patient_id == patient.id))).scalars().first()
+            if tiene_examenes is None:
+                now = datetime.now(timezone.utc)
+                for j, (tipo, nombre_ex, resultado) in enumerate(p["examenes"]):
+                    order = ExamOrder(clinic_id=clinic.id, patient_id=patient.id, professional_id=medico_user.id, tipo=tipo, estado="listo")
+                    db.add(order)
+                    await db.flush()
+                    order.created_at = now - timedelta(days=30 + j * 10)
+                    db.add(ExamResult(clinic_id=clinic.id, order_id=order.id, resultado={"nombre": nombre_ex, **resultado}, estado="listo"))
+
+                # Ficha clínica (prontuario) del médico tratante.
+                db.add(MedicalRecord(
+                    clinic_id=clinic.id, patient_id=patient.id, professional_id=medico_user.id,
+                    contenido={
+                        "motivo": "Control de salud",
+                        "anamnesis": f"Paciente {p['ficha']['sexo'].lower()}, antecedentes: {p['ficha']['antecedentes']}",
+                        "examen_fisico": "Signos vitales estables. Examen segmentario sin hallazgos relevantes.",
+                        "diagnostico": "Paciente en buenas condiciones generales.",
+                        "plan": "Continuar controles habituales. Se solicitan exámenes de rutina.",
+                    },
+                ))
+
+                # Odontograma (para probar el módulo dental).
+                db.add(Odontogram(
+                    clinic_id=clinic.id, patient_id=patient.id,
+                    piezas={str(k): {"estado": "pendiente" if k in (14, 36) else "sana"} for k in range(11, 48)},
+                ))
+
+                # QR de emergencia.
+                db.add(EmergencyQr(
+                    clinic_id=clinic.id, patient_id=patient.id, token=f"higia-qr-{i + 1}",
+                    resumen={"grupo_sanguineo": p["ficha"]["grupo_sanguineo"], "alergias": p["ficha"]["alergias"]},
+                ))
+
+                if i == 2:  # una hospitalización de ejemplo
+                    db.add(Hospitalization(clinic_id=clinic.id, patient_id=patient.id, motivo="Observación por crisis hipertensiva", centro="Clínica Santa María", ingreso=datetime(2021, 6, 4).date(), egreso=datetime(2021, 6, 6).date()))
+
+            # Citas: pasada (completada) con su médico, HOY (médico en la mañana +
+            # dentista en la tarde) y una próxima con su dentista.
+            tiene_citas = (await db.execute(select(Appointment).where(Appointment.patient_id == patient.id))).scalars().first()
+            if tiene_citas is None:
+                hoy = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+                def cita(profesional, servicio, room, inicio, estado):
+                    return Appointment(
+                        clinic_id=clinic.id, branch_id=branch.id, professional_id=profesional.id, patient_id=patient.id,
+                        service_id=servicio.id, room_id=room.id,
+                        slot=Range(inicio, inicio + timedelta(minutes=servicio.duracion_min)), estado=estado,
+                    )
+
+                # Offset distinto por paciente (00/45/90 min) para no colisionar
+                # aunque compartan profesional el mismo día (tras ajustar domingos).
+                off_med = timedelta(hours=9, minutes=45 * i)   # 09:00 / 09:45 / 10:30
+                off_den = timedelta(hours=13, minutes=45 * i)  # 13:00 / 13:45 / 14:30
+
+                db.add(cita(medico_user, medico_serv, medico_room, _next_business_day(hoy, -7 - i) + off_med, "completada"))
+                if hoy.weekday() != 6:  # citas de HOY (si hoy no es domingo)
+                    db.add(cita(medico_user, medico_serv, medico_room, hoy + off_med, "confirmada"))
+                    db.add(cita(dentista_user, dentista_serv, dentista_room, hoy + off_den, "confirmada"))
+                db.add(cita(dentista_user, dentista_serv, dentista_room, _next_business_day(hoy, 3 + i) + off_den, "confirmada"))
+
+        await db.commit()
+
+    # ── Resumen de accesos ──
+    print("Seed 'Clínica Visión' OK. Contraseña de TODOS los usuarios:", PASSWORD)
+    print("\nGestión del centro (Clínica Visión Empresa):")
+    print("  gestion@clinicavision.cl   -> portal Empresa (gestión: agenda, cajas, servicios, tributario, CRM)")
+    print("  admin@clinicavision.cl     -> Administrador de la clínica")
+    print(f"\nMédicos (prestadores) — {SALAS_MEDICAS} salas médicas:")
+    for n, (nombre, email, esp, _icono, cad, _precio) in enumerate(MEDICOS):
+        print(f"  Sala Médica {n + 1} · {email:34s} -> {nombre} · {esp} · agenda {cad} min · lun-sáb 09:00-15:00")
+    print(f"\nDentistas (prestadores) — {BOXES_DENTALES} boxes dentales:")
+    for n, (nombre, email, esp, _icono, cad, _precio) in enumerate(DENTISTAS):
+        print(f"  Box Dental {n + 1}  · {email:34s} -> {nombre} · {esp} · agenda {cad} min · lun-sáb 09:00-15:00")
+    print("\nAgenda: desde hoy hasta el 30/09, con citas ya cargadas para HOY (agenda del día).")
+    print("\nPacientes (con ficha y exámenes previos):")
+    for p in PACIENTES:
+        print(f"  {p['email']:30s} -> {p['nombre']} · tel +56959215416")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
