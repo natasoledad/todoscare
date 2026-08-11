@@ -495,8 +495,22 @@ async def main() -> None:
             config={"acteco": "869010", "comuna": "Providencia", "resolucion_sii_numero": 80, "resolucion_sii_fecha": "2014-08-22"},
             folios=[
                 ("boleta_electronica", None, 1, 1000, "CAF-39-2026"),
+                ("boleta_exenta", None, 1, 1000, "CAF-41-2026"),  # prestaciones médicas/odontológicas (exentas)
                 ("factura_electronica", None, 1, 500, "CAF-33-2026"),
+                ("factura_exenta", None, 1, 500, "CAF-34-2026"),
                 ("nota_credito", None, 1, 500, "CAF-61-2026"),
+            ],
+        )
+        await seed_tax_emitter(
+            db, clinic_a.id, "MX",
+            tax_id="MECA850101AB1",
+            razon_social="Clínica Demo A SA de CV",
+            giro="Servicios de salud",
+            direccion="Av. Reforma 222, Cuauhtémoc, CDMX",
+            config={"regimen_fiscal": "601", "codigo_postal": "06600", "uso_cfdi": "G03"},
+            folios=[
+                ("factura", "A", 1, 100000, "CSD-A"),        # CFDI de Ingreso
+                ("nota_credito", "A", 1, 100000, "CSD-A-NC"),  # CFDI de Egreso
             ],
         )
         await seed_tax_emitter(

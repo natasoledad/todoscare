@@ -128,6 +128,7 @@ export interface ServicioAdmin {
   duracion_min: number | null;
   activo: boolean;
   specialty_nombre: string | null;
+  afecto_iva: boolean;
 }
 
 export interface Promocion {
@@ -854,7 +855,7 @@ export interface TaxDoc extends TaxDocResumen {
 }
 export interface EmitirTributarioInput {
   tipo_documento: string;
-  items: Array<{ descripcion: string; cantidad: number; precio_unitario: number }>;
+  items: Array<{ descripcion: string; cantidad: number; precio_unitario: number; exento?: boolean }>;
   receptor?: { tax_id?: string; nombre?: string };
   serie?: string;
 }

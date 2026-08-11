@@ -9,11 +9,14 @@ import type { TributarioTipos, TaxEmisor, TaxFolio, TaxDocResumen, TaxDoc } from
 
 const TIPO_LABEL: Record<string, string> = {
   boleta_electronica: 'Boleta electrónica (39)',
+  boleta_exenta: 'Boleta exenta (41)',
   factura_electronica: 'Factura electrónica (33)',
-  nota_credito: 'Nota de crédito (61)',
+  factura_exenta: 'Factura exenta (34)',
+  nota_credito: 'Nota de crédito',
   nfse: 'NFS-e (serviço)',
   nfe: 'NF-e (mercadoria)',
   nfce: 'NFC-e (consumidor)',
+  factura: 'CFDI de Ingreso (factura)',
 };
 const tipoLabel = (t: string) => TIPO_LABEL[t] ?? t;
 
@@ -42,7 +45,7 @@ export function Tributario() {
   const [saving, setSaving] = useState(false);
 
   // form emitir
-  const [form, setForm] = useState({ tipo_documento: '', descripcion: '', cantidad: '1', precio: '', receptor_tax_id: '', receptor_nombre: '', serie: '' });
+  const [form, setForm] = useState({ tipo_documento: '', descripcion: '', cantidad: '1', precio: '', receptor_tax_id: '', receptor_nombre: '', serie: '', exento: false });
   // form emisor
   const [em, setEm] = useState({ tax_id: '', razon_social: '', giro: '', direccion: '' });
 
@@ -79,7 +82,7 @@ export function Tributario() {
       const esBR = tipos?.pais === 'BR';
       const doc = await api.tributario.emitir({
         tipo_documento: form.tipo_documento,
-        items: [{ descripcion: form.descripcion || 'Atención', cantidad: Number(form.cantidad) || 1, precio_unitario: Number(form.precio) || 0 }],
+        items: [{ descripcion: form.descripcion || 'Atención', cantidad: Number(form.cantidad) || 1, precio_unitario: Number(form.precio) || 0, exento: form.exento }],
         receptor: form.receptor_tax_id || form.receptor_nombre ? { tax_id: form.receptor_tax_id || undefined, nombre: form.receptor_nombre || undefined } : undefined,
         serie: esBR ? (form.serie || undefined) : undefined,
       });
@@ -203,7 +206,15 @@ export function Tributario() {
             <input value={form.receptor_nombre} onChange={(e) => setForm((p) => ({ ...p, receptor_nombre: e.target.value }))} placeholder="Nombre (opc.)"
               className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
           </div>
-          {form.tipo_documento === 'boleta_electronica' && <div className="text-[11px] text-sub">La boleta considera el precio con IVA incluido.</div>}
+          {['boleta_exenta', 'factura_exenta'].includes(form.tipo_documento) ? (
+            <div className="text-[11px] text-sub">Documento exento: sin IVA (prestación no afecta).</div>
+          ) : (
+            <label className="flex items-center gap-2 text-[12.5px] text-ink">
+              <input type="checkbox" checked={form.exento} onChange={(e) => setForm((p) => ({ ...p, exento: e.target.checked }))} className="accent-teal" />
+              Línea exenta de IVA (prestación médica/odontológica)
+            </label>
+          )}
+          {form.tipo_documento === 'boleta_electronica' && !form.exento && <div className="text-[11px] text-sub">La boleta considera el precio con IVA incluido.</div>}
           {error && <div className="text-xs text-danger">{error}</div>}
           <Button onClick={emitir} disabled={saving || !form.precio} className="w-full">{saving ? 'Emitiendo…' : 'Emitir'}</Button>
         </BottomSheet>

@@ -257,8 +257,11 @@ async def registrar_movimiento(
         tipo_doc = payload.tipo_documento
         if tipo_doc is None:
             clinic = await db.get(Clinic, clinic_id)
-            defaults = {"CL": "boleta_electronica", "BR": "nfse"}
-            tipo_doc = defaults.get(clinic.pais if clinic else "", "")
+            pais = clinic.pais if clinic else ""
+            # En Chile una prestación exenta (médica/odontológica) emite boleta
+            # exenta (41); una afecta, boleta electrónica (39).
+            defaults = {"CL": "boleta_exenta" if payload.exento else "boleta_electronica", "BR": "nfse", "MX": "factura"}
+            tipo_doc = defaults.get(pais, "")
         receptor = None
         if payload.receptor_tax_id or payload.receptor_nombre:
             receptor = {"tax_id": payload.receptor_tax_id, "nombre": payload.receptor_nombre}
@@ -266,7 +269,7 @@ async def registrar_movimiento(
             db,
             clinic_id,
             tipo_documento=tipo_doc,
-            items=[{"descripcion": payload.glosa or "Atención", "cantidad": 1, "precio_unitario": float(payload.monto)}],
+            items=[{"descripcion": payload.glosa or "Atención", "cantidad": 1, "precio_unitario": float(payload.monto), "exento": payload.exento}],
             receptor=receptor,
             appointment_id=mov.appointment_id,
             cash_payment_id=mov.id,

@@ -42,6 +42,7 @@ async def main() -> None:
         empresa_br = await login(client, "empresa.c@todoscare.dev")
         empresa_mx = await login(client, "empresa.a@todoscare.dev")
         admin_cl = await login(client, "admin.b@todoscare.dev")
+        admin_mx = await login(client, "admin.a@todoscare.dev")
 
         # ───────────────────────── CHILE / SII ─────────────────────────
         tipos = (await client.get("/tributario/tipos", headers=empresa_cl)).json()
@@ -73,6 +74,33 @@ async def main() -> None:
         factura = r.json()
         check("CL: factura 33 agrega IVA por fuera (neto 10000, IVA 1900, total 11900)",
               r.status_code == 201 and factura["neto"] == 10000 and factura["impuesto"] == 1900 and factura["total"] == 11900 and factura["codigo"] == "33")
+
+        # Boleta EXENTA (41): prestación médica/odontológica -> sin IVA.
+        r = await client.post("/tributario/documentos", headers=empresa_cl, json={
+            "tipo_documento": "boleta_exenta",
+            "items": [{"descripcion": "Consulta odontológica", "cantidad": 1, "precio_unitario": 30000}],
+        })
+        exenta = r.json()
+        check("CL: boleta exenta 41 -> sin IVA (impuesto 0, exento 30000, total 30000)",
+              r.status_code == 201 and exenta["codigo"] == "41" and exenta["impuesto"] == 0 and exenta["exento"] == 30000 and exenta["total"] == 30000)
+        check("CL: la boleta exenta marca IndExe y MntExe, y no lleva <IVA> en el XML",
+              "<IndExe>1</IndExe>" in (exenta["xml"] or "") and "<MntExe>30000</MntExe>" in (exenta["xml"] or "") and "<IVA>" not in (exenta["xml"] or ""))
+
+        # Boleta MIXTA (39): consulta exenta + examen afecto -> IVA solo sobre el examen.
+        r = await client.post("/tributario/documentos", headers=empresa_cl, json={
+            "tipo_documento": "boleta_electronica",
+            "items": [
+                {"descripcion": "Consulta médica", "cantidad": 1, "precio_unitario": 30000, "exento": True},
+                {"descripcion": "Examen de sangre (particular)", "cantidad": 1, "precio_unitario": 11900, "exento": False},
+            ],
+        })
+        mixta = r.json()
+        check("CL: boleta mixta -> IVA solo sobre la línea afecta (neto 10000, IVA 1900, exento 30000, total 41900)",
+              r.status_code == 201 and mixta["neto"] == 10000 and mixta["impuesto"] == 1900 and mixta["exento"] == 30000 and mixta["total"] == 41900)
+
+        # El servicio lleva el flag afecto_iva (lo consume la emisión).
+        r = await client.post("/empresa/servicios", headers=empresa_cl, json={"nombre": "Consulta general", "precio": 25000, "duracion_min": 30, "afecto_iva": False})
+        check("CL: se crea un servicio marcado exento de IVA (afecto_iva=false)", r.status_code == 201 and r.json()["afecto_iva"] is False)
 
         # Anulación -> nota de crédito (61) que referencia la boleta.
         r = await client.post(f"/tributario/documentos/{boleta['id']}/anular", headers=empresa_cl, json={"motivo": "Devolución al paciente"})
@@ -113,12 +141,46 @@ async def main() -> None:
         check("BR: cancelamento marca a NFS-e anulada com protocolo de cancelamento",
               r.status_code == 200 and cancel["estado"] == "anulado" and "cancelamento_protocolo" in (cancel["impuesto_detalle"] or {}))
 
-        # ───────────────────── gate del conector ─────────────────────
+        # ───────────────────────── MÉXICO / SAT (CFDI 4.0) ─────────────────────────
+        tipos_mx = (await client.get("/tributario/tipos", headers=empresa_mx)).json()
+        check("MX: país=MX, tipos = CFDI de ingreso (factura) y egreso (nota_credito)",
+              tipos_mx["pais"] == "MX" and "factura" in tipos_mx["tipos"] and "nota_credito" in tipos_mx["tipos"])
+
+        # CFDI de Ingreso afecto -> IVA 16%.
         r = await client.post("/tributario/documentos", headers=empresa_mx, json={
-            "tipo_documento": "boleta_electronica",
-            "items": [{"descripcion": "x", "cantidad": 1, "precio_unitario": 1000}],
+            "tipo_documento": "factura", "serie": "A",
+            "items": [{"descripcion": "Insumo dental", "cantidad": 1, "precio_unitario": 1000}],
         })
-        check("Gate: una clínica sin el conector habilitado rechaza la emisión (409)", r.status_code == 409)
+        cfdi = r.json()
+        check("MX: emite CFDI de Ingreso (I) ante el SAT, moeda MXN, IVA 16% (neto 1000, IVA 160, total 1160)",
+              r.status_code == 201 and cfdi["codigo"] == "I" and cfdi["organo"] == "SAT" and cfdi["jurisdiccion"] == "federal" and cfdi["moneda"] == "MXN" and cfdi["impuesto"] == 160.0 and cfdi["total"] == 1160.0)
+        check("MX: el CFDI trae folio fiscal (UUID) y XML cfdi:Comprobante con TimbreFiscalDigital",
+              "-" in (cfdi["sello"] or "") and "cfdi:Comprobante" in (cfdi["xml"] or "") and "TimbreFiscalDigital" in (cfdi["xml"] or ""))
+
+        # CFDI con servicio médico exento -> sin IVA.
+        r = await client.post("/tributario/documentos", headers=empresa_mx, json={
+            "tipo_documento": "factura", "serie": "A",
+            "items": [{"descripcion": "Consulta médica", "cantidad": 1, "precio_unitario": 1000, "exento": True}],
+        })
+        cfdi_ex = r.json()
+        check("MX: CFDI con línea exenta -> sin IVA (impuesto 0, exento 1000, total 1000, ObjetoImp 01)",
+              r.status_code == 201 and cfdi_ex["impuesto"] == 0 and cfdi_ex["exento"] == 1000 and cfdi_ex["total"] == 1000 and 'ObjetoImp="01"' in (cfdi_ex["xml"] or ""))
+
+        # Cancelación ante el SAT.
+        r = await client.post(f"/tributario/documentos/{cfdi['id']}/anular", headers=empresa_mx, json={"motivo": "Comprobante emitido con errores"})
+        cancel_mx = r.json()
+        check("MX: cancelación marca el CFDI anulado con acuse del SAT",
+              r.status_code == 200 and cancel_mx["estado"] == "anulado" and "acuse_cancelacion" in (cancel_mx["impuesto_detalle"] or {}))
+
+        # ───────────────────── gate del conector (toggle admin) ─────────────────────
+        integ = (await client.get("/admin/integraciones", headers=admin_mx)).json()
+        trib_id = next(i["id"] for i in integ if i["tipo"] == "tributario")
+        await client.patch(f"/admin/integraciones/{trib_id}", headers=admin_mx, json={"activo": False})
+        r = await client.post("/tributario/documentos", headers=empresa_mx, json={
+            "tipo_documento": "factura", "items": [{"descripcion": "x", "cantidad": 1, "precio_unitario": 1000}],
+        })
+        check("Gate: con el conector deshabilitado por el admin, la emisión se rechaza (409)", r.status_code == 409)
+        await client.patch(f"/admin/integraciones/{trib_id}", headers=admin_mx, json={"activo": True})
 
         # ───────────────────── aislamiento multi-tenant ─────────────────────
         r = await client.get(f"/tributario/documentos/{factura['id']}", headers=empresa_br)

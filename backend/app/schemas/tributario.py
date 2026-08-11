@@ -46,6 +46,7 @@ class ItemIn(BaseModel):
     descripcion: str = Field(min_length=1)
     cantidad: float = Field(gt=0)
     precio_unitario: float = Field(ge=0)
+    exento: bool = False  # línea exenta de IVA (Chile): prestación no afecta (IndExe)
 
 
 class ReceptorIn(BaseModel):

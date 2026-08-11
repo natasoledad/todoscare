@@ -31,6 +31,11 @@ class CatalogItem(Base, AuditMixin, TenantMixin):
     precio: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     duracion_min: Mapped[int | None] = mapped_column()
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    # ¿La prestación está afecta a IVA? (Tanda 7). En Chile las prestaciones
+    # médicas/odontológicas son EXENTAS (Art. 12 letra E, D.L. 825) y solo
+    # algunos exámenes diagnósticos particulares son afectos; este flag decide
+    # si la línea lleva IVA o va como exenta (IndExe) al emitir el documento.
+    afecto_iva: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class Promotion(Base, AuditMixin, TenantMixin):

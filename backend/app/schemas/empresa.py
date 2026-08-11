@@ -60,6 +60,7 @@ class ServicioIn(BaseModel):
     specialty_id: uuid.UUID | None = None
     precio: float = Field(ge=0)
     duracion_min: int = Field(gt=0)
+    afecto_iva: bool = True  # en Chile las prestaciones médicas/odontológicas van exentas (False)
 
 
 class ServicioUpdate(BaseModel):
@@ -67,6 +68,7 @@ class ServicioUpdate(BaseModel):
     precio: float | None = Field(default=None, ge=0)
     duracion_min: int | None = Field(default=None, gt=0)
     activo: bool | None = None
+    afecto_iva: bool | None = None
 
 
 class ServicioAdminOut(BaseModel):
@@ -76,6 +78,7 @@ class ServicioAdminOut(BaseModel):
     duracion_min: int | None
     activo: bool
     specialty_nombre: str | None
+    afecto_iva: bool
 
 
 # ---- promociones ----

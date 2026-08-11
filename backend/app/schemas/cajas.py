@@ -31,6 +31,7 @@ class MovimientoIn(BaseModel):
     # por país si no se especifica. Solo aplica a movimientos tipo 'pago'.
     emitir_boleta: bool = False
     tipo_documento: str | None = None
+    exento: bool = False  # (Chile) el pago corresponde a una prestación exenta de IVA
     receptor_tax_id: str | None = None
     receptor_nombre: str | None = None
 

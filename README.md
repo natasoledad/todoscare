@@ -104,15 +104,23 @@ traza, forma real del contrato con transporte simulado y determinista) que
 **enruta por el país de la clínica** (`clinics.pais`):
 
 - **Chile → SII**: emite el **DTE** que corresponde — **boleta electrónica
-  (39)** con IVA incluido, **factura electrónica (33)** con IVA por fuera y
-  **nota de crédito (61)** para anular — consumiendo **folios de un CAF** y
-  timbrando el documento (TED). La anulación emite la NC que referencia el
-  folio original.
+  (39)** con IVA incluido, **boleta exenta (41)**, **factura electrónica (33)**,
+  **factura exenta (34)** y **nota de crédito (61)** para anular — consumiendo
+  **folios de un CAF** y timbrando el documento (TED). **IVA afecto/exento**:
+  cada servicio lleva un flag `afecto_iva` (las prestaciones médicas/
+  odontológicas son **exentas**, D.L. 825 Art. 12 E; solo algunos exámenes
+  diagnósticos particulares son afectos); una boleta puede **mezclar** una línea
+  exenta (IndExe, suma a `MntExento`) con una afecta (IVA solo sobre esa). La
+  anulación emite la NC que referencia el folio original y reproduce el total.
 - **Brasil → según el hecho gravado y el órgano competente**: **NFS-e**
   (serviço → **prefeitura/município**, ISS), **NF-e** (mercadoria → **SEFAZ
   estadual**, ICMS) y **NFC-e** (consumidor). Devuelve número + protocolo de
   autorização (o código de verificação en la NFS-e); el cancelamento marca el
   documento anulado con su protocolo.
+- **México → SAT**: **CFDI 4.0** de **Ingreso** (factura, tipo I) y de **Egreso**
+  (nota de crédito, tipo E), con **IVA 16%** y respeto del flag exento
+  (`ObjetoImp` 01/02). Devuelve el **folio fiscal (UUID)** y el
+  TimbreFiscalDigital; la cancelación deja el acuse del SAT.
 
 El emisor fiscal, sus folios/serie y los documentos (`tax_emitters`,
 `tax_folio_ranges`, `tax_documents`) viven por clínica; el documento emitido es

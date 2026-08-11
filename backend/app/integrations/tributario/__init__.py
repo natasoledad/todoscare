@@ -22,14 +22,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations.base import ensure_enabled, log_event
-from app.integrations.tributario import brasil_nf, chile_sii
+from app.integrations.tributario import brasil_nf, chile_sii, mexico_cfdi
 from app.models.integrations import IntegrationConfig
 from app.models.tax import TaxDocument, TaxEmitter, TaxFolioRange
 from app.models.tenant import Clinic
 
 TIPOS_POR_PAIS: dict[str, list[str]] = {
-    "CL": ["boleta_electronica", "factura_electronica", "nota_credito"],
+    "CL": ["boleta_electronica", "boleta_exenta", "factura_electronica", "factura_exenta", "nota_credito"],
     "BR": ["nfse", "nfe", "nfce"],
+    "MX": ["factura", "nota_credito"],  # CFDI de Ingreso (I) / Egreso (E)
 }
 
 
@@ -131,8 +132,18 @@ async def emitir(
             fecha=fecha,
             referencia=referencia_dte,
         )
-    else:  # BR
+    elif pais == "BR":
         built = brasil_nf.build_nf(
+            tipo_documento=tipo_documento,
+            numero=folio,
+            serie=serie,
+            emitter=emitter,
+            receptor=receptor,
+            items=items,
+            fecha=fecha,
+        )
+    else:  # MX
+        built = mexico_cfdi.build_cfdi(
             tipo_documento=tipo_documento,
             numero=folio,
             serie=serie,
@@ -214,15 +225,23 @@ async def anular(
         raise HTTPException(status.HTTP_409_CONFLICT, f"Solo se anula un documento aceptado (estado actual: {doc.estado})")
 
     if doc.pais == "CL":
-        # Nota de crédito que anula la boleta/factura. Se construye sobre el NETO
-        # del documento original (no sobre sus líneas, que en una boleta vienen
-        # con IVA incluido): así la NC —convención factura, IVA por fuera—
-        # reproduce exactamente el total anulado.
+        # Nota de crédito que anula la boleta/factura. Se reconstruye desde el
+        # NETO afecto y el MntExento del documento original (no desde sus líneas,
+        # que en una boleta vienen con IVA incluido): la NC —convención factura,
+        # IVA por fuera— reproduce exactamente el total anulado, respetando la
+        # parte afecta y la exenta por separado.
+        nc_items: list[dict] = []
+        if float(doc.neto) > 0:
+            nc_items.append({"descripcion": f"Anula {doc.tipo_documento} #{doc.folio} (afecto)", "cantidad": 1, "precio_unitario": float(doc.neto), "exento": False})
+        if float(doc.exento) > 0:
+            nc_items.append({"descripcion": f"Anula {doc.tipo_documento} #{doc.folio} (exento)", "cantidad": 1, "precio_unitario": float(doc.exento), "exento": True})
+        if not nc_items:
+            nc_items.append({"descripcion": f"Anula {doc.tipo_documento} #{doc.folio}", "cantidad": 1, "precio_unitario": float(doc.total), "exento": float(doc.neto) == 0})
         nc = await emitir(
             db,
             clinic_id,
             tipo_documento="nota_credito",
-            items=[{"descripcion": f"Anula {doc.tipo_documento} #{doc.folio}", "cantidad": 1, "precio_unitario": float(doc.neto)}],
+            items=nc_items,
             receptor={"tax_id": doc.receptor_tax_id, "nombre": doc.receptor_nombre} if doc.receptor_tax_id else None,
             referencia_id=doc.id,
             actor_id=actor_id,
@@ -238,13 +257,16 @@ async def anular(
         await db.flush()
         return nc
 
-    # Brasil: cancelamento (sin documento inverso).
-    from app.integrations.tributario.brasil_nf import _protocolo
+    # Brasil (cancelamento) / México (cancelación ante el SAT): sin documento
+    # inverso — se marca anulado y se guarda el acuse/protocolo del órgano.
+    import hashlib
 
+    acuse = str(int(hashlib.sha256(f"CANCEL|{doc.track_id}|{motivo}".encode()).hexdigest(), 16) % 10**15).zfill(15)
+    clave = "cancelamento_protocolo" if doc.pais == "BR" else "acuse_cancelacion"
     doc.estado = "anulado"
     doc.motivo = motivo
     detalle = dict(doc.impuesto_detalle or {})
-    detalle["cancelamento_protocolo"] = _protocolo(f"CANCEL|{doc.track_id}|{motivo}")
+    detalle[clave] = acuse
     doc.impuesto_detalle = detalle
     log_event(
         db,
@@ -252,9 +274,9 @@ async def anular(
         tipo="tributario",
         direccion="outbound",
         estado="enviado",
-        ref=f"cancelamento:{doc.folio}",
+        ref=f"cancelacion:{doc.folio}",
         payload={"documento_id": str(doc.id), "motivo": motivo},
-        resultado={"estado": "anulado", "protocolo": detalle["cancelamento_protocolo"]},
+        resultado={"estado": "anulado", "acuse": acuse},
     )
     await db.flush()
     return doc

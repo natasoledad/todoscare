@@ -248,8 +248,8 @@ export const api = {
       post<Bloque>('/empresa/agendas', body),
     eliminarBloque: (id: string) => del(`/empresa/agendas/${id}`),
     servicios: () => get<ServicioAdmin[]>('/empresa/servicios'),
-    crearServicio: (body: { nombre: string; precio: number; duracion_min: number; specialty_id?: string }) => post<ServicioAdmin>('/empresa/servicios', body),
-    editarServicio: (id: string, body: { nombre?: string; precio?: number; duracion_min?: number; activo?: boolean }) => patch<ServicioAdmin>(`/empresa/servicios/${id}`, body),
+    crearServicio: (body: { nombre: string; precio: number; duracion_min: number; specialty_id?: string; afecto_iva?: boolean }) => post<ServicioAdmin>('/empresa/servicios', body),
+    editarServicio: (id: string, body: { nombre?: string; precio?: number; duracion_min?: number; activo?: boolean; afecto_iva?: boolean }) => patch<ServicioAdmin>(`/empresa/servicios/${id}`, body),
     eliminarServicio: (id: string) => del(`/empresa/servicios/${id}`),
     promociones: () => get<Promocion[]>('/empresa/promociones'),
     crearPromo: (body: { nombre: string; descuento?: string; segmento?: string; estado?: string }) => post<Promocion>('/empresa/promociones', body),
@@ -266,7 +266,7 @@ export const api = {
     miCaja: () => get<CajaDetalle | null>('/empresa/cajas/mi-caja'),
     detalle: (id: string) => get<CajaDetalle>(`/empresa/cajas/${id}`),
     abrir: (abono_inicial: number) => post<CajaDetalle>('/empresa/cajas', { abono_inicial }),
-    movimiento: (id: string, body: { tipo: string; medio: string; monto: number; patient_id?: string; appointment_id?: string; convenio?: string; referencia?: string; boleta?: string; glosa?: string; emitir_boleta?: boolean; tipo_documento?: string; receptor_tax_id?: string; receptor_nombre?: string }) =>
+    movimiento: (id: string, body: { tipo: string; medio: string; monto: number; patient_id?: string; appointment_id?: string; convenio?: string; referencia?: string; boleta?: string; glosa?: string; emitir_boleta?: boolean; tipo_documento?: string; exento?: boolean; receptor_tax_id?: string; receptor_nombre?: string }) =>
       post<MovimientoCaja>(`/empresa/cajas/${id}/movimientos`, body),
     cerrar: (id: string, fondo_fijo: number) => post<CajaDetalle>(`/empresa/cajas/${id}/cerrar`, { fondo_fijo }),
   },

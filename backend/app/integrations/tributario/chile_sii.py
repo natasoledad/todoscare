@@ -2,14 +2,20 @@
 
 Genera el documento tributario electrónico con la **forma real** que exige el
 SII (Encabezado/IdDoc/Emisor/Receptor/Totales + Detalle + TED) y calcula el IVA
-según el tipo:
+según el tipo y **si cada línea está afecta o exenta**:
 
-  · **Boleta electrónica (39)** — precios con IVA incluido: el neto se despeja
-    del total (`neto = total / 1.19`).
-  · **Factura electrónica (33)** — precios netos: el IVA se agrega
-    (`total = neto + neto*0.19`).
-  · **Nota de crédito (61)** — anula un documento anterior; referencia al folio
-    original con `CodRef=1` (anula documento de referencia).
+  · **Boleta electrónica (39)** — precios con IVA incluido en las líneas
+    afectas: el neto se despeja (`neto = afecto / 1.19`).
+  · **Boleta exenta (41)** — todas las líneas exentas, sin IVA. Es el documento
+    natural de una clínica: las prestaciones médicas/odontológicas son exentas
+    (D.L. 825 Art. 12 letra E N°17).
+  · **Factura electrónica (33)** — precios netos afectos: el IVA se agrega.
+  · **Factura exenta (34)** — todas las líneas exentas.
+  · **Nota de crédito (61)** — anula un documento anterior (referencia al folio).
+
+Las líneas exentas se marcan con **IndExe=1** y suman a `MntExento`; una boleta
+puede mezclar una consulta exenta con un examen afecto y el IVA recae solo sobre
+el examen.
 
 Punto de enganche real (documentado, no ejecutado aquí): el timbre `TED` se
 firma con la llave privada del CAF (RSA-SHA1) y el sobre `EnvioBOLETA`/
@@ -27,9 +33,16 @@ IVA_TASA = 0.19
 
 CODIGOS = {
     "boleta_electronica": "39",
+    "boleta_exenta": "41",
     "factura_electronica": "33",
+    "factura_exenta": "34",
     "nota_credito": "61",
 }
+
+# Tipos cuyas líneas van SIEMPRE exentas, sin importar el flag de cada línea.
+TIPOS_EXENTOS = {"boleta_exenta", "factura_exenta"}
+# Tipos "boleta": las líneas afectas traen el IVA incluido en el precio.
+TIPOS_BOLETA = {"boleta_electronica", "boleta_exenta"}
 
 
 def _clp(x: float) -> int:
@@ -47,20 +60,37 @@ def _track_id(xml: str) -> str:
     return str(int(hashlib.sha256(xml.encode()).hexdigest(), 16) % 10_000_000_000)
 
 
-def _totales(tipo_documento: str, items: list[dict]) -> tuple[int, int, int]:
-    """Devuelve (neto, iva, total) en CLP según la convención del tipo."""
-    bruto = sum(_clp(it["cantidad"] * it["precio_unitario"]) for it in items)
-    if tipo_documento == "boleta_electronica":
-        # Precios con IVA incluido -> se despeja el neto.
-        neto = _clp(bruto / (1 + IVA_TASA))
-        iva = bruto - neto
-        total = bruto
+def _es_exenta(tipo_documento: str, item: dict) -> bool:
+    return tipo_documento in TIPOS_EXENTOS or bool(item.get("exento", False))
+
+
+def _totales(tipo_documento: str, items: list[dict]) -> tuple[int, int, int, int]:
+    """Devuelve (neto, iva, exento, total) en CLP.
+
+    Separa líneas afectas de exentas. En una boleta la línea afecta trae IVA
+    incluido (se despeja el neto); en una factura la línea afecta es neta (el
+    IVA se agrega). Las líneas exentas nunca llevan IVA."""
+    es_boleta = tipo_documento in TIPOS_BOLETA
+    afecto_bruto = 0
+    exento = 0
+    for it in items:
+        monto = _clp(it["cantidad"] * it["precio_unitario"])
+        if _es_exenta(tipo_documento, it):
+            exento += monto
+        else:
+            afecto_bruto += monto
+
+    if es_boleta:
+        # Precio afecto con IVA incluido -> se despeja el neto.
+        neto = _clp(afecto_bruto / (1 + IVA_TASA)) if afecto_bruto else 0
+        iva = afecto_bruto - neto
     else:
-        # Factura / nota de crédito: precios netos -> IVA por fuera.
-        neto = bruto
-        iva = _clp(bruto * IVA_TASA)
-        total = neto + iva
-    return neto, iva, total
+        # Factura / nota de crédito: la línea afecta es neta -> IVA por fuera.
+        neto = afecto_bruto
+        iva = _clp(afecto_bruto * IVA_TASA)
+
+    total = neto + iva + exento
+    return neto, iva, exento, total
 
 
 def build_dte(
@@ -77,7 +107,7 @@ def build_dte(
     """Construye el DTE completo. `referencia` (solo NC): {"tipo": "39",
     "folio": 123, "fecha": "2026-08-10", "razon": "Anula boleta"}."""
     codigo = CODIGOS[tipo_documento]
-    neto, iva, total = _totales(tipo_documento, items)
+    neto, iva, exento, total = _totales(tipo_documento, items)
 
     cfg = emitter.config or {}
     rut_emisor = emitter.tax_id
@@ -88,8 +118,9 @@ def build_dte(
     detalle_xml = ""
     for i, it in enumerate(items, start=1):
         monto_item = _clp(it["cantidad"] * it["precio_unitario"])
+        ind_exe = "<IndExe>1</IndExe>" if _es_exenta(tipo_documento, it) else ""
         detalle_xml += (
-            f"<Detalle><NroLinDet>{i}</NroLinDet>"
+            f"<Detalle><NroLinDet>{i}</NroLinDet>{ind_exe}"
             f"<NmbItem>{escape(str(it['descripcion']))}</NmbItem>"
             f"<QtyItem>{it['cantidad']}</QtyItem>"
             f"<PrcItem>{_clp(it['precio_unitario'])}</PrcItem>"
@@ -120,8 +151,13 @@ def build_dte(
     sello = _sello(dd)
     ted_xml = f"<TED version=\"1.0\">{dd}<FRMT algoritmo=\"SHA1withRSA\">{sello}</FRMT></TED>"
 
-    # ── IVA (las boletas exentas no lo llevan; aquí todo es afecto) ──
-    iva_xml = f"<TasaIVA>{IVA_TASA * 100:.0f}</TasaIVA><IVA>{iva}</IVA>" if iva else ""
+    # ── Totales (MntNeto/IVA solo si hay afecto; MntExento si hay exento) ──
+    totales_xml = f"<MntNeto>{neto}</MntNeto>"
+    if exento:
+        totales_xml += f"<MntExe>{exento}</MntExe>"
+    if iva:
+        totales_xml += f"<TasaIVA>{IVA_TASA * 100:.0f}</TasaIVA><IVA>{iva}</IVA>"
+    totales_xml += f"<MntTotal>{total}</MntTotal>"
 
     xml = (
         f'<DTE version="1.0"><Documento ID="T{codigo}F{folio}">'
@@ -135,11 +171,15 @@ def build_dte(
         f"<CmnaOrigen>{escape(str(cfg.get('comuna', '')))}</CmnaOrigen></Emisor>"
         f"<Receptor><RUTRecep>{rut_receptor}</RUTRecep>"
         f"<RznSocRecep>{escape(razon_receptor)}</RznSocRecep></Receptor>"
-        f"<Totales><MntNeto>{neto}</MntNeto>{iva_xml}<MntTotal>{total}</MntTotal></Totales>"
+        f"<Totales>{totales_xml}</Totales>"
         "</Encabezado>"
         f"{detalle_xml}{referencia_xml}{ted_xml}"
         "</Documento></DTE>"
     )
+
+    detalle_impuesto = {"tipo": "IVA", "tasa": IVA_TASA, "monto": iva, "exento": exento}
+    if exento and not iva:
+        detalle_impuesto["nota"] = "Documento exento de IVA (prestación no afecta, D.L. 825 Art. 12 E)"
 
     return {
         "codigo": codigo,
@@ -147,10 +187,10 @@ def build_dte(
         "organo": "SII",
         "moneda": "CLP",
         "neto": neto,
-        "exento": 0,
+        "exento": exento,
         "impuesto": iva,
         "total": total,
-        "impuesto_detalle": {"tipo": "IVA", "tasa": IVA_TASA, "monto": iva},
+        "impuesto_detalle": detalle_impuesto,
         "sello": sello,
         "track_id": _track_id(xml),
         "xml": xml,
