@@ -7,13 +7,16 @@ lado profesional (prestador):
 
   · Clínica Visión (país CL) + sede central + accesos de gestión (portal
     Empresa y Administrador de clínica).
-  · 4 médicos y 3 dentistas con agenda de lunes a sábado, 09:00–15:00, cada uno
-    con su cadencia de horas (la cadencia la fija la duración del servicio):
+  · 4 médicos y 3 dentistas con agenda de lunes a sábado, 09:00–15:00, desde hoy
+    hasta el 30 de septiembre, cada uno con su cadencia (la fija la duración del
+    servicio):
         médicos    → 15, 20, 30 y 60 min
         dentistas  → 30 (general), 60 (periodoncia) y 30 (ortodoncia) min
+    Cada profesional ocupa un recinto numerado (4 Salas Médicas + 3 Boxes
+    Dentales): nunca se agenda a dos profesionales en el mismo recinto a la vez.
   · 3 pacientes (Saulo Batistela, Natalia Silva, Joaquín Aburto) con ficha
-    clínica, exámenes previos (laboratorio, Rx, ecografía), odontograma y
-    algunas citas (pasadas y próximas) para poblar las agendas.
+    clínica, exámenes previos (laboratorio, Rx, ecografía), odontograma y citas
+    para HOY, pasadas y futuras (para poblar la agenda del día y la futura).
 
 Nota: las prestaciones médicas/odontológicas se crean EXENTAS de IVA (Chile,
 D.L. 825 Art. 12 E) — coincide con la lógica tributaria de la plataforma.
@@ -22,7 +25,7 @@ Contraseña de TODOS los usuarios (pacientes y profesionales/gestión): 123mudar
 """
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import Range
@@ -46,6 +49,15 @@ from app.seed import (
 )
 
 PASSWORD = "123mudar"  # pacientes y profesionales/gestión (entorno de prueba)
+
+# Recintos físicos del centro: cada profesional ocupa su propia sala/box
+# numerado, de modo que NUNCA se generan agendas de dos profesionales en el
+# mismo recinto a la misma hora. Con 4 médicos y 3 dentistas se llenan
+# exactamente los recintos disponibles (4 salas + 3 boxes).
+SALAS_MEDICAS = 4
+BOXES_DENTALES = 3
+
+AGENDA_HASTA = date(2026, 9, 30)  # agenda futura hasta el 30 de septiembre
 
 # ── Profesionales: (nombre, email, especialidad, ícono, cadencia_min, precio) ──
 # La "agenda de N en N minutos" la determina la duración del servicio del
@@ -147,9 +159,11 @@ def _next_business_day(base: datetime, delta_days: int) -> datetime:
     return d
 
 
-async def _seed_professional(db, clinic, branch, nombre, email, especialidad, icono, cadencia, precio, telefono):
+async def _seed_professional(db, clinic, branch, nombre, email, especialidad, icono, cadencia, precio, telefono, recinto):
     """Usuario + rol médico + especialidad + servicio (con la cadencia) +
-    agenda lun–sáb 09:00–15:00 por las próximas ~4 semanas."""
+    agenda lun–sáb 09:00–15:00 hasta AGENDA_HASTA, atada a su recinto
+    (sala/box numerado). `recinto` = {"sala": "Sala Médica 1", "num": 1,
+    "tipo": "medica"|"dental"}."""
     roles = {code.value: await get_or_create_role(db, code.value) for code in (RoleCode.MEDICO,)}
     user = await upsert_user(db, email, nombre, telefono)
     await assign_role(db, user.id, roles[RoleCode.MEDICO.value].id, clinic_id=clinic.id, branch_id=branch.id)
@@ -171,22 +185,25 @@ async def _seed_professional(db, clinic, branch, nombre, email, especialidad, ic
         db.add(servicio)
         await db.flush()
 
-    # Agenda: lun–sáb, 09:00–15:00, próximas 4 semanas (idempotente por profesional).
+    # Agenda: lun–sáb, 09:00–15:00, desde hoy hasta AGENDA_HASTA (idempotente).
     ya_tiene = (await db.execute(select(AvailabilityBlock).where(AvailabilityBlock.professional_id == user.id))).scalars().first()
     if ya_tiene is None:
         hoy = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        for delta in range(0, 28):
-            dia = hoy + timedelta(days=delta)
-            if dia.weekday() == 6:  # domingo: cerrado
-                continue
-            db.add(
-                AvailabilityBlock(
-                    clinic_id=clinic.id, branch_id=branch.id, professional_id=user.id,
-                    specialty_id=specialty.id,
-                    rango=Range(dia + timedelta(hours=9), dia + timedelta(hours=15)),
-                    reglas={"duracion_min": cadencia, "dias": "lun-sab", "horario": "09:00-15:00"},
+        dia = hoy
+        while dia.date() <= AGENDA_HASTA:
+            if dia.weekday() != 6:  # domingo: cerrado
+                db.add(
+                    AvailabilityBlock(
+                        clinic_id=clinic.id, branch_id=branch.id, professional_id=user.id,
+                        specialty_id=specialty.id,
+                        rango=Range(dia + timedelta(hours=9), dia + timedelta(hours=15)),
+                        reglas={
+                            "duracion_min": cadencia, "dias": "lun-sab", "horario": "09:00-15:00",
+                            "sala": recinto["sala"], "sala_num": recinto["num"], "recinto": recinto["tipo"],
+                        },
+                    )
                 )
-            )
+            dia += timedelta(days=1)
     return user, servicio
 
 
@@ -210,9 +227,19 @@ async def main() -> None:
         await assign_role(db, admin.id, (await get_or_create_role(db, RoleCode.CLINIC_ADMIN.value)).id, clinic_id=clinic.id)
 
         # ── Profesionales (prestadores) ──
+        # Cada profesional ocupa un recinto numerado; nunca dos en el mismo a la
+        # vez. Si hubiera más profesionales que recintos, se aborta (no se
+        # genera sobrecupo de salas/boxes).
+        assert len(MEDICOS) <= SALAS_MEDICAS, f"{len(MEDICOS)} médicos no caben en {SALAS_MEDICAS} salas médicas simultáneas"
+        assert len(DENTISTAS) <= BOXES_DENTALES, f"{len(DENTISTAS)} dentistas no caben en {BOXES_DENTALES} boxes dentales"
+
         profesionales: list[tuple[User, CatalogItem]] = []
-        for nombre, email, esp, icono, cad, precio in MEDICOS + DENTISTAS:
-            profesionales.append(await _seed_professional(db, clinic, branch, nombre, email, esp, icono, cad, precio, None))
+        for n, (nombre, email, esp, icono, cad, precio) in enumerate(MEDICOS):
+            recinto = {"sala": f"Sala Médica {n + 1}", "num": n + 1, "tipo": "medica"}
+            profesionales.append(await _seed_professional(db, clinic, branch, nombre, email, esp, icono, cad, precio, None, recinto))
+        for n, (nombre, email, esp, icono, cad, precio) in enumerate(DENTISTAS):
+            recinto = {"sala": f"Box Dental {n + 1}", "num": n + 1, "tipo": "dental"}
+            profesionales.append(await _seed_professional(db, clinic, branch, nombre, email, esp, icono, cad, precio, None, recinto))
 
         await db.commit()
 
@@ -277,22 +304,28 @@ async def main() -> None:
                 if i == 2:  # una hospitalización de ejemplo
                     db.add(Hospitalization(clinic_id=clinic.id, patient_id=patient.id, motivo="Observación por crisis hipertensiva", centro="Clínica Santa María", ingreso=datetime(2021, 6, 4).date(), egreso=datetime(2021, 6, 6).date()))
 
-            # Citas: una pasada (completada) con su médico y una próxima con su dentista.
+            # Citas: pasada (completada) con su médico, HOY (médico en la mañana +
+            # dentista en la tarde) y una próxima con su dentista.
             tiene_citas = (await db.execute(select(Appointment).where(Appointment.patient_id == patient.id))).scalars().first()
             if tiene_citas is None:
                 hoy = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-                # Hora distinta por paciente (09/10/11 y 12/13/14): así no colisionan
-                # aunque compartan profesional y el mismo día tras ajustar domingos.
-                pasada = _next_business_day(hoy, -7 - i) + timedelta(hours=9 + i)
-                proxima = _next_business_day(hoy, 3 + i) + timedelta(hours=12 + i)
-                db.add(Appointment(
-                    clinic_id=clinic.id, branch_id=branch.id, professional_id=medico_user.id, patient_id=patient.id,
-                    service_id=medico_serv.id, slot=Range(pasada, pasada + timedelta(minutes=medico_serv.duracion_min)), estado="completada",
-                ))
-                db.add(Appointment(
-                    clinic_id=clinic.id, branch_id=branch.id, professional_id=dentista_user.id, patient_id=patient.id,
-                    service_id=dentista_serv.id, slot=Range(proxima, proxima + timedelta(minutes=dentista_serv.duracion_min)), estado="confirmada",
-                ))
+
+                def cita(profesional, servicio, inicio, estado):
+                    return Appointment(
+                        clinic_id=clinic.id, branch_id=branch.id, professional_id=profesional.id, patient_id=patient.id,
+                        service_id=servicio.id, slot=Range(inicio, inicio + timedelta(minutes=servicio.duracion_min)), estado=estado,
+                    )
+
+                # Offset distinto por paciente (00/45/90 min) para no colisionar
+                # aunque compartan profesional el mismo día (tras ajustar domingos).
+                off_med = timedelta(hours=9, minutes=45 * i)   # 09:00 / 09:45 / 10:30
+                off_den = timedelta(hours=13, minutes=45 * i)  # 13:00 / 13:45 / 14:30
+
+                db.add(cita(medico_user, medico_serv, _next_business_day(hoy, -7 - i) + off_med, "completada"))
+                if hoy.weekday() != 6:  # citas de HOY (si hoy no es domingo)
+                    db.add(cita(medico_user, medico_serv, hoy + off_med, "confirmada"))
+                    db.add(cita(dentista_user, dentista_serv, hoy + off_den, "confirmada"))
+                db.add(cita(dentista_user, dentista_serv, _next_business_day(hoy, 3 + i) + off_den, "confirmada"))
 
         await db.commit()
 
@@ -301,12 +334,13 @@ async def main() -> None:
     print("\nGestión del centro (Clínica Visión Empresa):")
     print("  gestion@clinicavision.cl   -> portal Empresa (gestión: agenda, cajas, servicios, tributario, CRM)")
     print("  admin@clinicavision.cl     -> Administrador de la clínica")
-    print("\nMédicos (prestadores):")
-    for nombre, email, esp, _icono, cad, _precio in MEDICOS:
-        print(f"  {email:34s} -> {nombre} · {esp} · agenda {cad} min · lun-sáb 09:00-15:00")
-    print("\nDentistas (prestadores):")
-    for nombre, email, esp, _icono, cad, _precio in DENTISTAS:
-        print(f"  {email:34s} -> {nombre} · {esp} · agenda {cad} min · lun-sáb 09:00-15:00")
+    print(f"\nMédicos (prestadores) — {SALAS_MEDICAS} salas médicas:")
+    for n, (nombre, email, esp, _icono, cad, _precio) in enumerate(MEDICOS):
+        print(f"  Sala Médica {n + 1} · {email:34s} -> {nombre} · {esp} · agenda {cad} min · lun-sáb 09:00-15:00")
+    print(f"\nDentistas (prestadores) — {BOXES_DENTALES} boxes dentales:")
+    for n, (nombre, email, esp, _icono, cad, _precio) in enumerate(DENTISTAS):
+        print(f"  Box Dental {n + 1}  · {email:34s} -> {nombre} · {esp} · agenda {cad} min · lun-sáb 09:00-15:00")
+    print("\nAgenda: desde hoy hasta el 30/09, con citas ya cargadas para HOY (agenda del día).")
     print("\nPacientes (con ficha y exámenes previos):")
     for p in PACIENTES:
         print(f"  {p['email']:30s} -> {p['nombre']} · tel +56959215416")
