@@ -171,6 +171,30 @@ docker compose up -d db
 .venv/bin/uvicorn app.main:app --reload
 ```
 
+### Datos de prueba: "Clínica Visión" (Higia)
+
+Seed de pruebas listo para gestionar un centro médico-dental de punta a punta
+(idempotente, seguro de re-correr). Contraseña de **todos** los usuarios:
+`123mudar`.
+
+```bash
+.venv/bin/python -m app.seed_higia
+```
+
+Crea la clínica **Clínica Visión** (Chile) con:
+
+- **Gestión** (portal Empresa `gestion@clinicavision.cl` y Administrador
+  `admin@clinicavision.cl`).
+- **5 médicos** con agenda lun–sáb 09:00–15:00 y cadencias de 15, 20, 30, 60 y
+  45 min, y **3 dentistas** (general 30 min, periodoncia 60 min, ortodoncia
+  30 min). La cadencia la fija la duración del servicio de cada profesional;
+  todas las prestaciones se crean **exentas de IVA** (Chile). Dos accesos
+  reales pedidos: `victoriacatarinabls@gmail.com` (médica) y
+  `bancobastitela@gmail.com` (dentista); el resto usa correos ficticios.
+- **3 pacientes** (Saulo Batistela, Natalia Silva, Joaquín Aburto), todos con
+  tel `+56959215416`, **ficha clínica**, **exámenes previos** (laboratorio, Rx,
+  ecografía), odontograma y algunas **citas** (pasadas y próximas).
+
 Pruebas de humo end-to-end contra la BD real (sin mocks):
 
 ```bash
