@@ -98,6 +98,39 @@ Con la Fase 8 quedan cubiertos los ocho módulos del plan (Paciente, Médico,
 Empresa, Administrador, CRM, Aseguradora e Integraciones sobre el andamiaje
 multi-tenant).
 
+✅ **Tanda 7** — Documentos tributarios electrónicos. Nuevo conector
+`tributario` (misma frontera que la Fase 8: se habilita por clínica, deja
+traza, forma real del contrato con transporte simulado y determinista) que
+**enruta por el país de la clínica** (`clinics.pais`):
+
+- **Chile → SII**: emite el **DTE** que corresponde — **boleta electrónica
+  (39)** con IVA incluido, **boleta exenta (41)**, **factura electrónica (33)**,
+  **factura exenta (34)** y **nota de crédito (61)** para anular — consumiendo
+  **folios de un CAF** y timbrando el documento (TED). **IVA afecto/exento**:
+  cada servicio lleva un flag `afecto_iva` (las prestaciones médicas/
+  odontológicas son **exentas**, D.L. 825 Art. 12 E; solo algunos exámenes
+  diagnósticos particulares son afectos); una boleta puede **mezclar** una línea
+  exenta (IndExe, suma a `MntExento`) con una afecta (IVA solo sobre esa). La
+  anulación emite la NC que referencia el folio original y reproduce el total.
+- **Brasil → según el hecho gravado y el órgano competente**: **NFS-e**
+  (serviço → **prefeitura/município**, ISS), **NF-e** (mercadoria → **SEFAZ
+  estadual**, ICMS) y **NFC-e** (consumidor). Devuelve número + protocolo de
+  autorização (o código de verificação en la NFS-e); el cancelamento marca el
+  documento anulado con su protocolo.
+- **México → SAT**: **CFDI 4.0** de **Ingreso** (factura, tipo I) y de **Egreso**
+  (nota de crédito, tipo E), con **IVA 16%** y respeto del flag exento
+  (`ObjetoImp` 01/02). Devuelve el **folio fiscal (UUID)** y el
+  TimbreFiscalDigital; la cancelación deja el acuse del SAT.
+
+El emisor fiscal, sus folios/serie y los documentos (`tax_emitters`,
+`tax_folio_ranges`, `tax_documents`) viven por clínica; el documento emitido es
+casi inmutable (solo cambia su `estado` o se cruza con el inverso al anular). El
+rol **Empresa** configura y emite (pantalla *Documentos tributarios* en su
+portal, y opción de emitir el documento al registrar un pago de **Caja**, en la
+misma transacción); el **Administrador** supervisa (solo lectura). Los puntos de
+enganche reales (certificado digital, firma del CAF/A1-A3, webservices del SII /
+SEFAZ / prefeitura) quedan documentados en cada builder de país.
+
 ## Stack
 
 - **Backend**: Python 3.11 + FastAPI (async) + SQLAlchemy 2.0 (async) +
@@ -149,6 +182,7 @@ Pruebas de humo end-to-end contra la BD real (sin mocks):
 .venv/bin/python -m tests.test_crm_smoke        # CRM: consolidado, KPIs, conciliación (Fase 6)
 .venv/bin/python -m tests.test_aseguradora_smoke # Aseguradora: convenios, autorizaciones, liquidación (Fase 7)
 .venv/bin/python -m tests.test_integraciones_smoke # Integraciones: conectores externos simulados (Fase 8)
+.venv/bin/python -m tests.test_tributario_smoke # Tributario: boleta SII (Chile) + Nota Fiscal (Brasil) (Tanda 7)
 ```
 
 Usuarios demo médicos (password `Demo1234!`): `medico.a@todoscare.dev`

@@ -31,7 +31,7 @@ export function Cajas() {
   const [saving, setSaving] = useState(false);
   // formularios
   const [abono, setAbono] = useState('');
-  const [mov, setMov] = useState({ medio: 'efectivo', monto: '', convenio: '', boleta: '', glosa: '' });
+  const [mov, setMov] = useState({ medio: 'efectivo', monto: '', convenio: '', boleta: '', glosa: '', emitir_boleta: false, exento: false });
   const [fondo, setFondo] = useState('');
 
   const load = async () => {
@@ -59,8 +59,10 @@ export function Cajas() {
       await api.cajas.movimiento(mi.id, {
         tipo, medio: mov.medio, monto: Number(mov.monto) || 0,
         convenio: mov.convenio || undefined, boleta: mov.boleta || undefined, glosa: mov.glosa || undefined,
+        emitir_boleta: tipo === 'pago' ? mov.emitir_boleta : undefined,
+        exento: tipo === 'pago' && mov.emitir_boleta ? mov.exento : undefined,
       });
-      setSheet(null); setMov({ medio: 'efectivo', monto: '', convenio: '', boleta: '', glosa: '' });
+      setSheet(null); setMov({ medio: 'efectivo', monto: '', convenio: '', boleta: '', glosa: '', emitir_boleta: false, exento: false });
       await load();
     } catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo registrar'); }
     finally { setSaving(false); }
@@ -187,7 +189,20 @@ export function Cajas() {
               <input value={mov.boleta} onChange={(e) => setMov((p) => ({ ...p, boleta: e.target.value }))} placeholder="N° boleta"
                 className="w-28 rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
             </div>
-          ) : (
+          ) : null}
+          {sheet === 'pago' && (
+            <label className="flex items-center gap-2 text-[12.5px] text-ink">
+              <input type="checkbox" checked={mov.emitir_boleta} onChange={(e) => setMov((p) => ({ ...p, emitir_boleta: e.target.checked }))} className="accent-teal" />
+              Emitir documento tributario (boleta SII / Nota Fiscal) por este pago
+            </label>
+          )}
+          {sheet === 'pago' && mov.emitir_boleta && (
+            <label className="flex items-center gap-2 text-[12.5px] text-ink pl-6">
+              <input type="checkbox" checked={mov.exento} onChange={(e) => setMov((p) => ({ ...p, exento: e.target.checked }))} className="accent-teal" />
+              Prestación exenta de IVA (médica/odontológica)
+            </label>
+          )}
+          {sheet === 'gasto' && (
             <input value={mov.glosa} onChange={(e) => setMov((p) => ({ ...p, glosa: e.target.value }))} placeholder="Descripción del gasto"
               className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
           )}

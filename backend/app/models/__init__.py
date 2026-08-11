@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     integrations,
     patient,
     scheduling,
+    tax,
     tenant,
     wallet,
 )

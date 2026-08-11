@@ -39,6 +39,7 @@ class Resource(str, Enum):
     INFO_EMPRESA = "info_empresa"
     FUNCIONARIOS_B2B = "funcionarios_b2b"
     CAJAS = "cajas"  # arqueo diario: abrir/cerrar caja, registrar pagos y gastos
+    TRIBUTARIO = "tributario"  # emisión de documentos tributarios (SII Chile / Nota Fiscal Brasil)
 
     # --- Médico (Spec Medico §3) ---
     OWN_AGENDA = "own_agenda"

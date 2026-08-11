@@ -539,7 +539,8 @@ async def eliminar_bloque(
 async def _servicio_out(db: AsyncSession, item: CatalogItem) -> ServicioAdminOut:
     specialty = await db.get(Specialty, item.specialty_id) if item.specialty_id else None
     return ServicioAdminOut(
-        id=item.id, nombre=item.nombre, precio=float(item.precio), duracion_min=item.duracion_min, activo=item.activo, specialty_nombre=specialty.nombre if specialty else None
+        id=item.id, nombre=item.nombre, precio=float(item.precio), duracion_min=item.duracion_min, activo=item.activo,
+        specialty_nombre=specialty.nombre if specialty else None, afecto_iva=item.afecto_iva
     )
 
 
@@ -564,7 +565,7 @@ async def crear_servicio(
     ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.CREAR)),
 ) -> ServicioAdminOut:
     clinic_id = empresa_clinic_id(ctx)
-    item = CatalogItem(clinic_id=clinic_id, specialty_id=payload.specialty_id, tipo="servicio", nombre=payload.nombre, precio=payload.precio, duracion_min=payload.duracion_min)
+    item = CatalogItem(clinic_id=clinic_id, specialty_id=payload.specialty_id, tipo="servicio", nombre=payload.nombre, precio=payload.precio, duracion_min=payload.duracion_min, afecto_iva=payload.afecto_iva)
     db.add(item)
     await db.commit()
     await db.refresh(item)

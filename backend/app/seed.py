@@ -20,6 +20,7 @@ from app.models.marketing import MarketingCampaign
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient, TycAcceptance, TycVersion
 from app.models.scheduling import Appointment, AvailabilityBlock
+from app.models.tax import TaxEmitter, TaxFolioRange
 from app.models.tenant import Branch, Clinic
 from app.models.wallet import WalletAccount
 from app.rbac.permissions import RoleCode
@@ -136,6 +137,34 @@ async def get_or_create_catalog_item(db, clinic_id, specialty_id, nombre: str, p
     return row
 
 
+async def seed_tax_emitter(db, clinic_id, pais: str, *, tax_id, razon_social, giro, direccion, config, folios) -> None:
+    """Emisor fiscal + folios/CAF (Chile) o serie (Brasil) + conector 'tributario'
+    habilitado, para poder emitir documentos end-to-end en el smoke test. `folios`
+    es una lista de (tipo_documento, serie, desde, hasta, caf_ref)."""
+    em = (await db.execute(select(TaxEmitter).where(TaxEmitter.clinic_id == clinic_id))).scalar_one_or_none()
+    if em is None:
+        em = TaxEmitter(
+            clinic_id=clinic_id, pais=pais, tax_id=tax_id, razon_social=razon_social,
+            giro=giro, direccion=direccion, config=config,
+        )
+        db.add(em)
+        await db.flush()
+        for tipo_documento, serie, desde, hasta, caf_ref in folios:
+            db.add(
+                TaxFolioRange(
+                    clinic_id=clinic_id, emitter_id=em.id, tipo_documento=tipo_documento, serie=serie,
+                    desde=desde, hasta=hasta, siguiente=desde, caf_ref=caf_ref,
+                )
+            )
+    existing = (
+        await db.execute(
+            select(IntegrationConfig).where(IntegrationConfig.clinic_id == clinic_id, IntegrationConfig.tipo == "tributario")
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        db.add(IntegrationConfig(clinic_id=clinic_id, tipo="tributario", activo=True, credenciales=None))
+
+
 async def assign_role(db, user_id, role_id, clinic_id=None, branch_id=None, insurer_id=None) -> None:
     existing = (
         await db.execute(
@@ -161,6 +190,7 @@ async def main() -> None:
 
         clinic_a = await get_or_create_clinic(db, "Clínica Demo A", "MX")
         clinic_b = await get_or_create_clinic(db, "Clínica Demo B", "CL")
+        clinic_c = await get_or_create_clinic(db, "Clínica Demo C", "BR")  # Tanda 7: emisión de Nota Fiscal
         branch_a1 = await get_or_create_branch(db, clinic_a.id, "Sucursal A1")
 
         # Entidad aseguradora (global, no tenant) — el rol se vincula a ella.
@@ -179,6 +209,10 @@ async def main() -> None:
         # actually testable: he must be denied Camila's ficha.
         medico_b = await get_or_create_user(db, "medico.b@todoscare.dev", "Dr. Fuentes")
         empresa_a = await get_or_create_user(db, "empresa.a@todoscare.dev", "Clínica Demo A (portal)")
+        # Portales de empresa para las clínicas CL y BR — emiten sus documentos
+        # tributarios (boleta SII / Nota Fiscal) en el smoke test de Tanda 7.
+        empresa_b = await get_or_create_user(db, "empresa.b@todoscare.dev", "Clínica Demo B (portal CL)")
+        empresa_c = await get_or_create_user(db, "empresa.c@todoscare.dev", "Clínica Demo C (portal BR)")
         paciente_a = await get_or_create_user(db, "paciente.a@todoscare.dev", "Camila Rodríguez")
         aseguradora_x = await get_or_create_user(db, "aseguradora.x@todoscare.dev", "Aseguradora X")
 
@@ -188,6 +222,8 @@ async def main() -> None:
         await assign_role(db, medico_a.id, roles[RoleCode.MEDICO.value].id, clinic_id=clinic_a.id, branch_id=branch_a1.id)
         await assign_role(db, medico_b.id, roles[RoleCode.MEDICO.value].id, clinic_id=clinic_a.id, branch_id=branch_a1.id)
         await assign_role(db, empresa_a.id, roles[RoleCode.EMPRESA.value].id, clinic_id=clinic_a.id)
+        await assign_role(db, empresa_b.id, roles[RoleCode.EMPRESA.value].id, clinic_id=clinic_b.id)
+        await assign_role(db, empresa_c.id, roles[RoleCode.EMPRESA.value].id, clinic_id=clinic_c.id)
         await assign_role(db, paciente_a.id, roles[RoleCode.PACIENTE.value].id, clinic_id=clinic_a.id)
         # Fase 7: la aseguradora se vincula a su ENTIDAD (insurer), no a un
         # tenant clínico — un pagador opera sobre su cartera y su red de
@@ -446,6 +482,55 @@ async def main() -> None:
             branch_a1.geo = {"lat": 19.4326, "lng": -99.1332}  # CDMX centro
             branch_a1.direccion = "Av. Reforma 222, Cuauhtémoc, CDMX"
 
+        # ── Tributario (Tanda 7) demo data ──
+        # Chile: emisor con RUT + resolución SII + CAF (folios) para boleta,
+        # factura y nota de crédito. Brasil: emisor com CNPJ + inscrições +
+        # regime, com série para NFS-e (município) e NF-e (SEFAZ estadual).
+        await seed_tax_emitter(
+            db, clinic_b.id, "CL",
+            tax_id="76.123.456-7",
+            razon_social="Clínica Demo B SpA",
+            giro="Servicios de salud",
+            direccion="Av. Providencia 1234, Santiago",
+            config={"acteco": "869010", "comuna": "Providencia", "resolucion_sii_numero": 80, "resolucion_sii_fecha": "2014-08-22"},
+            folios=[
+                ("boleta_electronica", None, 1, 1000, "CAF-39-2026"),
+                ("boleta_exenta", None, 1, 1000, "CAF-41-2026"),  # prestaciones médicas/odontológicas (exentas)
+                ("factura_electronica", None, 1, 500, "CAF-33-2026"),
+                ("factura_exenta", None, 1, 500, "CAF-34-2026"),
+                ("nota_credito", None, 1, 500, "CAF-61-2026"),
+            ],
+        )
+        await seed_tax_emitter(
+            db, clinic_a.id, "MX",
+            tax_id="MECA850101AB1",
+            razon_social="Clínica Demo A SA de CV",
+            giro="Servicios de salud",
+            direccion="Av. Reforma 222, Cuauhtémoc, CDMX",
+            config={"regimen_fiscal": "601", "codigo_postal": "06600", "uso_cfdi": "G03"},
+            folios=[
+                ("factura", "A", 1, 100000, "CSD-A"),        # CFDI de Ingreso
+                ("nota_credito", "A", 1, 100000, "CSD-A-NC"),  # CFDI de Egreso
+            ],
+        )
+        await seed_tax_emitter(
+            db, clinic_c.id, "BR",
+            tax_id="12.345.678/0001-99",
+            razon_social="Clínica Demo C Ltda",
+            giro="Atividades de atenção à saúde humana",
+            direccion="Av. Paulista 1000, São Paulo",
+            config={
+                "inscricao_municipal": "1.234.567-8", "inscricao_estadual": "110.042.490.114",
+                "cnae": "8630-5/03", "regime_tributario": "simples",
+                "municipio_ibge": "3550308", "municipio_nome": "São Paulo", "uf": "SP",
+                "iss_aliquota": 0.05, "icms_aliquota": 0.18,
+            },
+            folios=[
+                ("nfse", "RPS", 1, 100000, "SERIE-NFSE"),
+                ("nfe", "1", 1, 100000, "SERIE-NFE"),
+            ],
+        )
+
         await db.commit()
 
     print("Seed OK. Demo password for every user:", DEMO_PASSWORD)
@@ -455,6 +540,8 @@ async def main() -> None:
     print("  medico.a@todoscare.dev     -> medico @ Clínica Demo A / Sucursal A1 (atiende a Camila)")
     print("  medico.b@todoscare.dev     -> medico @ Clínica Demo A / Sucursal A1 (sin citas)")
     print("  empresa.a@todoscare.dev    -> empresa @ Clínica Demo A")
+    print("  empresa.b@todoscare.dev    -> empresa @ Clínica Demo B (CL — emite boleta SII)")
+    print("  empresa.c@todoscare.dev    -> empresa @ Clínica Demo C (BR — emite Nota Fiscal)")
     print("  paciente.a@todoscare.dev   -> paciente @ Clínica Demo A")
     print("  aseguradora.x@todoscare.dev-> aseguradora @ Seguros Bienestar MX (convenio con Clínica Demo A)")
 

@@ -13,6 +13,7 @@ export function Servicios() {
   const [nombre, setNombre] = useState('');
   const [precio, setPrecio] = useState('');
   const [duracion, setDuracion] = useState('30');
+  const [afectoIva, setAfectoIva] = useState(false); // salud: por defecto exento (Chile)
   const [saving, setSaving] = useState(false);
 
   const load = () => api.empresa.servicios().then(setServicios);
@@ -20,11 +21,16 @@ export function Servicios() {
 
   const crear = async () => {
     setSaving(true);
-    await api.empresa.crearServicio({ nombre, precio: Number(precio), duracion_min: Number(duracion) });
-    setNombre(''); setPrecio(''); setDuracion('30');
+    await api.empresa.crearServicio({ nombre, precio: Number(precio), duracion_min: Number(duracion), afecto_iva: afectoIva });
+    setNombre(''); setPrecio(''); setDuracion('30'); setAfectoIva(false);
     setOpen(false);
     await load();
     setSaving(false);
+  };
+
+  const toggleIva = async (s: ServicioAdmin) => {
+    await api.empresa.editarServicio(s.id, { afecto_iva: !s.afecto_iva });
+    await load();
   };
 
   const eliminar = async (id: string) => {
@@ -42,6 +48,10 @@ export function Servicios() {
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm text-ink">{s.nombre}</div>
               <div className="mt-0.5 text-xs text-sub">{s.duracion_min} min{s.specialty_nombre ? ` · ${s.specialty_nombre}` : ''}</div>
+              <button onClick={() => toggleIva(s)}
+                className={`mt-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${s.afecto_iva ? 'bg-teal-soft text-teal-dark' : 'bg-[#EEF2F1] text-sub'}`}>
+                {s.afecto_iva ? 'Afecto a IVA' : 'Exento de IVA'}
+              </button>
             </div>
             <div className="font-heading font-bold text-sm text-ink tabular-nums">${s.precio}</div>
             <div onClick={() => eliminar(s.id)} className="cursor-pointer text-[13px] font-bold text-danger ml-1">Baja</div>
@@ -63,6 +73,10 @@ export function Servicios() {
             <input value={duracion} onChange={(e) => setDuracion(e.target.value)} placeholder="Duración (min)" inputMode="numeric"
               className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
           </div>
+          <label className="flex items-center gap-2 text-[12.5px] text-ink">
+            <input type="checkbox" checked={afectoIva} onChange={(e) => setAfectoIva(e.target.checked)} className="accent-teal" />
+            Afecto a IVA (las prestaciones médicas/odontológicas van exentas)
+          </label>
           <Button onClick={crear} disabled={!nombre || !precio || saving} className="w-full">
             {saving ? 'Guardando…' : 'Crear y activar'}
           </Button>

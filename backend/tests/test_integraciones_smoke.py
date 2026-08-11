@@ -47,7 +47,8 @@ async def main() -> None:
         r = await client.get("/integraciones/estado", headers=admin)
         est = r.json()
         tipos = {c["tipo"]: c["activo"] for c in est["conectores"]}
-        check("admin ve 6 conectores", r.status_code == 200 and len(est["conectores"]) == 6)
+        check("admin ve los conectores de la clínica (incluye tributario, Tanda 7)",
+              r.status_code == 200 and len(est["conectores"]) >= 6 and "tributario" in tipos)
         check("push viene deshabilitado en el seed", tipos.get("push") is False and tipos.get("whatsapp") is True)
         check("médico NO ve el estado de integraciones -> 403", (await client.get("/integraciones/estado", headers=medico)).status_code == 403)
         check("paciente NO ve el estado de integraciones -> 403", (await client.get("/integraciones/estado", headers=paciente)).status_code == 403)

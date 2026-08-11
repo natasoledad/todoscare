@@ -55,6 +55,13 @@ import type {
   Medicamento,
   Movimiento,
   MovimientoCaja,
+  TributarioTipos,
+  TaxEmisor,
+  TaxEmisorInput,
+  TaxFolio,
+  TaxDocResumen,
+  TaxDoc,
+  EmitirTributarioInput,
   Odontograma,
   OnboardingInput,
   Orden,
@@ -135,6 +142,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 const get = <T>(path: string) => request<T>(path);
 const post = <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
 const patch = <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined });
+const put = <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined });
 const del = (path: string) => request<void>(path, { method: 'DELETE' });
 
 export const api = {
@@ -240,8 +248,8 @@ export const api = {
       post<Bloque>('/empresa/agendas', body),
     eliminarBloque: (id: string) => del(`/empresa/agendas/${id}`),
     servicios: () => get<ServicioAdmin[]>('/empresa/servicios'),
-    crearServicio: (body: { nombre: string; precio: number; duracion_min: number; specialty_id?: string }) => post<ServicioAdmin>('/empresa/servicios', body),
-    editarServicio: (id: string, body: { nombre?: string; precio?: number; duracion_min?: number; activo?: boolean }) => patch<ServicioAdmin>(`/empresa/servicios/${id}`, body),
+    crearServicio: (body: { nombre: string; precio: number; duracion_min: number; specialty_id?: string; afecto_iva?: boolean }) => post<ServicioAdmin>('/empresa/servicios', body),
+    editarServicio: (id: string, body: { nombre?: string; precio?: number; duracion_min?: number; activo?: boolean; afecto_iva?: boolean }) => patch<ServicioAdmin>(`/empresa/servicios/${id}`, body),
     eliminarServicio: (id: string) => del(`/empresa/servicios/${id}`),
     promociones: () => get<Promocion[]>('/empresa/promociones'),
     crearPromo: (body: { nombre: string; descuento?: string; segmento?: string; estado?: string }) => post<Promocion>('/empresa/promociones', body),
@@ -258,9 +266,25 @@ export const api = {
     miCaja: () => get<CajaDetalle | null>('/empresa/cajas/mi-caja'),
     detalle: (id: string) => get<CajaDetalle>(`/empresa/cajas/${id}`),
     abrir: (abono_inicial: number) => post<CajaDetalle>('/empresa/cajas', { abono_inicial }),
-    movimiento: (id: string, body: { tipo: string; medio: string; monto: number; patient_id?: string; appointment_id?: string; convenio?: string; referencia?: string; boleta?: string; glosa?: string }) =>
+    movimiento: (id: string, body: { tipo: string; medio: string; monto: number; patient_id?: string; appointment_id?: string; convenio?: string; referencia?: string; boleta?: string; glosa?: string; emitir_boleta?: boolean; tipo_documento?: string; exento?: boolean; receptor_tax_id?: string; receptor_nombre?: string }) =>
       post<MovimientoCaja>(`/empresa/cajas/${id}/movimientos`, body),
     cerrar: (id: string, fondo_fijo: number) => post<CajaDetalle>(`/empresa/cajas/${id}/cerrar`, { fondo_fijo }),
+  },
+  tributario: {
+    tipos: () => get<TributarioTipos>('/tributario/tipos'),
+    emisor: () => get<TaxEmisor | null>('/tributario/emisor'),
+    guardarEmisor: (body: TaxEmisorInput) => put<TaxEmisor>('/tributario/emisor', body),
+    folios: () => get<TaxFolio[]>('/tributario/folios'),
+    registrarFolios: (body: { tipo_documento: string; serie?: string; desde: number; hasta: number; caf_ref?: string }) =>
+      post<TaxFolio>('/tributario/folios', body),
+    documentos: (params?: { estado?: string; tipo_documento?: string }) => {
+      const q = new URLSearchParams(Object.entries(params ?? {}).filter(([, v]) => v)).toString();
+      return get<TaxDocResumen[]>(`/tributario/documentos${q ? `?${q}` : ''}`);
+    },
+    emitir: (body: EmitirTributarioInput) => post<TaxDoc>('/tributario/documentos', body),
+    documento: (id: string) => get<TaxDoc>(`/tributario/documentos/${id}`),
+    estado: (id: string) => get<{ id: string; estado: string; organo: string; track_id: string | null; sello: string | null; motivo: string | null }>(`/tributario/documentos/${id}/estado`),
+    anular: (id: string, motivo: string) => post<TaxDoc>(`/tributario/documentos/${id}/anular`, { motivo }),
   },
   admin: {
     inicio: () => get<AdminKpis>('/admin/inicio'),
