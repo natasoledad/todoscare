@@ -35,12 +35,14 @@ class BloqueIn(BaseModel):
     branch_id: uuid.UUID
     inicio: datetime
     fin: datetime
+    room_id: uuid.UUID | None = None  # recinto (sala/box) donde atiende
     reglas: dict | None = None
 
 
 class BloqueUpdate(BaseModel):
     inicio: datetime | None = None
     fin: datetime | None = None
+    room_id: uuid.UUID | None = None
     reglas: dict | None = None
 
 
@@ -51,7 +53,32 @@ class BloqueOut(BaseModel):
     branch_nombre: str
     inicio: datetime
     fin: datetime
+    room_id: uuid.UUID | None
+    room_nombre: str | None
     reglas: dict | None
+
+
+# ---- recintos (salas médicas / boxes dentales) ----
+class RecintoIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    numero: int = Field(ge=1)
+    tipo: str  # medica | dental
+    branch_id: uuid.UUID | None = None
+
+
+class RecintoUpdate(BaseModel):
+    nombre: str | None = None
+    numero: int | None = Field(default=None, ge=1)
+    activo: bool | None = None
+
+
+class RecintoOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    numero: int
+    tipo: str
+    activo: bool
+    branch_id: uuid.UUID | None
 
 
 # ---- catálogo ----

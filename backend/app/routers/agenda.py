@@ -108,6 +108,7 @@ async def reservar(
         professional_id=payload.professional_id,
         patient_id=patient.id,
         service_id=service.id,
+        room_id=block.room_id,  # el recinto del bloque: Postgres impide dos citas en la misma sala/box
         slot=Range(payload.inicio, payload.fin),
         estado="confirmada",
     )

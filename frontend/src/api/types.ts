@@ -118,7 +118,18 @@ export interface Bloque {
   branch_nombre: string;
   inicio: string;
   fin: string;
+  room_id: string | null;
+  room_nombre: string | null;
   reglas: Record<string, unknown> | null;
+}
+
+export interface Recinto {
+  id: string;
+  nombre: string;
+  numero: number;
+  tipo: string; // medica | dental
+  activo: boolean;
+  branch_id: string | null;
 }
 
 export interface ServicioAdmin {
