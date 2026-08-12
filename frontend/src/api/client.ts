@@ -15,6 +15,7 @@ import type {
   AuditEntry,
   AuthOut,
   Bloque,
+  Recinto,
   Branch,
   Afiliado,
   Arancel as ArancelAseg,
@@ -244,9 +245,12 @@ export const api = {
     profesionales: () => get<Profesional[]>('/empresa/profesionales'),
     sucursales: () => get<Branch[]>('/empresa/sucursales'),
     agendas: (professionalId?: string) => get<Bloque[]>(`/empresa/agendas${professionalId ? `?professional_id=${professionalId}` : ''}`),
-    crearBloque: (body: { professional_id: string; branch_id: string; inicio: string; fin: string; reglas?: Record<string, unknown> }) =>
+    crearBloque: (body: { professional_id: string; branch_id: string; inicio: string; fin: string; room_id?: string; reglas?: Record<string, unknown> }) =>
       post<Bloque>('/empresa/agendas', body),
     eliminarBloque: (id: string) => del(`/empresa/agendas/${id}`),
+    recintos: (tipo?: string) => get<Recinto[]>(`/empresa/recintos${tipo ? `?tipo=${tipo}` : ''}`),
+    crearRecinto: (body: { nombre: string; numero: number; tipo: string; branch_id?: string }) => post<Recinto>('/empresa/recintos', body),
+    eliminarRecinto: (id: string) => del(`/empresa/recintos/${id}`),
     servicios: () => get<ServicioAdmin[]>('/empresa/servicios'),
     crearServicio: (body: { nombre: string; precio: number; duracion_min: number; specialty_id?: string; afecto_iva?: boolean }) => post<ServicioAdmin>('/empresa/servicios', body),
     editarServicio: (id: string, body: { nombre?: string; precio?: number; duracion_min?: number; activo?: boolean; afecto_iva?: boolean }) => patch<ServicioAdmin>(`/empresa/servicios/${id}`, body),
