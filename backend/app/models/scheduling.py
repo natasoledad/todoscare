@@ -1,11 +1,47 @@
 import uuid
+from datetime import time
 from typing import Any
 
-from sqlalchemy import ForeignKey, String, text
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Time, text
 from sqlalchemy.dialects.postgresql import JSONB, TSTZRANGE, UUID, ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import AuditMixin, Base, TenantMixin
+
+
+class WeeklyScheduleTemplate(Base, AuditMixin, TenantMixin):
+    """Plantilla de horario semanal recurrente de un profesional (punto 52).
+
+    Hasta ahora la agenda se armaba bloque por bloque en una fecha suelta. Esta
+    plantilla describe el patrón que se repite cada semana —una fila por día y
+    turno— y desde ella se MATERIALIZAN los `availability_blocks` para un rango
+    de fechas. Modela lo que en Medilink es la grilla Lun–Dom:
+
+      · `dia_semana`               0=lunes … 6=domingo.
+      · `hora_inicio` / `hora_fin` turno de atención.
+      · `descanso_inicio/fin`      colación: parte el turno en dos bloques (52.4).
+      · `modalidad`                presencial | videoconsulta | ambas (52.7).
+      · `capacidad`                sillones simultáneos (52.3) — se guarda en el
+                                   bloque para futuros features de cupos.
+      · `room_id`                  recinto por defecto de ese día/turno (52.5).
+
+    No hay unique por (día): un profesional puede tener varios turnos el mismo
+    día (mañana en una sucursal, tarde en otra). "No atiende" (52.6) = sin fila
+    para ese día."""
+
+    __tablename__ = "weekly_schedule_templates"
+
+    professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False, index=True)
+    room_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("rooms.id"), index=True)
+    dia_semana: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=lunes … 6=domingo
+    hora_inicio: Mapped[time] = mapped_column(Time, nullable=False)
+    hora_fin: Mapped[time] = mapped_column(Time, nullable=False)
+    descanso_inicio: Mapped[time | None] = mapped_column(Time)
+    descanso_fin: Mapped[time | None] = mapped_column(Time)
+    modalidad: Mapped[str] = mapped_column(String(20), nullable=False, server_default="presencial")
+    capacidad: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class AvailabilityBlock(Base, AuditMixin, TenantMixin):

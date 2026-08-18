@@ -33,10 +33,10 @@ jobs:
           python-version: "3.11"
       - name: Instalar dependencias
         run: pip install -e ".[dev]"
-      - name: Pruebas de humo (18 suites, BD limpia por suite)
+      - name: Pruebas de humo (19 suites, BD limpia por suite)
         run: |
           set -e
-          for suite in rbac paciente medico empresa admin crm aseguradora integraciones agenda_gerencia cajas clinico desempeno docs_perio crm_gestion tributario recintos especialidades estado_profesional; do
+          for suite in rbac paciente medico empresa admin crm aseguradora integraciones agenda_gerencia cajas clinico desempeno docs_perio crm_gestion tributario recintos especialidades estado_profesional horario_recurrente; do
             echo "── $suite ──"
             # Cada suite asume el estado del seed; reseteamos el esquema entre suites.
             alembic downgrade base

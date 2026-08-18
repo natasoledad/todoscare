@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel, Field
 
@@ -304,3 +304,58 @@ class RemanejoOut(BaseModel):
     destino_nombre: str
     movidas: int       # citas futuras reasignadas
     conflictos: int    # citas que no se pudieron mover (choque de horario/recinto en el destino)
+
+
+# ---- horario semanal recurrente (52) ----
+class HorarioIn(BaseModel):
+    professional_id: uuid.UUID
+    branch_id: uuid.UUID
+    dia_semana: int = Field(ge=0, le=6)  # 0=lunes … 6=domingo
+    hora_inicio: time
+    hora_fin: time
+    descanso_inicio: time | None = None
+    descanso_fin: time | None = None
+    modalidad: str = Field(default="presencial", pattern="^(presencial|videoconsulta|ambas)$")
+    capacidad: int = Field(default=1, ge=1)
+    room_id: uuid.UUID | None = None
+
+
+class HorarioUpdate(BaseModel):
+    hora_inicio: time | None = None
+    hora_fin: time | None = None
+    descanso_inicio: time | None = None
+    descanso_fin: time | None = None
+    modalidad: str | None = Field(default=None, pattern="^(presencial|videoconsulta|ambas)$")
+    capacidad: int | None = Field(default=None, ge=1)
+    room_id: uuid.UUID | None = None
+    activo: bool | None = None
+
+
+class HorarioOut(BaseModel):
+    id: uuid.UUID
+    professional_id: uuid.UUID
+    professional_nombre: str
+    branch_id: uuid.UUID
+    branch_nombre: str
+    room_id: uuid.UUID | None
+    room_nombre: str | None
+    dia_semana: int
+    hora_inicio: time
+    hora_fin: time
+    descanso_inicio: time | None
+    descanso_fin: time | None
+    modalidad: str
+    capacidad: int
+    activo: bool
+
+
+class GenerarBloquesIn(BaseModel):
+    professional_id: uuid.UUID | None = None  # None = todos los profesionales de la clínica
+    desde: date
+    hasta: date
+
+
+class GenerarBloquesOut(BaseModel):
+    generados: int
+    omitidos: int   # ya existía un bloque solapado (idempotente) o chocaba con recinto
+    dias: int

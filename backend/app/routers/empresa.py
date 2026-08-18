@@ -1,5 +1,6 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
@@ -16,7 +17,7 @@ from app.models.professional import ProfessionalProfile
 from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
-from app.models.scheduling import Appointment, AvailabilityBlock
+from app.models.scheduling import Appointment, AvailabilityBlock, WeeklyScheduleTemplate
 from app.models.tenant import Branch, Clinic
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource, RoleCode
@@ -39,6 +40,11 @@ from app.schemas.empresa import (
     EspecialidadOut,
     EspecialidadUpdate,
     EstadoProfesionalIn,
+    GenerarBloquesIn,
+    GenerarBloquesOut,
+    HorarioIn,
+    HorarioOut,
+    HorarioUpdate,
     InfoEmpresaOut,
     InfoEmpresaUpdate,
     KpisOut,
@@ -750,6 +756,240 @@ async def eliminar_motivo(
     m = await _own_motivo(db, clinic_id, motivo_id)
     await db.delete(m)  # baja lógica vía listener
     await db.commit()
+
+
+# ─────────────────────────── horario semanal recurrente (52) ───────────────────────────
+# La plantilla guarda horas de pared locales; al materializar los bloques se
+# convierten a UTC con la zona horaria de la clínica (según su país).
+_TZ_BY_PAIS = {"CL": "America/Santiago", "BR": "America/Sao_Paulo", "MX": "America/Mexico_City"}
+
+
+def _clinic_tz(pais: str | None) -> ZoneInfo:
+    return ZoneInfo(_TZ_BY_PAIS.get((pais or "").upper(), "UTC"))
+
+
+async def _assert_medico_clinica(db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    ok = (
+        await db.execute(
+            select(func.count()).select_from(RoleAssignment).join(Role, Role.id == RoleAssignment.role_id).where(
+                RoleAssignment.user_id == user_id,
+                RoleAssignment.clinic_id == clinic_id,
+                RoleAssignment.deleted_at.is_(None),
+                Role.code == RoleCode.MEDICO.value,
+            )
+        )
+    ).scalar_one()
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profesional no encontrado en esta clínica")
+
+
+async def _horario_out(db: AsyncSession, t: WeeklyScheduleTemplate) -> HorarioOut:
+    prof = await db.get(User, t.professional_id)
+    branch = await db.get(Branch, t.branch_id)
+    room = await db.get(Room, t.room_id) if t.room_id else None
+    return HorarioOut(
+        id=t.id, professional_id=t.professional_id, professional_nombre=prof.nombre if prof else "",
+        branch_id=t.branch_id, branch_nombre=branch.nombre if branch else "",
+        room_id=t.room_id, room_nombre=room.nombre if room else None,
+        dia_semana=t.dia_semana, hora_inicio=t.hora_inicio, hora_fin=t.hora_fin,
+        descanso_inicio=t.descanso_inicio, descanso_fin=t.descanso_fin,
+        modalidad=t.modalidad, capacidad=t.capacidad, activo=t.activo,
+    )
+
+
+def _validar_horario(payload: HorarioIn | HorarioUpdate, hi, hf, di, df) -> None:
+    if hi is not None and hf is not None and hf <= hi:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La hora de término debe ser posterior a la de inicio")
+    if (di is None) != (df is None):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El descanso necesita inicio y término")
+    if di is not None and df is not None:
+        if df <= di:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "El término del descanso debe ser posterior a su inicio")
+        if hi is not None and hf is not None and (di < hi or df > hf):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "El descanso debe estar dentro del turno")
+
+
+@router.get("/horarios", response_model=list[HorarioOut])
+async def list_horarios(
+    professional_id: uuid.UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
+) -> list[HorarioOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    q = select(WeeklyScheduleTemplate).where(WeeklyScheduleTemplate.clinic_id == clinic_id, WeeklyScheduleTemplate.deleted_at.is_(None))
+    if professional_id:
+        q = q.where(WeeklyScheduleTemplate.professional_id == professional_id)
+    q = q.order_by(WeeklyScheduleTemplate.dia_semana, WeeklyScheduleTemplate.hora_inicio)
+    rows = (await db.execute(q)).scalars().all()
+    return [await _horario_out(db, t) for t in rows]
+
+
+@router.post("/horarios", response_model=HorarioOut, status_code=status.HTTP_201_CREATED)
+async def crear_horario(
+    payload: HorarioIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.CREAR)),
+) -> HorarioOut:
+    clinic_id = empresa_clinic_id(ctx)
+    branch = await db.get(Branch, payload.branch_id)
+    if branch is None or branch.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sucursal inválida")
+    await _assert_medico_clinica(db, clinic_id, payload.professional_id)
+    await _validar_recinto(db, clinic_id, payload.room_id)
+    _validar_horario(payload, payload.hora_inicio, payload.hora_fin, payload.descanso_inicio, payload.descanso_fin)
+    t = WeeklyScheduleTemplate(
+        clinic_id=clinic_id, professional_id=payload.professional_id, branch_id=payload.branch_id, room_id=payload.room_id,
+        dia_semana=payload.dia_semana, hora_inicio=payload.hora_inicio, hora_fin=payload.hora_fin,
+        descanso_inicio=payload.descanso_inicio, descanso_fin=payload.descanso_fin,
+        modalidad=payload.modalidad, capacidad=payload.capacidad,
+    )
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return await _horario_out(db, t)
+
+
+async def _own_horario(db: AsyncSession, clinic_id: uuid.UUID, horario_id: uuid.UUID) -> WeeklyScheduleTemplate:
+    t = await db.get(WeeklyScheduleTemplate, horario_id)
+    if t is None or t.deleted_at is not None or t.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Horario no encontrado")
+    return t
+
+
+@router.patch("/horarios/{horario_id}", response_model=HorarioOut)
+async def editar_horario(
+    horario_id: uuid.UUID,
+    payload: HorarioUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> HorarioOut:
+    clinic_id = empresa_clinic_id(ctx)
+    t = await _own_horario(db, clinic_id, horario_id)
+    data = payload.model_dump(exclude_unset=True)
+    if "room_id" in data:
+        await _validar_recinto(db, clinic_id, data["room_id"])
+    hi = data.get("hora_inicio", t.hora_inicio)
+    hf = data.get("hora_fin", t.hora_fin)
+    di = data.get("descanso_inicio", t.descanso_inicio)
+    df = data.get("descanso_fin", t.descanso_fin)
+    _validar_horario(payload, hi, hf, di, df)
+    for k, v in data.items():
+        setattr(t, k, v)
+    await db.commit()
+    await db.refresh(t)
+    return await _horario_out(db, t)
+
+
+@router.delete("/horarios/{horario_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_horario(
+    horario_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.ELIMINAR)),
+) -> None:
+    clinic_id = empresa_clinic_id(ctx)
+    t = await _own_horario(db, clinic_id, horario_id)
+    await db.delete(t)  # baja lógica vía listener; no borra bloques ya generados
+    await db.commit()
+
+
+@router.post("/horarios/generar", response_model=GenerarBloquesOut)
+async def generar_bloques(
+    payload: GenerarBloquesIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.CREAR)),
+) -> GenerarBloquesOut:
+    """Materializa los availability_blocks a partir del horario semanal, para el
+    rango [desde, hasta]. Es idempotente: si ya hay un bloque solapado del mismo
+    profesional/sucursal, lo omite; si el recinto choca (EXCLUDE), también. El
+    descanso parte el turno en dos bloques (52.4)."""
+    clinic_id = empresa_clinic_id(ctx)
+    if payload.hasta < payload.desde:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El rango de fechas es inválido")
+    if (payload.hasta - payload.desde).days > 366:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El rango no puede superar un año")
+
+    clinic = await db.get(Clinic, clinic_id)
+    tz = _clinic_tz(clinic.pais if clinic else None)
+
+    q = select(WeeklyScheduleTemplate).where(
+        WeeklyScheduleTemplate.clinic_id == clinic_id,
+        WeeklyScheduleTemplate.deleted_at.is_(None),
+        WeeklyScheduleTemplate.activo.is_(True),
+    )
+    if payload.professional_id:
+        q = q.where(WeeklyScheduleTemplate.professional_id == payload.professional_id)
+    templates = (await db.execute(q)).scalars().all()
+
+    # especialidad por profesional (para etiquetar el bloque)
+    spec_by_prof: dict[uuid.UUID, uuid.UUID | None] = {}
+    for pid in {t.professional_id for t in templates}:
+        spec_by_prof[pid] = (
+            await db.execute(
+                select(ProfessionalProfile.specialty_id).where(
+                    ProfessionalProfile.clinic_id == clinic_id, ProfessionalProfile.user_id == pid, ProfessionalProfile.deleted_at.is_(None)
+                )
+            )
+        ).scalars().first()
+
+    by_wd: dict[int, list[WeeklyScheduleTemplate]] = {}
+    for t in templates:
+        by_wd.setdefault(t.dia_semana, []).append(t)
+
+    def _seg(day: date, t: WeeklyScheduleTemplate) -> list[tuple[datetime, datetime]]:
+        def combine(tm) -> datetime:
+            return datetime.combine(day, tm, tzinfo=tz).astimezone(timezone.utc)
+        start, end = combine(t.hora_inicio), combine(t.hora_fin)
+        if t.descanso_inicio and t.descanso_fin:
+            segs = [(start, combine(t.descanso_inicio)), (combine(t.descanso_fin), end)]
+        else:
+            segs = [(start, end)]
+        return [(s, e) for s, e in segs if e > s]
+
+    # Candidatos (uno por segmento/día/plantilla)
+    candidatos: list[tuple[WeeklyScheduleTemplate, datetime, datetime]] = []
+    dias = 0
+    d = payload.desde
+    while d <= payload.hasta:
+        dias += 1
+        for t in by_wd.get(d.weekday(), []):
+            for s, e in _seg(d, t):
+                candidatos.append((t, s, e))
+        d += timedelta(days=1)
+
+    from app.core.database import AsyncSessionLocal
+    generados = 0
+    omitidos = 0
+    for t, s, e in candidatos:
+        async with AsyncSessionLocal() as sess:
+            existe = (
+                await sess.execute(
+                    select(AvailabilityBlock.id).where(
+                        AvailabilityBlock.clinic_id == clinic_id,
+                        AvailabilityBlock.professional_id == t.professional_id,
+                        AvailabilityBlock.branch_id == t.branch_id,
+                        AvailabilityBlock.deleted_at.is_(None),
+                        AvailabilityBlock.rango.op("&&")(Range(s, e)),
+                    )
+                )
+            ).scalars().first()
+            if existe is not None:
+                omitidos += 1
+                continue
+            sess.add(
+                AvailabilityBlock(
+                    clinic_id=clinic_id, branch_id=t.branch_id, professional_id=t.professional_id, room_id=t.room_id,
+                    specialty_id=spec_by_prof.get(t.professional_id),
+                    rango=Range(s, e), reglas={"modalidad": t.modalidad, "capacidad": t.capacidad, "origen": "plantilla"},
+                )
+            )
+            try:
+                await sess.commit()
+                generados += 1
+            except IntegrityError:
+                await sess.rollback()
+                omitidos += 1
+
+    return GenerarBloquesOut(generados=generados, omitidos=omitidos, dias=dias)
 
 
 async def _bloque_out(db: AsyncSession, block: AvailabilityBlock) -> BloqueOut:
