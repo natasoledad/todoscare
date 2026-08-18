@@ -53,6 +53,7 @@ const EmpresaPacientes = lazyNamed(() => import('./routes/empresa/Pacientes'), '
 const EmpresaDesempeno = lazyNamed(() => import('./routes/empresa/Desempeno'), 'Desempeno');
 const EmpresaCrmGestion = lazyNamed(() => import('./routes/empresa/CrmGestion'), 'CrmGestion');
 const EmpresaServicios = lazyNamed(() => import('./routes/empresa/Servicios'), 'Servicios');
+const EmpresaEspecialidades = lazyNamed(() => import('./routes/empresa/Especialidades'), 'Especialidades');
 const EmpresaPromociones = lazyNamed(() => import('./routes/empresa/Promociones'), 'Promociones');
 const EmpresaAgendas = lazyNamed(() => import('./routes/empresa/Agendas'), 'Agendas');
 const EmpresaInfo = lazyNamed(() => import('./routes/empresa/Info'), 'Info');
@@ -148,6 +149,7 @@ function App() {
                 <Route path="/empresa/gestion-crm" element={<EmpresaCrmGestion />} />
                 <Route path="/empresa/agendas" element={<EmpresaAgendas />} />
                 <Route path="/empresa/servicios" element={<EmpresaServicios />} />
+                <Route path="/empresa/especialidades" element={<EmpresaEspecialidades />} />
                 <Route path="/empresa/promociones" element={<EmpresaPromociones />} />
                 <Route path="/empresa/info" element={<EmpresaInfo />} />
                 <Route path="/empresa/funcionarios" element={<EmpresaFuncionarios />} />

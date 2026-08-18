@@ -32,6 +32,7 @@ const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string;
     titulo: 'Configuración',
     items: [
       { id: 'agendas', icon: '📅', t: 'Configurar agendas', d: 'Horarios por profesional y sucursal' },
+      { id: 'especialidades', icon: '🩺', t: 'Especialidades y perfiles', d: 'Especialidades, perfil del profesional y motivos' },
       { id: 'servicios', icon: '🏷️', t: 'Productos y servicios', d: 'Catálogo y precios' },
       { id: 'promociones', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },
       { id: 'info', icon: 'ℹ️', t: 'Información de la empresa', d: 'Datos, responsable, ubicaciones' },
