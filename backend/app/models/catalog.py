@@ -56,6 +56,10 @@ class CatalogItem(Base, AuditMixin, TenantMixin):
     # algunos exámenes diagnósticos particulares son afectos; este flag decide
     # si la línea lleva IVA o va como exenta (IndExe) al emitir el documento.
     afecto_iva: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    # ¿La prestación comisiona al profesional tratante? (57.10 / 62.7). Las
+    # acciones clínicas comisionan; el laboratorio y los insumos se cobran al
+    # paciente pero NO cargan en la liquidación del profesional.
+    comisiona: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class Promotion(Base, AuditMixin, TenantMixin):

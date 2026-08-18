@@ -1,6 +1,7 @@
 import uuid
+from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,4 +38,7 @@ class ProfessionalProfile(Base, AuditMixin, TenantMixin):
     duracion_min: Mapped[int | None] = mapped_column(Integer)  # intervalo de cita por defecto (min)
     modalidad: Mapped[str] = mapped_column(String(20), nullable=False, server_default="presencial")  # presencial | videoconsulta | ambas
     color: Mapped[str | None] = mapped_column(String(9))  # color opcional en la agenda (#RRGGBB)
+    # % de comisión del profesional sobre las prestaciones que comisionan (58).
+    # NULL = usar el % por defecto de la clínica (PROFESSIONAL_SPLIT_PCT).
+    comision_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))  # 0.0000–1.0000
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
