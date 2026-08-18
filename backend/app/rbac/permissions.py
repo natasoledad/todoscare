@@ -40,6 +40,7 @@ class Resource(str, Enum):
     FUNCIONARIOS_B2B = "funcionarios_b2b"
     CAJAS = "cajas"  # arqueo diario: abrir/cerrar caja, registrar pagos y gastos
     TRIBUTARIO = "tributario"  # emisión de documentos tributarios (SII Chile / Nota Fiscal Brasil)
+    LIQUIDACION_PROFESIONALES = "liquidacion_profesionales"  # comisiones a pagar a los profesionales (58)
 
     # --- Médico (Spec Medico §3) ---
     OWN_AGENDA = "own_agenda"

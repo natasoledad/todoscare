@@ -165,6 +165,24 @@ export interface BloqueoAgenda {
   creado_por: string | null;
 }
 
+export interface LiquidacionProf {
+  professional_id: string;
+  nombre: string;
+  cantidad: number;
+  realizado: number;
+  a_pagar: number;
+}
+
+export interface LiquidacionDetalle {
+  split_id: string;
+  fecha: string;
+  prestacion: string | null;
+  paciente: string | null;
+  base: number;
+  monto: number;
+  estado: string;
+}
+
 export interface Branch {
   id: string;
   nombre: string;
