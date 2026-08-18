@@ -9,6 +9,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import AuditMixin, Base, TenantMixin
 
 
+class FinancialEntity(Base, AuditMixin, TenantMixin):
+    """Entidad financiera del catálogo de la clínica (punto 63): un banco (para
+    conciliar transferencias/depósitos) o una Isapre/Fonasa (previsión de salud
+    chilena, para la facturación a aseguradoras). Se habilita/deshabilita sin
+    borrar, como las pestañas Habilitadas/Deshabilitadas de Medilink."""
+
+    __tablename__ = "financial_entities"
+
+    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, server_default="banco")  # banco | isapre
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
 class PaymentMethod(Base, AuditMixin, TenantMixin):
     """Medio de pago configurable de la clínica (punto 66).
 

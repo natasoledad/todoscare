@@ -443,3 +443,22 @@ class MedioPagoOut(BaseModel):
     permite_devolucion: bool
     acepta_cuotas: bool
     activo: bool
+
+
+# ---- entidades financieras: bancos e Isapres (63) ----
+class EntidadFinancieraIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    tipo: str = Field(pattern="^(banco|isapre)$")
+
+
+class EntidadFinancieraUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=120)
+    tipo: str | None = Field(default=None, pattern="^(banco|isapre)$")
+    activo: bool | None = None
+
+
+class EntidadFinancieraOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    tipo: str
+    activo: bool
