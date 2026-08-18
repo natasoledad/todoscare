@@ -4,7 +4,7 @@ import { BackHeader } from '../../components/BackHeader';
 import { StatusTag } from '../../components/ListRow';
 import { api } from '../../api/client';
 import type { FichaPaciente } from '../../api/types';
-import { DocumentosSection, PeriodontogramaSection, PlanesSection, SignosVitalesSection } from './FichaExtras';
+import { DocumentosSection, PeriodontogramaSection, PlanesSection, SignosVitalesSection, TimelineSection } from './FichaExtras';
 
 const FICHA_LABELS: Record<string, string> = {
   fecha_nacimiento: 'Fecha de nacimiento',
@@ -88,6 +88,8 @@ export function Ficha() {
             </div>
           </div>
         )}
+
+        <TimelineSection patientId={patientId} />
 
         <SignosVitalesSection patientId={patientId} />
 

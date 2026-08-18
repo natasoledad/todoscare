@@ -4,9 +4,51 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
 import { money } from '../../lib/citas';
-import type { DocumentoClinico, PlanItem, PlanTratamiento, SignosVitales } from '../../api/types';
+import type { DocumentoClinico, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
+
+// ─────────────────────── Timeline clínico unificado (70.1) ───────────────────────
+const TIMELINE_TIPO: Record<string, string> = {
+  prontuario: 'Atención', prescripcion: 'Receta', orden_examen: 'Examen',
+  plan: 'Plan', periodontograma: 'Periodoncia', documento: 'Documento', signos: 'Signos vitales',
+};
+
+export function TimelineSection({ patientId }: { patientId: string }) {
+  const [eventos, setEventos] = useState<TimelineEvento[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => { api.medico.timeline(patientId).then((e) => { setEventos(e); setLoaded(true); }).catch(() => setLoaded(true)); }, [patientId]);
+
+  if (!loaded) return null;
+
+  return (
+    <div>
+      <div className="font-heading font-bold text-[13px] text-ink mb-2">Historia clínica</div>
+      {eventos.length === 0 ? (
+        <div className="text-sm text-sub">Sin eventos clínicos registrados.</div>
+      ) : (
+        <div className="relative pl-5">
+          <div className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
+          <div className="flex flex-col gap-3">
+            {eventos.map((e, i) => (
+              <div key={i} className="relative">
+                <div className="absolute -left-5 top-0.5 w-[15px] h-[15px] rounded-full bg-white border-2 border-teal grid place-items-center text-[8px]">{e.icono}</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-teal-dark">{TIMELINE_TIPO[e.tipo] ?? e.tipo}</div>
+                  <div className="text-[10.5px] text-sub">{fecha(e.fecha)}</div>
+                </div>
+                <div className="font-semibold text-[13.5px] text-ink leading-snug">{e.titulo}</div>
+                {e.resumen && <div className="text-[12px] text-sub">{e.resumen}</div>}
+                {e.estado && <span className="inline-block mt-0.5 rounded-full bg-[#EEF2F1] px-2 py-0.5 text-[10px] font-semibold text-sub">{e.estado}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────── Signos vitales ───────────────────────────
 const CAMPOS: { k: keyof SignosVitales; label: string; sufijo?: string }[] = [

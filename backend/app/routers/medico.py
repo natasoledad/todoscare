@@ -54,6 +54,7 @@ from app.schemas.medico import (
     ProntuarioOut,
     SignosVitalesIn,
     SignosVitalesOut,
+    TimelineEvento,
 )
 from app.services.finance import liquidar_atencion
 from app.services.medico import audit, get_own_appointment, get_treated_patient
@@ -519,6 +520,127 @@ def _signos_out(v: VitalSigns) -> SignosVitalesOut:
         temperatura=float(v.temperatura) if v.temperatura is not None else None,
         notas=v.notas,
     )
+
+
+# ═══════════════════════ Timeline clínico unificado (70.1) ═══════════════════════
+@router.get("/pacientes/{patient_id}/timeline", response_model=list[TimelineEvento])
+async def timeline_clinico(
+    patient_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> list[TimelineEvento]:
+    """Línea de tiempo del paciente: unifica en orden cronológico prontuarios,
+    prescripciones, órdenes de examen (con su resultado), planes de tratamiento,
+    periodontogramas, documentos clínicos y signos vitales — la historia clínica
+    de un vistazo (70.1)."""
+    patient = await get_treated_patient(db, ctx, patient_id)
+    ev: list[TimelineEvento] = []
+
+    # Prontuarios / evoluciones
+    records = (
+        await db.execute(
+            select(MedicalRecord).where(MedicalRecord.patient_id == patient_id, MedicalRecord.deleted_at.is_(None))
+        )
+    ).scalars().all()
+    for r in records:
+        c = r.contenido or {}
+        resumen = c.get("diagnostico") or c.get("evolucion") or None
+        ev.append(TimelineEvento(tipo="prontuario", fecha=r.created_at, icono="📝",
+                                  titulo=c.get("motivo") or "Atención clínica", resumen=resumen))
+
+    # Prescripciones (vía el prontuario del paciente)
+    record_ids = [r.id for r in records]
+    if record_ids:
+        pres = (
+            await db.execute(
+                select(Prescription).where(Prescription.record_id.in_(record_ids), Prescription.deleted_at.is_(None))
+            )
+        ).scalars().all()
+        for p in pres:
+            items = p.items if isinstance(p.items, list) else (p.items or {}).get("items", [])
+            n = len(items) if isinstance(items, list) else 0
+            ev.append(TimelineEvento(tipo="prescripcion", fecha=p.firmado_en or p.created_at, icono="💊",
+                                     titulo="Receta médica", resumen=f"{n} medicamento(s)", estado=p.estado))
+
+    # Órdenes de examen + resultado
+    ordenes = (
+        await db.execute(
+            select(ExamOrder).where(ExamOrder.patient_id == patient_id, ExamOrder.deleted_at.is_(None))
+        )
+    ).scalars().all()
+    for o in ordenes:
+        res = (
+            await db.execute(
+                select(ExamResult).where(ExamResult.order_id == o.id, ExamResult.deleted_at.is_(None)).order_by(ExamResult.created_at.desc()).limit(1)
+            )
+        ).scalars().first()
+        resumen = None
+        if res is not None:
+            nombre = (res.resultado or {}).get("nombre") if isinstance(res.resultado, dict) else None
+            resumen = f"Resultado: {nombre}" if nombre else "Resultado disponible"
+        ev.append(TimelineEvento(tipo="orden_examen", fecha=o.created_at, icono="🔬",
+                                 titulo=f"Orden de {o.tipo}", resumen=resumen, estado=o.estado))
+
+    # Planes de tratamiento
+    planes = (
+        await db.execute(
+            select(TreatmentPlan).where(TreatmentPlan.patient_id == patient_id, TreatmentPlan.deleted_at.is_(None))
+        )
+    ).scalars().all()
+    for pl in planes:
+        n = (
+            await db.execute(
+                select(func.count(TreatmentPlanItem.id)).where(TreatmentPlanItem.plan_id == pl.id, TreatmentPlanItem.deleted_at.is_(None))
+            )
+        ).scalar_one()
+        ev.append(TimelineEvento(tipo="plan", fecha=pl.created_at, icono="🦷",
+                                 titulo=f"Plan: {pl.titulo}", resumen=f"{n} ítem(s)", estado=pl.estado))
+
+    # Periodontogramas
+    perios = (
+        await db.execute(
+            select(Periodontogram).where(Periodontogram.patient_id == patient_id, Periodontogram.deleted_at.is_(None))
+        )
+    ).scalars().all()
+    for pe in perios:
+        n = len(pe.datos or {})
+        ev.append(TimelineEvento(tipo="periodontograma", fecha=pe.created_at, icono="🦷",
+                                 titulo="Periodontograma", resumen=f"{n} pieza(s) registradas"))
+
+    # Documentos clínicos
+    docs = (
+        await db.execute(
+            select(ClinicalDocument).where(ClinicalDocument.patient_id == patient_id, ClinicalDocument.deleted_at.is_(None))
+        )
+    ).scalars().all()
+    for d in docs:
+        ev.append(TimelineEvento(tipo="documento", fecha=d.created_at, icono="📄",
+                                 titulo=d.titulo, resumen=d.tipo.capitalize(), estado=d.estado))
+
+    # Signos vitales
+    signos = (
+        await db.execute(
+            select(VitalSigns).where(VitalSigns.patient_id == patient_id, VitalSigns.deleted_at.is_(None))
+        )
+    ).scalars().all()
+    for s in signos:
+        partes = []
+        if s.presion_sistolica and s.presion_diastolica:
+            partes.append(f"PA {s.presion_sistolica}/{s.presion_diastolica}")
+        if s.fc_ppm:
+            partes.append(f"FC {s.fc_ppm}")
+        if s.spo2:
+            partes.append(f"SpO₂ {s.spo2}%")
+        if s.temperatura is not None:
+            partes.append(f"T {float(s.temperatura)}°")
+        ev.append(TimelineEvento(tipo="signos", fecha=s.created_at, icono="❤️",
+                                 titulo="Signos vitales", resumen=" · ".join(partes) or None))
+
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="ver_timeline", recurso=f"patient:{patient_id}")
+    await db.commit()
+
+    ev.sort(key=lambda e: e.fecha, reverse=True)
+    return ev
 
 
 # ═══════════════════════ Tanda 3: planes de tratamiento ═══════════════════════

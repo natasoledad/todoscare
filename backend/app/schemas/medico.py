@@ -229,3 +229,13 @@ class PeriodontogramaOut(BaseModel):
     notas: str | None
     fecha: datetime
     tomas_anteriores: int
+
+
+# ---- timeline clínico unificado (70.1) ----
+class TimelineEvento(BaseModel):
+    tipo: str            # prontuario | prescripcion | orden_examen | plan | periodontograma | documento | signos
+    fecha: datetime
+    titulo: str
+    resumen: str | None
+    icono: str
+    estado: str | None = None
