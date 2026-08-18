@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -128,6 +129,8 @@ class TreatmentPlan(Base, AuditMixin, TenantMixin):
     estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="propuesto")
     # propuesto | aceptado | en_curso | completado | rechazado
     notas: Mapped[str | None] = mapped_column(String(1000))
+    # Descuento comercial del plan (69.7): 0.0000–1.0000 sobre el total bruto.
+    descuento_pct: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False, server_default="0")
 
 
 class TreatmentPlanItem(Base, AuditMixin, TenantMixin):

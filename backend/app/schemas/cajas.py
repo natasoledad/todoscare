@@ -21,6 +21,7 @@ class MovimientoIn(BaseModel):
     monto: float = Field(gt=0)
     patient_id: uuid.UUID | None = None
     appointment_id: uuid.UUID | None = None
+    treatment_plan_id: uuid.UUID | None = None  # atribuir el pago a un plan (abonado/saldo)
     convenio: str | None = None
     referencia: str | None = None
     boleta: str | None = None

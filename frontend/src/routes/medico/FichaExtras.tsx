@@ -133,12 +133,6 @@ export function PlanesSection({ patientId }: { patientId: string }) {
     finally { setSaving(false); }
   };
 
-  const cambiarPlan = async (id: string, estado: string) => { await api.medico.cambiarEstadoPlan(id, estado); await load(); };
-  const toggleItem = async (planId: string, item: PlanItem) => {
-    await api.medico.cambiarEstadoItem(planId, item.id, item.estado === 'realizado' ? 'pendiente' : 'realizado');
-    await load();
-  };
-
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
@@ -147,36 +141,7 @@ export function PlanesSection({ patientId }: { patientId: string }) {
       </div>
       {planes.length === 0 && <div className="text-sm text-sub">Sin planes.</div>}
       <div className="flex flex-col gap-2">
-        {planes.map((p) => {
-          const meta = PLAN_ESTADOS[p.estado] ?? { label: p.estado, tone: 'warn' as const };
-          const realizados = p.items.filter((i) => i.estado === 'realizado').length;
-          return (
-            <div key={p.id} className="rounded-2xl border border-border bg-white px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div className="font-semibold text-[14px] text-ink">{p.titulo}</div>
-                <StatusTag label={meta.label} tone={meta.tone} />
-              </div>
-              <div className="text-[11px] text-sub mt-0.5">{fecha(p.fecha)} · {realizados}/{p.items.length} ítems · Total {money(p.total)}</div>
-              <div className="mt-2 flex flex-col gap-1">
-                {p.items.map((it) => (
-                  <button key={it.id} onClick={() => toggleItem(p.id, it)} className="flex items-center justify-between text-left">
-                    <span className={`text-[12.5px] ${it.estado === 'realizado' ? 'text-sub line-through' : 'text-ink'}`}>
-                      {it.estado === 'realizado' ? '✓ ' : '○ '}{it.descripcion}{it.pieza ? ` · ${it.pieza}` : ''}{it.cantidad > 1 ? ` ×${it.cantidad}` : ''}
-                    </span>
-                    <span className="text-[12px] text-sub tabular-nums">{money(it.subtotal)}</span>
-                  </button>
-                ))}
-              </div>
-              {SIGUIENTE[p.estado] && (
-                <div className="mt-2.5 flex gap-2">
-                  {SIGUIENTE[p.estado].map((a) => (
-                    <Button key={a.estado} onClick={() => cambiarPlan(p.id, a.estado)} variant="outline" className="text-[12px] py-1.5 px-3">{a.label}</Button>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {planes.map((p) => <PlanCard key={p.id} plan={p} onChanged={load} />)}
       </div>
 
       {open && (
@@ -204,6 +169,82 @@ export function PlanesSection({ patientId }: { patientId: string }) {
           {error && <div className="text-xs text-danger">{error}</div>}
           <Button onClick={crear} disabled={saving || !titulo.trim()} className="w-full">{saving ? 'Creando…' : 'Crear plan'}</Button>
         </BottomSheet>
+      )}
+    </div>
+  );
+}
+
+function PlanCard({ plan, onChanged }: { plan: PlanTratamiento; onChanged: () => Promise<void> }) {
+  const [editDesc, setEditDesc] = useState(false);
+  const [descPct, setDescPct] = useState(String(Math.round((plan.descuento_pct || 0) * 100)));
+  const [busy, setBusy] = useState(false);
+  const meta = PLAN_ESTADOS[plan.estado] ?? { label: plan.estado, tone: 'warn' as const };
+  const realizados = plan.items.filter((i) => i.estado === 'realizado').length;
+  const r = plan.resumen;
+
+  const cambiarPlan = async (estado: string) => { setBusy(true); try { await api.medico.cambiarEstadoPlan(plan.id, estado); await onChanged(); } finally { setBusy(false); } };
+  const toggleItem = async (item: PlanItem) => {
+    setBusy(true);
+    try { await api.medico.cambiarEstadoItem(plan.id, item.id, item.estado === 'realizado' ? 'pendiente' : 'realizado'); await onChanged(); }
+    finally { setBusy(false); }
+  };
+  const guardarDescuento = async () => {
+    const pct = Math.max(0, Math.min(100, Number(descPct) || 0)) / 100;
+    setBusy(true);
+    try { await api.medico.editarPlan(plan.id, { descuento_pct: pct }); setEditDesc(false); await onChanged(); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-white px-4 py-3">
+      <div className="flex items-center justify-between">
+        <div className="font-semibold text-[14px] text-ink">{plan.titulo}</div>
+        <StatusTag label={meta.label} tone={meta.tone} />
+      </div>
+      <div className="text-[11px] text-sub mt-0.5">{fecha(plan.fecha)} · {realizados}/{plan.items.length} ítems</div>
+      <div className="mt-2 flex flex-col gap-1">
+        {plan.items.map((it) => (
+          <button key={it.id} onClick={() => toggleItem(it)} disabled={busy} className="flex items-center justify-between text-left disabled:opacity-60">
+            <span className={`text-[12.5px] ${it.estado === 'realizado' ? 'text-sub line-through' : 'text-ink'}`}>
+              {it.estado === 'realizado' ? '✓ ' : '○ '}{it.descripcion}{it.pieza ? ` · ${it.pieza}` : ''}{it.cantidad > 1 ? ` ×${it.cantidad}` : ''}
+            </span>
+            <span className="text-[12px] text-sub tabular-nums">{money(it.subtotal)}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Resumen financiero (69.7) */}
+      <div className="mt-3 rounded-xl bg-[#F6FBF9] px-3 py-2.5 flex flex-col gap-1 text-[12.5px]">
+        <div className="flex justify-between text-ink"><span>Total bruto</span><span className="tabular-nums">{money(r.total_bruto)}</span></div>
+        <div className="flex justify-between items-center text-sub">
+          <button onClick={() => { setDescPct(String(Math.round((plan.descuento_pct || 0) * 100))); setEditDesc((v) => !v); }} className="text-teal-dark font-semibold">
+            Descuento {Math.round((plan.descuento_pct || 0) * 100)}%
+          </button>
+          <span className="tabular-nums">−{money(r.descuento)}</span>
+        </div>
+        {editDesc && (
+          <div className="flex items-center gap-2 py-1">
+            <input value={descPct} onChange={(e) => setDescPct(e.target.value)} inputMode="numeric" placeholder="%"
+              className="w-16 rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-1.5 text-sm text-ink outline-none focus:border-teal" />
+            <span className="text-[12px] text-sub">%</span>
+            <Button onClick={guardarDescuento} disabled={busy} className="text-[12px] py-1 px-3">Guardar</Button>
+          </div>
+        )}
+        <div className="flex justify-between font-semibold text-ink border-t border-border pt-1 mt-0.5"><span>Neto</span><span className="tabular-nums">{money(r.total_neto)}</span></div>
+        <div className="flex justify-between text-sub"><span>Abonado</span><span className="tabular-nums">{money(r.abonado)}</span></div>
+        <div className="flex justify-between font-semibold text-ink"><span>Saldo</span><span className={`tabular-nums ${r.saldo > 0 ? 'text-danger' : 'text-teal-dark'}`}>{money(r.saldo)}</span></div>
+        <div className="mt-1.5">
+          <div className="flex justify-between text-[11px] text-sub mb-0.5"><span>Progreso clínico</span><span className="tabular-nums">{Math.round(r.progreso_pct * 100)}%</span></div>
+          <div className="h-1.5 rounded-full bg-border overflow-hidden"><div className="h-full bg-teal rounded-full" style={{ width: `${Math.min(100, Math.round(r.progreso_pct * 100))}%` }} /></div>
+        </div>
+      </div>
+
+      {SIGUIENTE[plan.estado] && (
+        <div className="mt-2.5 flex gap-2">
+          {SIGUIENTE[plan.estado].map((a) => (
+            <Button key={a.estado} onClick={() => cambiarPlan(a.estado)} disabled={busy} variant="outline" className="text-[12px] py-1.5 px-3">{a.label}</Button>
+          ))}
+        </div>
       )}
     </div>
   );

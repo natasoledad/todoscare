@@ -152,6 +152,8 @@ class CashPayment(Base, AuditMixin, TenantMixin):
     referencia: Mapped[str | None] = mapped_column(String(120))
     boleta: Mapped[str | None] = mapped_column(String(120))
     glosa: Mapped[str | None] = mapped_column(String(255))  # descripción (útil en gastos)
+    # Pago atribuido a un plan de tratamiento (69.7): permite calcular abonado/saldo del plan.
+    treatment_plan_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("treatment_plans.id"), index=True)
     # Anulación auditada (67.1/67.2): el pago no se borra; se marca anulado con
     # traza (quién, cuándo, por qué) y se asienta un reverso inmutable en el ledger.
     anulado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
