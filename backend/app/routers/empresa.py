@@ -14,7 +14,7 @@ from app.core.database import get_db
 from app.models.catalog import CatalogItem, MotivoAtencion, Promotion, Specialty
 from app.models.facility import Room
 from app.models.professional import ProfessionalProfile
-from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry, PaymentMethod, PaymentSplit
+from app.models.finance import CashPayment, Company, CompanyEmployee, FinancialEntity, LedgerEntry, PaymentMethod, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
 from app.models.scheduling import Appointment, AvailabilityBlock, ScheduleException, WeeklyScheduleTemplate
@@ -39,6 +39,9 @@ from app.schemas.empresa import (
     EspecialidadIn,
     EspecialidadOut,
     EspecialidadUpdate,
+    EntidadFinancieraIn,
+    EntidadFinancieraOut,
+    EntidadFinancieraUpdate,
     BloqueoIn,
     BloqueoOut,
     EstadoProfesionalIn,
@@ -769,6 +772,74 @@ async def eliminar_motivo(
     clinic_id = empresa_clinic_id(ctx)
     m = await _own_motivo(db, clinic_id, motivo_id)
     await db.delete(m)  # baja lógica vía listener
+    await db.commit()
+
+
+# ─────────────────────────── entidades financieras: bancos e Isapres (63) ───────────────────────────
+def _entidad_out(e: FinancialEntity) -> EntidadFinancieraOut:
+    return EntidadFinancieraOut(id=e.id, nombre=e.nombre, tipo=e.tipo, activo=e.activo)
+
+
+@router.get("/entidades-financieras", response_model=list[EntidadFinancieraOut])
+async def list_entidades(
+    tipo: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.VER)),
+) -> list[EntidadFinancieraOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    q = select(FinancialEntity).where(FinancialEntity.clinic_id == clinic_id, FinancialEntity.deleted_at.is_(None))
+    if tipo in ("banco", "isapre"):
+        q = q.where(FinancialEntity.tipo == tipo)
+    rows = (await db.execute(q.order_by(FinancialEntity.tipo, FinancialEntity.nombre))).scalars().all()
+    return [_entidad_out(e) for e in rows]
+
+
+@router.post("/entidades-financieras", response_model=EntidadFinancieraOut, status_code=status.HTTP_201_CREATED)
+async def crear_entidad(
+    payload: EntidadFinancieraIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.CREAR)),
+) -> EntidadFinancieraOut:
+    clinic_id = empresa_clinic_id(ctx)
+    e = FinancialEntity(clinic_id=clinic_id, nombre=payload.nombre, tipo=payload.tipo)
+    db.add(e)
+    await db.commit()
+    await db.refresh(e)
+    return _entidad_out(e)
+
+
+async def _own_entidad(db: AsyncSession, clinic_id: uuid.UUID, entidad_id: uuid.UUID) -> FinancialEntity:
+    e = await db.get(FinancialEntity, entidad_id)
+    if e is None or e.deleted_at is not None or e.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entidad no encontrada")
+    return e
+
+
+@router.patch("/entidades-financieras/{entidad_id}", response_model=EntidadFinancieraOut)
+async def editar_entidad(
+    entidad_id: uuid.UUID,
+    payload: EntidadFinancieraUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.EDITAR)),
+) -> EntidadFinancieraOut:
+    clinic_id = empresa_clinic_id(ctx)
+    e = await _own_entidad(db, clinic_id, entidad_id)
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(e, k, v)
+    await db.commit()
+    await db.refresh(e)
+    return _entidad_out(e)
+
+
+@router.delete("/entidades-financieras/{entidad_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_entidad(
+    entidad_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.ELIMINAR)),
+) -> None:
+    clinic_id = empresa_clinic_id(ctx)
+    e = await _own_entidad(db, clinic_id, entidad_id)
+    await db.delete(e)  # baja lógica vía listener
     await db.commit()
 
 

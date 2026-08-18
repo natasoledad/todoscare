@@ -193,6 +193,13 @@ export interface MedioPago {
   activo: boolean;
 }
 
+export interface EntidadFinanciera {
+  id: string;
+  nombre: string;
+  tipo: string; // banco | isapre
+  activo: boolean;
+}
+
 export interface Branch {
   id: string;
   nombre: string;
