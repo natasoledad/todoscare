@@ -200,6 +200,22 @@ export interface EntidadFinanciera {
   activo: boolean;
 }
 
+export interface GastoLinea {
+  id: string;
+  fecha: string;
+  medio: string;
+  monto: number;
+  glosa: string | null;
+  caja_responsable: string | null;
+}
+
+export interface GastosResumen {
+  periodo: string;
+  total: number;
+  cantidad: number;
+  gastos: GastoLinea[];
+}
+
 export interface Branch {
   id: string;
   nombre: string;

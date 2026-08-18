@@ -31,10 +31,13 @@ from app.schemas.cajas import (
     CajaDetalleOut,
     CajaOut,
     CerrarCajaIn,
+    GastoOut,
+    GastosResumenOut,
     MovimientoIn,
     MovimientoOut,
     PagoAnuladoOut,
 )
+from app.services.crm import month_bounds
 from app.services.medico import audit
 from app.tenancy.context import TenantContext
 
@@ -382,3 +385,40 @@ async def pagos_anulados(
         )
         for p, pac, anulador in rows
     ]
+
+
+# ─────────────────────────── reporte de gastos (54.11) ───────────────────────────
+@router.get("/reportes/gastos", response_model=GastosResumenOut)
+async def reporte_gastos(
+    period: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CAJAS, Action.VER)),
+) -> GastosResumenOut:
+    """Gastos de la clínica en el período (desde los movimientos de caja tipo
+    'gasto'), con total — una vista consolidada del egreso operativo (54.11)."""
+    clinic_id = empresa_clinic_id(ctx)
+    start, end = month_bounds(period)
+    resp = aliased(User)
+    rows = (
+        await db.execute(
+            select(CashPayment, resp.nombre)
+            .join(CashRegister, CashRegister.id == CashPayment.cash_register_id)
+            .outerjoin(resp, resp.id == CashRegister.responsable_id)
+            .where(
+                CashPayment.clinic_id == clinic_id,
+                CashPayment.tipo == "gasto",
+                CashPayment.deleted_at.is_(None),
+                CashPayment.anulado.is_(False),
+                func.date(CashPayment.created_at) >= start,
+                func.date(CashPayment.created_at) < end,
+            )
+            .order_by(CashPayment.created_at.desc())
+        )
+    ).all()
+    gastos = [
+        GastoOut(id=p.id, fecha=p.created_at, medio=p.medio, monto=float(p.monto), glosa=p.glosa, caja_responsable=responsable)
+        for p, responsable in rows
+    ]
+    total = round(sum(g.monto for g in gastos), 2)
+    periodo = period or f"{start:%Y-%m}"
+    return GastosResumenOut(periodo=periodo, total=total, cantidad=len(gastos), gastos=gastos)

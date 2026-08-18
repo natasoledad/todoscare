@@ -58,6 +58,7 @@ const EmpresaHorarioSemanal = lazyNamed(() => import('./routes/empresa/HorarioSe
 const EmpresaLiquidaciones = lazyNamed(() => import('./routes/empresa/Liquidaciones'), 'Liquidaciones');
 const EmpresaMediosPago = lazyNamed(() => import('./routes/empresa/MediosPago'), 'MediosPago');
 const EmpresaEntidadesFinancieras = lazyNamed(() => import('./routes/empresa/EntidadesFinancieras'), 'EntidadesFinancieras');
+const EmpresaGastos = lazyNamed(() => import('./routes/empresa/Gastos'), 'Gastos');
 const EmpresaPromociones = lazyNamed(() => import('./routes/empresa/Promociones'), 'Promociones');
 const EmpresaAgendas = lazyNamed(() => import('./routes/empresa/Agendas'), 'Agendas');
 const EmpresaInfo = lazyNamed(() => import('./routes/empresa/Info'), 'Info');
@@ -158,6 +159,7 @@ function App() {
                 <Route path="/empresa/liquidaciones" element={<EmpresaLiquidaciones />} />
                 <Route path="/empresa/medios-pago" element={<EmpresaMediosPago />} />
                 <Route path="/empresa/entidades-financieras" element={<EmpresaEntidadesFinancieras />} />
+                <Route path="/empresa/gastos" element={<EmpresaGastos />} />
                 <Route path="/empresa/promociones" element={<EmpresaPromociones />} />
                 <Route path="/empresa/info" element={<EmpresaInfo />} />
                 <Route path="/empresa/funcionarios" element={<EmpresaFuncionarios />} />
