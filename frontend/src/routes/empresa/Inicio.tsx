@@ -25,6 +25,7 @@ const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string;
     items: [
       { id: 'desempeno', icon: '📊', t: 'Panel de desempeño', d: 'Ventas por profesional y grupo, ticket medio' },
       { id: 'liquidaciones', icon: '🧾', t: 'Liquidaciones', d: 'Comisiones a pagar por profesional; finalizar y pagar' },
+      { id: 'gastos', icon: '🔻', t: 'Gastos', d: 'Egresos de caja consolidados por período' },
       { id: 'crm', icon: '📈', t: 'Indicadores (CRM)', d: 'Ingresos, margen, ocupación y campañas' },
       { id: 'gestion-crm', icon: '📇', t: 'Gestión CRM', d: 'Tareas, encuestas de satisfacción y plantillas' },
     ],

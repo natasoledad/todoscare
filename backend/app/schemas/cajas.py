@@ -86,3 +86,20 @@ class PagoAnuladoOut(BaseModel):
     anulado_at: datetime | None
     anulado_por: str | None    # nombre de quien anuló (auditoría)
     motivo: str | None
+
+
+# ---- reporte de gastos (54.11) ----
+class GastoOut(BaseModel):
+    id: uuid.UUID
+    fecha: datetime
+    medio: str
+    monto: float
+    glosa: str | None
+    caja_responsable: str | None
+
+
+class GastosResumenOut(BaseModel):
+    periodo: str
+    total: float
+    cantidad: int
+    gastos: list[GastoOut]
