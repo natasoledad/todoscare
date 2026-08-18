@@ -164,14 +164,33 @@ class PlanIn(BaseModel):
     items: list[PlanItemIn] = []
 
 
+class PlanResumen(BaseModel):
+    total_bruto: float   # suma de los ítems
+    descuento_pct: float
+    descuento: float     # monto del descuento comercial
+    total_neto: float    # total_bruto - descuento (presupuesto a cobrar)
+    realizado: float     # ítems ya realizados
+    abonado: float       # pagos de caja atribuidos al plan
+    saldo: float         # total_neto - abonado
+    progreso_pct: float  # realizado / total_bruto
+
+
 class PlanOut(BaseModel):
     id: uuid.UUID
     titulo: str
     estado: str
     notas: str | None
     total: float
+    descuento_pct: float
     items: list[PlanItemOut]
+    resumen: PlanResumen
     fecha: datetime
+
+
+class PlanUpdate(BaseModel):
+    titulo: str | None = Field(default=None, min_length=1)
+    notas: str | None = None
+    descuento_pct: float | None = Field(default=None, ge=0, le=1)
 
 
 class PlanEstadoIn(BaseModel):

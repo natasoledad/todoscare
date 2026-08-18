@@ -41,6 +41,8 @@ from app.schemas.medico import (
     OrdenInput,
     OrdenOut,
     PlanEstadoIn,
+    PlanResumen,
+    PlanUpdate,
     PlanIn,
     PlanItemEstadoIn,
     PlanItemOut,
@@ -538,7 +540,32 @@ async def _plan_out(db: AsyncSession, plan: TreatmentPlan) -> PlanOut:
         for i in items
     ]
     total = round(sum(x.subtotal for x in items_out), 2)
-    return PlanOut(id=plan.id, titulo=plan.titulo, estado=plan.estado, notas=plan.notas, total=total, items=items_out, fecha=plan.created_at)
+    realizado = round(sum(x.subtotal for x in items_out if x.estado == "realizado"), 2)
+    descuento_pct = float(plan.descuento_pct or 0)
+    descuento = round(total * descuento_pct, 2)
+    total_neto = round(total - descuento, 2)
+
+    from app.models.finance import CashPayment
+    abonado = (
+        await db.execute(
+            select(func.coalesce(func.sum(CashPayment.monto), 0)).where(
+                CashPayment.treatment_plan_id == plan.id,
+                CashPayment.deleted_at.is_(None),
+                CashPayment.anulado.is_(False),
+                CashPayment.tipo == "pago",
+            )
+        )
+    ).scalar_one()
+    abonado = round(float(abonado), 2)
+    resumen = PlanResumen(
+        total_bruto=total, descuento_pct=descuento_pct, descuento=descuento, total_neto=total_neto,
+        realizado=realizado, abonado=abonado, saldo=round(total_neto - abonado, 2),
+        progreso_pct=round(realizado / total, 4) if total > 0 else 0.0,
+    )
+    return PlanOut(
+        id=plan.id, titulo=plan.titulo, estado=plan.estado, notas=plan.notas, total=total,
+        descuento_pct=descuento_pct, items=items_out, resumen=resumen, fecha=plan.created_at,
+    )
 
 
 async def _own_plan(db: AsyncSession, ctx: TenantContext, plan_id: uuid.UUID) -> TreatmentPlan:
@@ -580,6 +607,23 @@ async def crear_plan(
     for it in payload.items:
         db.add(TreatmentPlanItem(clinic_id=patient.clinic_id, plan_id=plan.id, **it.model_dump()))
     audit(db, ctx, clinic_id=patient.clinic_id, accion="crear_plan_tratamiento", recurso=f"patient:{patient_id}")
+    await db.commit()
+    await db.refresh(plan)
+    return await _plan_out(db, plan)
+
+
+@router.patch("/planes/{plan_id}", response_model=PlanOut)
+async def editar_plan(
+    plan_id: uuid.UUID,
+    payload: PlanUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> PlanOut:
+    """Edita el plan: título, notas y **descuento comercial** (69.7)."""
+    plan = await _own_plan(db, ctx, plan_id)
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(plan, k, v)
+    audit(db, ctx, clinic_id=plan.clinic_id, accion="editar_plan_tratamiento", recurso=f"treatment_plan:{plan.id}")
     await db.commit()
     await db.refresh(plan)
     return await _plan_out(db, plan)

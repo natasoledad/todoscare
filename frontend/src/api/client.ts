@@ -227,6 +227,7 @@ export const api = {
     planes: (patientId: string) => get<PlanTratamiento[]>(`/medico/pacientes/${patientId}/planes`),
     crearPlan: (patientId: string, body: { titulo: string; notas?: string; items: { descripcion: string; pieza?: string; cantidad: number; precio_unit: number }[] }) =>
       post<PlanTratamiento>(`/medico/pacientes/${patientId}/planes`, body),
+    editarPlan: (planId: string, body: { titulo?: string; notas?: string; descuento_pct?: number }) => patch<PlanTratamiento>(`/medico/planes/${planId}`, body),
     cambiarEstadoPlan: (planId: string, estado: string) => patch<PlanTratamiento>(`/medico/planes/${planId}/estado`, { estado }),
     cambiarEstadoItem: (planId: string, itemId: string, estado: string) => patch<PlanTratamiento>(`/medico/planes/${planId}/items/${itemId}/estado`, { estado }),
     documentos: (patientId: string) => get<DocumentoClinico[]>(`/medico/pacientes/${patientId}/documentos`),

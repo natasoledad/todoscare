@@ -16,6 +16,7 @@ from sqlalchemy.orm import aliased
 
 from app.core.database import get_db
 from app.integrations import tributario as tributario_conn
+from app.models.clinical import TreatmentPlan
 from app.models.finance import CashPayment, CashRegister, LedgerEntry
 from app.models.identity import User
 from app.models.patient import Patient
@@ -227,6 +228,10 @@ async def registrar_movimiento(
         pac = await db.get(Patient, payload.patient_id)
         if pac is None or pac.clinic_id != clinic_id:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Paciente inválido")
+    if payload.treatment_plan_id:
+        plan = await db.get(TreatmentPlan, payload.treatment_plan_id)
+        if plan is None or plan.clinic_id != clinic_id or plan.deleted_at is not None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Plan de tratamiento inválido")
 
     # asiento inmutable en el ledger. El ledger es INSERT-only (sin UPDATE a
     # nivel de BD), así que fijamos el id del movimiento ANTES para poder
@@ -243,6 +248,7 @@ async def registrar_movimiento(
         cash_register_id=caja.id,
         patient_id=payload.patient_id,
         appointment_id=payload.appointment_id,
+        treatment_plan_id=payload.treatment_plan_id,
         ledger_entry_id=ledger.id,
         tipo=payload.tipo,
         medio=payload.medio,

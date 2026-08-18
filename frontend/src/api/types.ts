@@ -851,13 +851,25 @@ export interface PlanItem {
   estado: string;
   subtotal: number;
 }
+export interface PlanResumen {
+  total_bruto: number;
+  descuento_pct: number;
+  descuento: number;
+  total_neto: number;
+  realizado: number;
+  abonado: number;
+  saldo: number;
+  progreso_pct: number;
+}
 export interface PlanTratamiento {
   id: string;
   titulo: string;
   estado: string;
   notas: string | null;
   total: number;
+  descuento_pct: number;
   items: PlanItem[];
+  resumen: PlanResumen;
   fecha: string;
 }
 
