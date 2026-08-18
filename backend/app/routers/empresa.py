@@ -38,6 +38,7 @@ from app.schemas.empresa import (
     EspecialidadIn,
     EspecialidadOut,
     EspecialidadUpdate,
+    EstadoProfesionalIn,
     InfoEmpresaOut,
     InfoEmpresaUpdate,
     KpisOut,
@@ -47,6 +48,8 @@ from app.schemas.empresa import (
     PerfilProfesionalUpdate,
     ProfesionalOut,
     PromocionIn,
+    RemanejoIn,
+    RemanejoOut,
     PromocionOut,
     PromocionUpdate,
     RecintoIn,
@@ -592,6 +595,98 @@ async def editar_perfil_profesional(
     return await _perfil_out(db, prof_id, profile)
 
 
+# ─────────────────────────── estado del profesional (55) ───────────────────────────
+async def _profile_activo(db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    """¿El profesional está habilitado en esta clínica? Sin perfil todavía se
+    considera activo (comportamiento previo intacto); con perfil, manda su flag."""
+    activo = (
+        await db.execute(
+            select(ProfessionalProfile.activo).where(
+                ProfessionalProfile.clinic_id == clinic_id,
+                ProfessionalProfile.user_id == user_id,
+                ProfessionalProfile.deleted_at.is_(None),
+            )
+        )
+    ).scalars().first()
+    return True if activo is None else bool(activo)
+
+
+@router.patch("/profesionales/{prof_id}/estado", response_model=ProfesionalOut)
+async def cambiar_estado_profesional(
+    prof_id: uuid.UUID,
+    payload: EstadoProfesionalIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> ProfesionalOut:
+    """Habilita/inhabilita al profesional en la clínica (55.1). Inhabilitado:
+    no recibe nuevos bloques ni nuevas citas (55.3), y si es un profesional
+    puro totalmente inhabilitado no puede loguear (55.2, en /auth/login). Su
+    ficha y su historial se conservan para visualización administrativa (55.4)."""
+    clinic_id = empresa_clinic_id(ctx)
+    profile = await _ensure_profile(db, clinic_id, prof_id)
+    profile.activo = payload.activo
+    await db.commit()
+    await db.refresh(profile)
+    return await _perfil_out(db, prof_id, profile)
+
+
+@router.post("/profesionales/{prof_id}/remanejo", response_model=RemanejoOut)
+async def remanejar_pacientes(
+    prof_id: uuid.UUID,
+    payload: RemanejoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> RemanejoOut:
+    """Remaneja las citas FUTURAS del profesional (origen) a otro profesional
+    (destino) — típicamente tras inhabilitarlo (55.5). Cada cita se mueve en su
+    propia transacción: si choca con la agenda/recinto del destino (EXCLUDE de
+    Postgres) se cuenta como conflicto y se deja en el origen para resolver a
+    mano."""
+    clinic_id = empresa_clinic_id(ctx)
+    if payload.destino_id == prof_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El destino debe ser un profesional distinto")
+    # destino debe ser médico ACTIVO de la clínica
+    await _ensure_profile(db, clinic_id, payload.destino_id)  # valida que sea médico de la clínica
+    if not await _profile_activo(db, clinic_id, payload.destino_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El profesional destino está inhabilitado")
+    destino = await db.get(User, payload.destino_id)
+
+    now = datetime.now(timezone.utc)
+    ids = (
+        await db.execute(
+            select(Appointment.id).where(
+                Appointment.clinic_id == clinic_id,
+                Appointment.professional_id == prof_id,
+                Appointment.deleted_at.is_(None),
+                Appointment.estado.in_(["confirmada", "en_sala_espera", "en_atencion"]),
+                func.lower(Appointment.slot) > now,
+            )
+        )
+    ).scalars().all()
+
+    movidas = 0
+    conflictos = 0
+    # Cada movimiento en su propia sesión: aísla el choque con el EXCLUDE gist.
+    from app.core.database import AsyncSessionLocal
+    for aid in ids:
+        async with AsyncSessionLocal() as s:
+            appt = await s.get(Appointment, aid)
+            if appt is None:
+                continue
+            appt.professional_id = payload.destino_id
+            try:
+                await s.commit()
+                movidas += 1
+            except IntegrityError:
+                await s.rollback()
+                conflictos += 1
+
+    return RemanejoOut(
+        origen_id=prof_id, destino_id=payload.destino_id,
+        destino_nombre=destino.nombre if destino else "", movidas=movidas, conflictos=conflictos,
+    )
+
+
 # ─────────────────────────── motivos de atención (54.9) ───────────────────────────
 async def _motivo_out(db: AsyncSession, m: MotivoAtencion) -> MotivoOut:
     specialty = await db.get(Specialty, m.specialty_id) if m.specialty_id else None
@@ -708,6 +803,8 @@ async def crear_bloque(
     branch = await db.get(Branch, payload.branch_id)
     if branch is None or branch.clinic_id != clinic_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sucursal inválida")
+    if not await _profile_activo(db, clinic_id, payload.professional_id):
+        raise HTTPException(status.HTTP_409_CONFLICT, "El profesional está inhabilitado; su agenda está congelada")
     await _validar_recinto(db, clinic_id, payload.room_id)
     block = AvailabilityBlock(
         clinic_id=clinic_id,
