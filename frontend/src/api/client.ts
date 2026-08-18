@@ -10,6 +10,10 @@ import type {
   PacienteLista,
   Periodontograma,
   TimelineEvento,
+  SugerenciaIA,
+  RecordatorioIA,
+  ChatIA,
+  AgendarIA,
   Plantilla,
   Tarea,
   AdminKpis,
@@ -467,6 +471,14 @@ export const api = {
     estado: () => get<IntegracionesEstado>('/integraciones/estado'),
     whatsapp: (texto: string) => post<AsistenteRespuesta>('/integraciones/whatsapp/mensaje', { texto }),
     mapas: (lat: number, lng: number) => get<SucursalCercana[]>(`/integraciones/mapas/sucursales?lat=${lat}&lng=${lng}`),
+  },
+  ia: {
+    sugerencias: (estado?: string) => get<SugerenciaIA[]>(`/ia/sugerencias${estado ? `?estado=${estado}` : ''}`),
+    aplicar: (id: string) => post<{ aplicada: boolean; ficha: Record<string, unknown>; proximo_control: string | null }>(`/ia/sugerencias/${id}/aplicar`),
+    descartar: (id: string) => post<SugerenciaIA>(`/ia/sugerencias/${id}/descartar`),
+    recordatorios: () => get<RecordatorioIA[]>('/ia/recordatorios'),
+    chat: (texto: string) => post<ChatIA>('/ia/chat', { texto }),
+    agendar: (serviceId: string) => post<AgendarIA>('/ia/agendar', { service_id: serviceId }),
   },
 };
 

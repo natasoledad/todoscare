@@ -485,7 +485,7 @@ async def main() -> None:
         # sucursales para el conector de mapas.
         existing_integ = (await db.execute(select(IntegrationConfig).where(IntegrationConfig.clinic_id == clinic_a.id))).scalars().first()
         if not existing_integ:
-            for tipo, activo in [("whatsapp", True), ("lab", True), ("farmacia", True), ("pago", True), ("mapas", True), ("push", False)]:
+            for tipo, activo in [("whatsapp", True), ("lab", True), ("farmacia", True), ("pago", True), ("mapas", True), ("push", False), ("ia_clinica", True)]:
                 db.add(IntegrationConfig(clinic_id=clinic_a.id, tipo=tipo, activo=activo, credenciales=None))
             branch_a1.geo = {"lat": 19.4326, "lng": -99.1332}  # CDMX centro
             branch_a1.direccion = "Av. Reforma 222, Cuauhtémoc, CDMX"

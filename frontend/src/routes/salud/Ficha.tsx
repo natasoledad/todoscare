@@ -1,10 +1,48 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BackHeader } from '../../components/BackHeader';
 import { Button } from '../../components/Button';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../api/client';
-import type { FichaUpdateInput } from '../../api/types';
+import type { FichaUpdateInput, SugerenciaIA } from '../../api/types';
+
+const fechaCorta = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
+
+/** Sugerencias de la IA clínica (72): al subir exámenes, la IA propone
+ *  actualizar la ficha y un próximo control. El paciente confirma o descarta. */
+function SugerenciasIA({ onApplied }: { onApplied: () => void }) {
+  const [sugs, setSugs] = useState<SugerenciaIA[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = () => api.ia.sugerencias('pendiente').then(setSugs).catch(() => setSugs([]));
+  useEffect(() => { load(); }, []);
+
+  const aplicar = async (id: string) => {
+    setBusy(id);
+    try { await api.ia.aplicar(id); await load(); onApplied(); } finally { setBusy(null); }
+  };
+  const descartar = async (id: string) => {
+    setBusy(id);
+    try { await api.ia.descartar(id); await load(); } finally { setBusy(null); }
+  };
+
+  if (sugs.length === 0) return null;
+  return (
+    <div className="rounded-2xl border border-teal/40 bg-[#F0FBF7] p-3.5 flex flex-col gap-2.5">
+      <div className="font-heading font-bold text-[13px] text-teal-dark">✨ Sugerencias de la IA</div>
+      {sugs.map((s) => (
+        <div key={s.id} className="rounded-xl bg-white border border-border px-3 py-2.5">
+          <div className="text-[12.5px] text-ink leading-snug">{s.resumen}</div>
+          {s.proximo_control && <div className="text-[11px] text-sub mt-0.5">Próximo control sugerido: {fechaCorta(s.proximo_control)}</div>}
+          <div className="mt-2 flex gap-2">
+            <Button onClick={() => aplicar(s.id)} disabled={busy === s.id} className="text-[12px] py-1.5 px-3">Aplicar a mi ficha</Button>
+            <Button onClick={() => descartar(s.id)} disabled={busy === s.id} variant="outline" className="text-[12px] py-1.5 px-3">Descartar</Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const FIELDS: { key: keyof FichaUpdateInput; label: string; placeholder: string }[] = [
   { key: 'fecha_nacimiento', label: 'Fecha de nacimiento', placeholder: 'AAAA-MM-DD' },
@@ -48,6 +86,12 @@ export function Ficha() {
     <div className="h-full flex flex-col">
       <BackHeader title="Ficha clínica" onBack={() => navigate('/app/salud')} />
       <div className="flex-1 overflow-y-auto scrollhide px-5 pt-4 pb-6 flex flex-col gap-3">
+        <SugerenciasIA onApplied={() => { refreshMe(); setValues((patient?.ficha as FichaUpdateInput) || {}); }} />
+        {(values as Record<string, string>).proximo_control && (
+          <div className="rounded-2xl border border-border bg-white p-3.5 text-[12.5px] text-ink">
+            🗓️ Próximo control sugerido: <b>{fechaCorta((values as Record<string, string>).proximo_control)}</b>
+          </div>
+        )}
         {!complete && (
           <div className="rounded-2xl bg-warn-bg border border-warn-border p-3.5 text-xs leading-relaxed text-[#8A6A00]">
             ✨ Completa tu ficha al 100% y gana +300 pts.
