@@ -171,3 +171,23 @@ class Periodontogram(Base, AuditMixin, TenantMixin):
     professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     datos: Mapped[dict] = mapped_column(JSONB, nullable=False)
     notas: Mapped[str | None] = mapped_column(String(500))
+
+
+class AiFichaSuggestion(Base, AuditMixin, TenantMixin):
+    """Sugerencia de la IA clínica al subir un examen (punto 72).
+
+    Cuando el paciente sube un documento y la clínica tiene el conector
+    'ia_clinica' activo, la IA lo analiza y propone: (a) `hallazgos` —un parche
+    para la ficha clínica del paciente (campos estructurados)— y (b) un
+    `proximo_control` sugerido. La sugerencia NO se aplica sola: queda
+    `pendiente` hasta que el paciente la confirma (`aplicada`) o la descarta
+    (`descartada`), dejando trazabilidad de qué cambió la IA y cuándo."""
+
+    __tablename__ = "ai_ficha_suggestions"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    exam_order_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("exam_orders.id"), index=True)
+    resumen: Mapped[str] = mapped_column(String(500), nullable=False)
+    hallazgos: Mapped[dict] = mapped_column(JSONB, nullable=False)          # parche para patient.ficha
+    proximo_control: Mapped[date | None] = mapped_column(Date)
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendiente")  # pendiente | aplicada | descartada

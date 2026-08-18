@@ -25,7 +25,7 @@ export function Asistente() {
     setTexto('');
     setEnviando(true);
     try {
-      const r = await api.integraciones.whatsapp(q);
+      const r = await api.ia.chat(q);
       setMsgs((m) => [...m, { de: 'bot', texto: r.reply }]);
     } catch (e) {
       setMsgs((m) => [...m, { de: 'bot', texto: e instanceof ApiError ? String(e.detail) : 'No pude responder ahora.' }]);

@@ -1,6 +1,6 @@
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
@@ -8,7 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.clinical import EmergencyQr, ExamOrder, ExamResult, Hospitalization, Odontogram, QrAccessLog
+from app.integrations import ia_clinica
+from app.integrations.base import log_event
+from app.models.clinical import AiFichaSuggestion, EmergencyQr, ExamOrder, ExamResult, Hospitalization, Odontogram, QrAccessLog
 from app.models.identity import User
 from app.rbac.deps import require, require_any_medico
 from app.rbac.permissions import Action, Resource
@@ -89,6 +91,20 @@ async def subir_examen(
 
     wallet = await _get_wallet(db, patient.id)
     await award(db, wallet=wallet, patient=patient, tipo="examen_subido", puntos=20, motivo="Subiste un documento a tu ficha", ref_id=order.id)
+
+    # IA clínica (72): si la clínica tiene el conector activo, analiza el
+    # documento y deja una sugerencia (parche de ficha + próximo control) que
+    # el paciente confirmará. No auto-aplica: queda trazable y reversible.
+    if await ia_clinica.config_activa(db, patient.clinic_id):
+        analisis = ia_clinica.analizar_examen(file.filename or "")
+        meses = analisis["proximo_control_meses"]
+        proximo = (datetime.now(timezone.utc).date() + timedelta(days=30 * meses))
+        db.add(AiFichaSuggestion(
+            clinic_id=patient.clinic_id, patient_id=patient.id, exam_order_id=order.id,
+            resumen=analisis["resumen"], hallazgos=analisis["hallazgos"], proximo_control=proximo, estado="pendiente",
+        ))
+        log_event(db, clinic_id=patient.clinic_id, tipo=ia_clinica.TIPO, direccion="inbound",
+                  ref=f"exam:{order.id}", payload={"nombre": file.filename}, resultado=analisis)
 
     await db.commit()
     await db.refresh(order)

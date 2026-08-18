@@ -946,6 +946,36 @@ export interface PlanTratamiento {
   fecha: string;
 }
 
+// ---- diferenciadores IA (72) ----
+export interface SugerenciaIA {
+  id: string;
+  resumen: string;
+  hallazgos: Record<string, unknown>;
+  proximo_control: string | null;
+  estado: string;
+  examen_nombre: string | null;
+  fecha: string;
+}
+export interface RecordatorioIA {
+  tipo: string;
+  titulo: string;
+  fecha: string | null;
+  mensaje: string;
+}
+export interface ChatIA {
+  intent: string;
+  reply: string;
+  accion: string | null;
+}
+export interface AgendarIA {
+  agendada: boolean;
+  appointment_id: string | null;
+  servicio_nombre: string | null;
+  inicio: string | null;
+  fin: string | null;
+  mensaje: string;
+}
+
 // ---- timeline clínico unificado (70.1) ----
 export interface TimelineEvento {
   tipo: string;
