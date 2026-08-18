@@ -9,13 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.catalog import CatalogItem, Specialty
 from app.models.professional import ProfessionalProfile
-from app.models.scheduling import Appointment, AvailabilityBlock
+from app.models.scheduling import Appointment, AvailabilityBlock, ScheduleException
 from app.models.tenant import Branch
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource
 from app.routers.patients import get_own_patient
 from app.schemas.agenda import CitaOut, ReservaInput, ServicioOut, SlotOut
-from app.services.scheduling import generate_slots
+from app.services.scheduling import generate_slots, overlaps_exception
 from app.tenancy.context import TenantContext
 
 router = APIRouter(prefix="/agenda", tags=["agenda"])
@@ -62,6 +62,24 @@ async def get_disponibilidad(
         )
     ).scalars().all()
 
+    # Bloqueos negativos de la clínica: restan disponibilidad (51 / 52.9).
+    exc_rows = (
+        await db.execute(
+            select(ScheduleException.professional_id, ScheduleException.branch_id, ScheduleException.rango).where(
+                ScheduleException.clinic_id == patient.clinic_id, ScheduleException.deleted_at.is_(None)
+            )
+        )
+    ).all()
+    exc_by_prof: dict[uuid.UUID, list[tuple]] = {}
+    for pid, bid, rng in exc_rows:
+        exc_by_prof.setdefault(pid, []).append((rng.lower, rng.upper, bid))
+
+    def _bloqueado(prof_id, branch_id, start, end) -> bool:
+        for lo, hi, bid in exc_by_prof.get(prof_id, []):
+            if (bid is None or bid == branch_id) and start < hi and end > lo:
+                return True
+        return False
+
     slots: list[SlotOut] = []
     for block in blocks:
         booked_rows = (
@@ -75,6 +93,8 @@ async def get_disponibilidad(
         ).scalars().all()
         booked_ranges = [(r.lower, r.upper) for r in booked_rows]
         for start, end in generate_slots(block.rango.lower, block.rango.upper, service.duracion_min or 30, booked_ranges):
+            if _bloqueado(block.professional_id, block.branch_id, start, end):
+                continue
             slots.append(SlotOut(professional_id=block.professional_id, inicio=start, fin=end))
 
     return slots
@@ -116,6 +136,10 @@ async def reservar(
     ).scalars().first()
     if block is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Ese horario está fuera de la disponibilidad del profesional")
+
+    # El horario puede estar cerrado por un bloqueo negativo (vacaciones/permiso, 51/52.9).
+    if await overlaps_exception(db, patient.clinic_id, payload.professional_id, payload.inicio, payload.fin, block.branch_id):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ese horario está bloqueado para el profesional")
 
     appointment = Appointment(
         clinic_id=patient.clinic_id,

@@ -20,6 +20,7 @@ import type {
   MotivoAtencion,
   HorarioTemplate,
   GenerarBloquesResult,
+  BloqueoAgenda,
   Branch,
   Afiliado,
   Arancel as ArancelAseg,
@@ -277,6 +278,12 @@ export const api = {
     eliminarHorario: (id: string) => del(`/empresa/horarios/${id}`),
     generarBloques: (body: { professional_id?: string; desde: string; hasta: string }) =>
       post<GenerarBloquesResult>('/empresa/horarios/generar', body),
+    // bloqueos negativos / horarios especiales (51 · 52.9)
+    bloqueos: (professionalId?: string) =>
+      get<BloqueoAgenda[]>(`/empresa/bloqueos${professionalId ? `?professional_id=${professionalId}` : ''}`),
+    crearBloqueo: (body: { professional_id: string; branch_id?: string | null; inicio: string; fin: string; motivo?: string }) =>
+      post<BloqueoAgenda>('/empresa/bloqueos', body),
+    eliminarBloqueo: (id: string) => del(`/empresa/bloqueos/${id}`),
     motivos: () => get<MotivoAtencion[]>('/empresa/motivos'),
     crearMotivo: (body: { nombre: string; specialty_id?: string }) => post<MotivoAtencion>('/empresa/motivos', body),
     editarMotivo: (id: string, body: { nombre?: string; specialty_id?: string; activo?: boolean }) => patch<MotivoAtencion>(`/empresa/motivos/${id}`, body),

@@ -359,3 +359,24 @@ class GenerarBloquesOut(BaseModel):
     generados: int
     omitidos: int   # ya existía un bloque solapado (idempotente) o chocaba con recinto
     dias: int
+
+
+# ---- bloqueos negativos de agenda (51 / 52.9) ----
+class BloqueoIn(BaseModel):
+    professional_id: uuid.UUID
+    branch_id: uuid.UUID | None = None  # None = todas las sucursales
+    inicio: datetime
+    fin: datetime
+    motivo: str | None = Field(default=None, max_length=160)
+
+
+class BloqueoOut(BaseModel):
+    id: uuid.UUID
+    professional_id: uuid.UUID
+    professional_nombre: str
+    branch_id: uuid.UUID | None
+    branch_nombre: str | None
+    inicio: datetime
+    fin: datetime
+    motivo: str | None
+    creado_por: str | None  # auditoría "creado por" (51.6)

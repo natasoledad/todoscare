@@ -152,6 +152,18 @@ export interface GenerarBloquesResult {
   dias: number;
 }
 
+export interface BloqueoAgenda {
+  id: string;
+  professional_id: string;
+  professional_nombre: string;
+  branch_id: string | null;
+  branch_nombre: string | null;
+  inicio: string;
+  fin: string;
+  motivo: string | null;
+  creado_por: string | null;
+}
+
 export interface Branch {
   id: string;
   nombre: string;
