@@ -946,6 +946,16 @@ export interface PlanTratamiento {
   fecha: string;
 }
 
+// ---- timeline clínico unificado (70.1) ----
+export interface TimelineEvento {
+  tipo: string;
+  fecha: string;
+  titulo: string;
+  resumen: string | null;
+  icono: string;
+  estado: string | null;
+}
+
 // ---- Tanda 4: pacientes con deuda + panel de desempeño ----
 export interface PacienteLista {
   id: string;

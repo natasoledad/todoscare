@@ -9,6 +9,7 @@ import type {
   EncuestaResumen,
   PacienteLista,
   Periodontograma,
+  TimelineEvento,
   Plantilla,
   Tarea,
   AdminKpis,
@@ -239,6 +240,7 @@ export const api = {
     documentos: (patientId: string) => get<DocumentoClinico[]>(`/medico/pacientes/${patientId}/documentos`),
     crearDocumento: (patientId: string, body: { tipo: string; titulo: string; contenido?: string }) => post<DocumentoClinico>(`/medico/pacientes/${patientId}/documentos`, body),
     anularDocumento: (docId: string) => patch<DocumentoClinico>(`/medico/documentos/${docId}/anular`),
+    timeline: (patientId: string) => get<TimelineEvento[]>(`/medico/pacientes/${patientId}/timeline`),
     periodontograma: (patientId: string) => get<Periodontograma | null>(`/medico/pacientes/${patientId}/periodontograma`),
     guardarPeriodontograma: (patientId: string, datos: Record<string, { ps?: number; sangrado?: boolean }>, notas?: string) =>
       post<Periodontograma>(`/medico/pacientes/${patientId}/periodontograma`, { datos, notas }),
