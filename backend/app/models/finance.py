@@ -1,11 +1,35 @@
 import datetime
 import uuid
+from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import AuditMixin, Base, TenantMixin
+
+
+class PaymentMethod(Base, AuditMixin, TenantMixin):
+    """Medio de pago configurable de la clínica (punto 66).
+
+    Hoy `CashPayment.medio` es un string libre; este catálogo le da propiedades
+    a cada medio para el cierre financiero y la conciliación:
+
+      · `retencion_pct`      comisión que retiene el banco/tarjeta (ej. 2%).
+      · `facturable`         ¿genera documento tributario? (ej. Bono Fonasa
+                             Manual = no).
+      · `permite_devolucion` habilita reembolsos con ese medio.
+      · `acepta_cuotas`      crédito en cuotas / pagos diferidos.
+      · `activo`             deshabilitar sin borrar."""
+
+    __tablename__ = "payment_methods"
+
+    nombre: Mapped[str] = mapped_column(String(80), nullable=False)
+    retencion_pct: Mapped[Decimal] = mapped_column(Numeric(5, 4), nullable=False, server_default="0")  # 0.0000–1.0000
+    facturable: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    permite_devolucion: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    acepta_cuotas: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class Plan(Base, AuditMixin):

@@ -23,6 +23,7 @@ import type {
   BloqueoAgenda,
   LiquidacionProf,
   LiquidacionDetalle,
+  MedioPago,
   Branch,
   Afiliado,
   Arancel as ArancelAseg,
@@ -301,6 +302,12 @@ export const api = {
       post<{ professional_id: string; profesional_nombre: string; finalizadas: number; monto: number }>(
         `/empresa/liquidaciones/${profId}/finalizar`, hasta ? { hasta } : {},
       ),
+    // medios de pago (66)
+    mediosPago: () => get<MedioPago[]>('/empresa/medios-pago'),
+    crearMedioPago: (body: { nombre: string; retencion_pct?: number; facturable?: boolean; permite_devolucion?: boolean; acepta_cuotas?: boolean }) =>
+      post<MedioPago>('/empresa/medios-pago', body),
+    editarMedioPago: (id: string, body: Record<string, unknown>) => patch<MedioPago>(`/empresa/medios-pago/${id}`, body),
+    eliminarMedioPago: (id: string) => del(`/empresa/medios-pago/${id}`),
     motivos: () => get<MotivoAtencion[]>('/empresa/motivos'),
     crearMotivo: (body: { nombre: string; specialty_id?: string }) => post<MotivoAtencion>('/empresa/motivos', body),
     editarMotivo: (id: string, body: { nombre?: string; specialty_id?: string; activo?: boolean }) => patch<MotivoAtencion>(`/empresa/motivos/${id}`, body),

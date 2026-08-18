@@ -36,6 +36,7 @@ const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string;
       { id: 'horario-semanal', icon: '🗓️', t: 'Horario semanal', d: 'Patrón recurrente, descanso y modalidad; genera la agenda' },
       { id: 'especialidades', icon: '🩺', t: 'Especialidades y perfiles', d: 'Especialidades, perfil del profesional y motivos' },
       { id: 'servicios', icon: '🏷️', t: 'Productos y servicios', d: 'Catálogo y precios' },
+      { id: 'medios-pago', icon: '💳', t: 'Medios de pago', d: 'Retención, facturable, devolución y cuotas' },
       { id: 'promociones', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },
       { id: 'info', icon: 'ℹ️', t: 'Información de la empresa', d: 'Datos, responsable, ubicaciones' },
       { id: 'funcionarios', icon: '👥', t: 'Funcionarios (B2B)', d: 'Nómina cubierta y planes' },

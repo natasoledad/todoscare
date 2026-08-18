@@ -183,6 +183,16 @@ export interface LiquidacionDetalle {
   estado: string;
 }
 
+export interface MedioPago {
+  id: string;
+  nombre: string;
+  retencion_pct: number; // 0–1
+  facturable: boolean;
+  permite_devolucion: boolean;
+  acepta_cuotas: boolean;
+  activo: boolean;
+}
+
 export interface Branch {
   id: string;
   nombre: string;

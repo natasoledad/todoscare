@@ -415,3 +415,31 @@ class FinalizarLiquidacionOut(BaseModel):
     profesional_nombre: str
     finalizadas: int
     monto: float
+
+
+# ---- medios de pago (66) ----
+class MedioPagoIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=80)
+    retencion_pct: float = Field(default=0, ge=0, le=1)
+    facturable: bool = True
+    permite_devolucion: bool = False
+    acepta_cuotas: bool = False
+
+
+class MedioPagoUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=80)
+    retencion_pct: float | None = Field(default=None, ge=0, le=1)
+    facturable: bool | None = None
+    permite_devolucion: bool | None = None
+    acepta_cuotas: bool | None = None
+    activo: bool | None = None
+
+
+class MedioPagoOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    retencion_pct: float
+    facturable: bool
+    permite_devolucion: bool
+    acepta_cuotas: bool
+    activo: bool
