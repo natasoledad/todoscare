@@ -260,7 +260,7 @@ export const api = {
       patch<Especialidad>(`/empresa/especialidades/${id}`, body),
     editarPerfilProfesional: (
       profId: string,
-      body: { specialty_id?: string | null; duracion_min?: number; modalidad?: string; color?: string; activo?: boolean },
+      body: { specialty_id?: string | null; duracion_min?: number; modalidad?: string; color?: string; comision_pct?: number | null; activo?: boolean },
     ) => patch<Profesional>(`/empresa/profesionales/${profId}/perfil`, body),
     cambiarEstadoProfesional: (profId: string, activo: boolean) => patch<Profesional>(`/empresa/profesionales/${profId}/estado`, { activo }),
     remanejarPacientes: (profId: string, destinoId: string) =>
@@ -292,8 +292,8 @@ export const api = {
     crearRecinto: (body: { nombre: string; numero: number; tipo: string; branch_id?: string }) => post<Recinto>('/empresa/recintos', body),
     eliminarRecinto: (id: string) => del(`/empresa/recintos/${id}`),
     servicios: () => get<ServicioAdmin[]>('/empresa/servicios'),
-    crearServicio: (body: { nombre: string; precio: number; duracion_min: number; specialty_id?: string; afecto_iva?: boolean }) => post<ServicioAdmin>('/empresa/servicios', body),
-    editarServicio: (id: string, body: { nombre?: string; precio?: number; duracion_min?: number; activo?: boolean; afecto_iva?: boolean }) => patch<ServicioAdmin>(`/empresa/servicios/${id}`, body),
+    crearServicio: (body: { nombre: string; precio: number; duracion_min: number; specialty_id?: string; afecto_iva?: boolean; comisiona?: boolean }) => post<ServicioAdmin>('/empresa/servicios', body),
+    editarServicio: (id: string, body: { nombre?: string; precio?: number; duracion_min?: number; activo?: boolean; afecto_iva?: boolean; comisiona?: boolean }) => patch<ServicioAdmin>(`/empresa/servicios/${id}`, body),
     eliminarServicio: (id: string) => del(`/empresa/servicios/${id}`),
     promociones: () => get<Promocion[]>('/empresa/promociones'),
     crearPromo: (body: { nombre: string; descuento?: string; segmento?: string; estado?: string }) => post<Promocion>('/empresa/promociones', body),

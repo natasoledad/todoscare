@@ -53,6 +53,7 @@ export function Especialidades() {
   const [pSpec, setPSpec] = useState('');
   const [pDur, setPDur] = useState('');
   const [pMod, setPMod] = useState('presencial');
+  const [pComision, setPComision] = useState(''); // en %, ej. "60"
   const [pError, setPError] = useState<string | null>(null);
 
   const abrirPerfil = (p: Profesional) => {
@@ -60,6 +61,7 @@ export function Especialidades() {
     setPSpec(p.specialty_id ?? '');
     setPDur(p.duracion_min ? String(p.duracion_min) : '');
     setPMod(p.modalidad ?? 'presencial');
+    setPComision(p.comision_pct != null ? String(Math.round(p.comision_pct * 100)) : '');
     setPError(null);
   };
   const guardarPerfil = async () => {
@@ -70,6 +72,7 @@ export function Especialidades() {
         specialty_id: pSpec || null,
         duracion_min: pDur ? Number(pDur) : undefined,
         modalidad: pMod,
+        comision_pct: pComision === '' ? null : Number(pComision) / 100,
       });
       setPerfilProf(null);
       await loadProfs();
@@ -264,6 +267,9 @@ export function Especialidades() {
             <option value="videoconsulta">Videoconsulta</option>
             <option value="ambas">Presencial + Videoconsulta</option>
           </select>
+          <label className="font-heading font-semibold text-xs text-sub">Comisión (%)</label>
+          <input value={pComision} onChange={(e) => setPComision(e.target.value)} placeholder="ej. 60 — vacío = % por defecto" inputMode="numeric"
+            className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
           {pError && <div className="text-xs text-danger">{pError}</div>}
           <Button onClick={guardarPerfil} className="w-full">Guardar perfil</Button>
         </BottomSheet>

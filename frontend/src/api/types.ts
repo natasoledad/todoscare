@@ -109,6 +109,7 @@ export interface Profesional {
   tipo_especialidad?: string | null; // medica | dental
   duracion_min?: number | null;
   modalidad?: string; // presencial | videoconsulta | ambas
+  comision_pct?: number | null; // 0–1
   activo?: boolean;
 }
 
@@ -198,6 +199,7 @@ export interface ServicioAdmin {
   activo: boolean;
   specialty_nombre: string | null;
   afecto_iva: boolean;
+  comisiona: boolean;
 }
 
 export interface Promocion {

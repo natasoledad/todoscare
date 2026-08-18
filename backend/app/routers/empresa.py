@@ -448,7 +448,7 @@ async def profesionales(
     prof = aliased(ProfessionalProfile)
     rows = (
         await db.execute(
-            select(User.id, User.nombre, prof.specialty_id, prof.duracion_min, prof.modalidad, prof.activo, Specialty.nombre, Specialty.tipo)
+            select(User.id, User.nombre, prof.specialty_id, prof.duracion_min, prof.modalidad, prof.activo, prof.comision_pct, Specialty.nombre, Specialty.tipo)
             .join(RoleAssignment, RoleAssignment.user_id == User.id)
             .join(Role, Role.id == RoleAssignment.role_id)
             .outerjoin(prof, (prof.user_id == User.id) & (prof.clinic_id == clinic_id) & (prof.deleted_at.is_(None)))
@@ -461,9 +461,11 @@ async def profesionales(
     return [
         ProfesionalOut(
             id=i, nombre=n, specialty_id=sid, specialty_nombre=snom, tipo_especialidad=stipo,
-            duracion_min=dur, modalidad=mod or "presencial", activo=act if act is not None else True,
+            duracion_min=dur, modalidad=mod or "presencial",
+            comision_pct=float(cpct) if cpct is not None else None,
+            activo=act if act is not None else True,
         )
-        for i, n, sid, dur, mod, act, snom, stipo in rows
+        for i, n, sid, dur, mod, act, cpct, snom, stipo in rows
     ]
 
 
@@ -579,7 +581,9 @@ async def _perfil_out(db: AsyncSession, user_id: uuid.UUID, profile: Professiona
         id=user_id, nombre=user.nombre if user else "",
         specialty_id=profile.specialty_id, specialty_nombre=specialty.nombre if specialty else None,
         tipo_especialidad=specialty.tipo if specialty else None,
-        duracion_min=profile.duracion_min, modalidad=profile.modalidad, activo=profile.activo,
+        duracion_min=profile.duracion_min, modalidad=profile.modalidad,
+        comision_pct=float(profile.comision_pct) if profile.comision_pct is not None else None,
+        activo=profile.activo,
     )
 
 
@@ -1266,7 +1270,7 @@ async def _servicio_out(db: AsyncSession, item: CatalogItem) -> ServicioAdminOut
     specialty = await db.get(Specialty, item.specialty_id) if item.specialty_id else None
     return ServicioAdminOut(
         id=item.id, nombre=item.nombre, precio=float(item.precio), duracion_min=item.duracion_min, activo=item.activo,
-        specialty_nombre=specialty.nombre if specialty else None, afecto_iva=item.afecto_iva
+        specialty_nombre=specialty.nombre if specialty else None, afecto_iva=item.afecto_iva, comisiona=item.comisiona
     )
 
 
@@ -1291,7 +1295,7 @@ async def crear_servicio(
     ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.CREAR)),
 ) -> ServicioAdminOut:
     clinic_id = empresa_clinic_id(ctx)
-    item = CatalogItem(clinic_id=clinic_id, specialty_id=payload.specialty_id, tipo="servicio", nombre=payload.nombre, precio=payload.precio, duracion_min=payload.duracion_min, afecto_iva=payload.afecto_iva)
+    item = CatalogItem(clinic_id=clinic_id, specialty_id=payload.specialty_id, tipo="servicio", nombre=payload.nombre, precio=payload.precio, duracion_min=payload.duracion_min, afecto_iva=payload.afecto_iva, comisiona=payload.comisiona)
     db.add(item)
     await db.commit()
     await db.refresh(item)

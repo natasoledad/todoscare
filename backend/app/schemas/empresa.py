@@ -29,6 +29,7 @@ class ProfesionalOut(BaseModel):
     tipo_especialidad: str | None = None  # medica | dental
     duracion_min: int | None = None
     modalidad: str = "presencial"  # presencial | videoconsulta | ambas
+    comision_pct: float | None = None  # % de comisión (0–1); None = % por defecto de la clínica
     activo: bool = True
 
 
@@ -95,6 +96,7 @@ class ServicioIn(BaseModel):
     precio: float = Field(ge=0)
     duracion_min: int = Field(gt=0)
     afecto_iva: bool = True  # en Chile las prestaciones médicas/odontológicas van exentas (False)
+    comisiona: bool = True    # ¿comisiona al profesional? (lab/insumos = False)
 
 
 class ServicioUpdate(BaseModel):
@@ -103,6 +105,7 @@ class ServicioUpdate(BaseModel):
     duracion_min: int | None = Field(default=None, gt=0)
     activo: bool | None = None
     afecto_iva: bool | None = None
+    comisiona: bool | None = None
 
 
 class ServicioAdminOut(BaseModel):
@@ -113,6 +116,7 @@ class ServicioAdminOut(BaseModel):
     activo: bool
     specialty_nombre: str | None
     afecto_iva: bool
+    comisiona: bool
 
 
 # ---- promociones ----
@@ -266,6 +270,7 @@ class PerfilProfesionalUpdate(BaseModel):
     duracion_min: int | None = Field(default=None, gt=0)
     modalidad: str | None = Field(default=None, pattern="^(presencial|videoconsulta|ambas)$")
     color: str | None = Field(default=None, max_length=9)
+    comision_pct: float | None = Field(default=None, ge=0, le=1)
     activo: bool | None = None
 
 
