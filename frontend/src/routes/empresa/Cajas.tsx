@@ -33,6 +33,8 @@ export function Cajas() {
   const [abono, setAbono] = useState('');
   const [mov, setMov] = useState({ medio: 'efectivo', monto: '', convenio: '', boleta: '', glosa: '', emitir_boleta: false, exento: false });
   const [fondo, setFondo] = useState('');
+  const [anularId, setAnularId] = useState<string | null>(null);
+  const [anularMotivo, setAnularMotivo] = useState('');
 
   const load = async () => {
     const [m, l] = await Promise.all([api.cajas.miCaja(), api.cajas.lista()]);
@@ -76,6 +78,17 @@ export function Cajas() {
       setSheet(null); setFondo('');
       await load();
     } catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo cerrar la caja'); }
+    finally { setSaving(false); }
+  };
+
+  const anular = async () => {
+    if (!anularId) return;
+    setSaving(true); setError(null);
+    try {
+      await api.cajas.anularPago(anularId, anularMotivo || undefined);
+      setAnularId(null); setAnularMotivo('');
+      await load();
+    } catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo anular el pago'); }
     finally { setSaving(false); }
   };
 
@@ -133,8 +146,11 @@ export function Cajas() {
                   </div>
                   <div className="text-[11px] text-sub">{horaCorta(t.fecha)}{t.boleta ? ` · boleta ${t.boleta}` : ''}{t.glosa ? ` · ${t.glosa}` : ''}</div>
                 </div>
-                <div className={`text-[13px] font-semibold tabular-nums ${t.tipo === 'gasto' ? 'text-danger' : 'text-teal-dark'}`}>
-                  {t.tipo === 'gasto' ? '−' : '+'}{money(t.monto)}
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className={`text-[13px] font-semibold tabular-nums ${t.tipo === 'gasto' ? 'text-danger' : 'text-teal-dark'}`}>
+                    {t.tipo === 'gasto' ? '−' : '+'}{money(t.monto)}
+                  </div>
+                  <button onClick={() => { setError(null); setAnularMotivo(''); setAnularId(t.id); }} className="text-[11px] font-bold text-danger">Anular</button>
                 </div>
               </div>
             ))}
@@ -159,6 +175,17 @@ export function Cajas() {
       </div>
 
       {/* Sheet: abrir */}
+      {anularId && (
+        <BottomSheet onClose={() => setAnularId(null)}>
+          <div className="font-heading font-extrabold text-[17px] text-ink">Anular pago</div>
+          <div className="text-[12.5px] text-sub">El pago sale de los totales de la caja y queda registrado como anulado, con tu nombre y la hora. No se borra.</div>
+          <input value={anularMotivo} onChange={(e) => setAnularMotivo(e.target.value)} placeholder="Motivo (ej. cobro duplicado)"
+            className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+          {error && <div className="text-xs text-danger">{error}</div>}
+          <Button onClick={anular} disabled={saving} className="w-full">{saving ? 'Anulando…' : 'Anular pago'}</Button>
+        </BottomSheet>
+      )}
+
       {sheet === 'abrir' && (
         <BottomSheet onClose={() => setSheet(null)}>
           <div className="font-heading font-extrabold text-[17px] text-ink">Abrir caja</div>
