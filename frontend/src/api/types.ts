@@ -104,6 +104,28 @@ export interface EmpresaKpis {
 export interface Profesional {
   id: string;
   nombre: string;
+  specialty_id?: string | null;
+  specialty_nombre?: string | null;
+  tipo_especialidad?: string | null; // medica | dental
+  duracion_min?: number | null;
+  modalidad?: string; // presencial | videoconsulta | ambas
+  activo?: boolean;
+}
+
+export interface Especialidad {
+  id: string;
+  nombre: string;
+  tipo: string; // medica | dental
+  icono: string | null;
+  activo: boolean;
+}
+
+export interface MotivoAtencion {
+  id: string;
+  nombre: string;
+  specialty_id: string | null;
+  specialty_nombre: string | null;
+  activo: boolean;
 }
 
 export interface Branch {

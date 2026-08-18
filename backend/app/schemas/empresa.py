@@ -23,6 +23,13 @@ class KpisOut(BaseModel):
 class ProfesionalOut(BaseModel):
     id: uuid.UUID
     nombre: str
+    # Perfil del profesional (54.1b) — opcionales para no romper consumidores previos.
+    specialty_id: uuid.UUID | None = None
+    specialty_nombre: str | None = None
+    tipo_especialidad: str | None = None  # medica | dental
+    duracion_min: int | None = None
+    modalidad: str = "presencial"  # presencial | videoconsulta | ambas
+    activo: bool = True
 
 
 class BranchOut(BaseModel):
@@ -229,3 +236,54 @@ class DesempenoOut(BaseModel):
     ticket_medio: float
     por_profesional: list[DesempenoProfesional]
     por_grupo: list[DesempenoGrupo]
+
+
+# ---- especialidades (54) ----
+class EspecialidadIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    tipo: str = Field(pattern="^(medica|dental)$")  # medica | dental
+    icono: str | None = Field(default=None, max_length=10)
+
+
+class EspecialidadUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=120)
+    tipo: str | None = Field(default=None, pattern="^(medica|dental)$")
+    icono: str | None = Field(default=None, max_length=10)
+    activo: bool | None = None
+
+
+class EspecialidadOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    tipo: str
+    icono: str | None
+    activo: bool
+
+
+# ---- perfil del profesional (54.1b) ----
+class PerfilProfesionalUpdate(BaseModel):
+    specialty_id: uuid.UUID | None = None
+    duracion_min: int | None = Field(default=None, gt=0)
+    modalidad: str | None = Field(default=None, pattern="^(presencial|videoconsulta|ambas)$")
+    color: str | None = Field(default=None, max_length=9)
+    activo: bool | None = None
+
+
+# ---- motivos de atención (54.9) ----
+class MotivoIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=120)
+    specialty_id: uuid.UUID | None = None
+
+
+class MotivoUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=120)
+    specialty_id: uuid.UUID | None = None
+    activo: bool | None = None
+
+
+class MotivoOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    specialty_id: uuid.UUID | None
+    specialty_nombre: str | None
+    activo: bool

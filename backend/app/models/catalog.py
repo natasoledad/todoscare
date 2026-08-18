@@ -10,12 +10,32 @@ from sqlalchemy.dialects.postgresql import UUID
 
 class Specialty(Base, AuditMixin):
     """Platform-wide taxonomy (Cardiología, Odontología, ...) — Admin-managed,
-    not tenant-scoped. Clinics attach pricing/duration to it via CatalogItem."""
+    not tenant-scoped. Clinics attach pricing/duration to it via CatalogItem
+    and assign it to a professional's profile (ProfessionalProfile).
+
+    `tipo` (dental | medica) clasifica la especialidad como en Medilink
+    ("Tipo de especialidad", 54.3); `activo` permite deshabilitarla del
+    catálogo sin borrarla (54.4)."""
 
     __tablename__ = "specialties"
 
     nombre: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
     icono: Mapped[str | None] = mapped_column(String(10))
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, server_default="medica")  # medica | dental
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
+class MotivoAtencion(Base, AuditMixin, TenantMixin):
+    """Motivo de consulta que la clínica ofrece (Medilink §especialidades →
+    "Motivo De Atención", 54.9). Puede colgar de una especialidad o ser
+    general; identifica el porqué de la cita y luego alimenta la agenda
+    online y los reportes. Tenant-scoped: cada clínica arma su propio set."""
+
+    __tablename__ = "motivos_atencion"
+
+    specialty_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("specialties.id"), index=True)
+    nombre: Mapped[str] = mapped_column(String(120), nullable=False)
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class CatalogItem(Base, AuditMixin, TenantMixin):

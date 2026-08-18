@@ -10,8 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.database import get_db
-from app.models.catalog import CatalogItem, Promotion, Specialty
+from app.models.catalog import CatalogItem, MotivoAtencion, Promotion, Specialty
 from app.models.facility import Room
+from app.models.professional import ProfessionalProfile
 from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
@@ -34,9 +35,16 @@ from app.schemas.empresa import (
     PacienteListaOut,
     FuncionarioIn,
     FuncionarioOut,
+    EspecialidadIn,
+    EspecialidadOut,
+    EspecialidadUpdate,
     InfoEmpresaOut,
     InfoEmpresaUpdate,
     KpisOut,
+    MotivoIn,
+    MotivoOut,
+    MotivoUpdate,
+    PerfilProfesionalUpdate,
     ProfesionalOut,
     PromocionIn,
     PromocionOut,
@@ -425,16 +433,26 @@ async def profesionales(
     ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
 ) -> list[ProfesionalOut]:
     clinic_id = empresa_clinic_id(ctx)
+    prof = aliased(ProfessionalProfile)
     rows = (
         await db.execute(
-            select(User.id, User.nombre)
+            select(User.id, User.nombre, prof.specialty_id, prof.duracion_min, prof.modalidad, prof.activo, Specialty.nombre, Specialty.tipo)
             .join(RoleAssignment, RoleAssignment.user_id == User.id)
             .join(Role, Role.id == RoleAssignment.role_id)
+            .outerjoin(prof, (prof.user_id == User.id) & (prof.clinic_id == clinic_id) & (prof.deleted_at.is_(None)))
+            .outerjoin(Specialty, Specialty.id == prof.specialty_id)
             .where(Role.code == RoleCode.MEDICO.value, RoleAssignment.clinic_id == clinic_id, RoleAssignment.deleted_at.is_(None))
             .distinct()
+            .order_by(User.nombre)
         )
     ).all()
-    return [ProfesionalOut(id=i, nombre=n) for i, n in rows]
+    return [
+        ProfesionalOut(
+            id=i, nombre=n, specialty_id=sid, specialty_nombre=snom, tipo_especialidad=stipo,
+            duracion_min=dur, modalidad=mod or "presencial", activo=act if act is not None else True,
+        )
+        for i, n, sid, dur, mod, act, snom, stipo in rows
+    ]
 
 
 @router.get("/sucursales", response_model=list[BranchOut])
@@ -445,6 +463,198 @@ async def sucursales(
     clinic_id = empresa_clinic_id(ctx)
     rows = (await db.execute(select(Branch).where(Branch.clinic_id == clinic_id, Branch.deleted_at.is_(None)))).scalars().all()
     return [BranchOut(id=b.id, nombre=b.nombre) for b in rows]
+
+
+# ─────────────────────────── especialidades (54) ───────────────────────────
+# NOTA de tenancy: `specialties` es una taxonomía global (compartida entre
+# clínicas), no tenant-scoped. Por eso la clínica crea/edita el vocabulario
+# global y `activo` deshabilita la especialidad del catálogo (54.4) — igual
+# que las pestañas Habilitadas/Deshabilitadas de Medilink. La habilitación
+# por-clínica (que una sede use un subconjunto) es un refinamiento futuro; la
+# asignación real al profesional ya es tenant-scoped vía ProfessionalProfile.
+def _esp_out(s: Specialty) -> EspecialidadOut:
+    return EspecialidadOut(id=s.id, nombre=s.nombre, tipo=s.tipo, icono=s.icono, activo=s.activo)
+
+
+@router.get("/especialidades", response_model=list[EspecialidadOut])
+async def list_especialidades(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.VER)),
+) -> list[EspecialidadOut]:
+    empresa_clinic_id(ctx)  # exige contexto de empresa
+    rows = (await db.execute(select(Specialty).where(Specialty.deleted_at.is_(None)).order_by(Specialty.tipo, Specialty.nombre))).scalars().all()
+    return [_esp_out(s) for s in rows]
+
+
+@router.post("/especialidades", response_model=EspecialidadOut, status_code=status.HTTP_201_CREATED)
+async def crear_especialidad(
+    payload: EspecialidadIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.CREAR)),
+) -> EspecialidadOut:
+    empresa_clinic_id(ctx)
+    s = Specialty(nombre=payload.nombre, tipo=payload.tipo, icono=payload.icono)
+    db.add(s)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una especialidad con ese nombre") from None
+    await db.refresh(s)
+    return _esp_out(s)
+
+
+@router.patch("/especialidades/{esp_id}", response_model=EspecialidadOut)
+async def editar_especialidad(
+    esp_id: uuid.UUID,
+    payload: EspecialidadUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.EDITAR)),
+) -> EspecialidadOut:
+    empresa_clinic_id(ctx)
+    s = await db.get(Specialty, esp_id)
+    if s is None or s.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Especialidad no encontrada")
+    for k, v in payload.model_dump(exclude_none=True).items():
+        setattr(s, k, v)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una especialidad con ese nombre") from None
+    await db.refresh(s)
+    return _esp_out(s)
+
+
+# ─────────────────────────── perfil del profesional (54.1b) ───────────────────────────
+async def _ensure_profile(db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID) -> ProfessionalProfile:
+    """Valida que el usuario sea un profesional (rol médico) de la clínica y
+    devuelve su perfil, creándolo vacío la primera vez (upsert)."""
+    is_medico = (
+        await db.execute(
+            select(func.count())
+            .select_from(RoleAssignment)
+            .join(Role, Role.id == RoleAssignment.role_id)
+            .where(
+                RoleAssignment.user_id == user_id,
+                RoleAssignment.clinic_id == clinic_id,
+                RoleAssignment.deleted_at.is_(None),
+                Role.code == RoleCode.MEDICO.value,
+            )
+        )
+    ).scalar_one()
+    if not is_medico:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profesional no encontrado en esta clínica")
+    profile = (
+        await db.execute(
+            select(ProfessionalProfile).where(
+                ProfessionalProfile.clinic_id == clinic_id,
+                ProfessionalProfile.user_id == user_id,
+                ProfessionalProfile.deleted_at.is_(None),
+            )
+        )
+    ).scalars().first()
+    if profile is None:
+        profile = ProfessionalProfile(clinic_id=clinic_id, user_id=user_id)
+        db.add(profile)
+    return profile
+
+
+async def _perfil_out(db: AsyncSession, user_id: uuid.UUID, profile: ProfessionalProfile) -> ProfesionalOut:
+    user = await db.get(User, user_id)
+    specialty = await db.get(Specialty, profile.specialty_id) if profile.specialty_id else None
+    return ProfesionalOut(
+        id=user_id, nombre=user.nombre if user else "",
+        specialty_id=profile.specialty_id, specialty_nombre=specialty.nombre if specialty else None,
+        tipo_especialidad=specialty.tipo if specialty else None,
+        duracion_min=profile.duracion_min, modalidad=profile.modalidad, activo=profile.activo,
+    )
+
+
+@router.patch("/profesionales/{prof_id}/perfil", response_model=ProfesionalOut)
+async def editar_perfil_profesional(
+    prof_id: uuid.UUID,
+    payload: PerfilProfesionalUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> ProfesionalOut:
+    clinic_id = empresa_clinic_id(ctx)
+    profile = await _ensure_profile(db, clinic_id, prof_id)
+    data = payload.model_dump(exclude_unset=True)
+    if data.get("specialty_id") is not None:
+        specialty = await db.get(Specialty, data["specialty_id"])
+        if specialty is None or specialty.deleted_at is not None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Especialidad no encontrada")
+    for k, v in data.items():
+        setattr(profile, k, v)
+    await db.commit()
+    await db.refresh(profile)
+    return await _perfil_out(db, prof_id, profile)
+
+
+# ─────────────────────────── motivos de atención (54.9) ───────────────────────────
+async def _motivo_out(db: AsyncSession, m: MotivoAtencion) -> MotivoOut:
+    specialty = await db.get(Specialty, m.specialty_id) if m.specialty_id else None
+    return MotivoOut(id=m.id, nombre=m.nombre, specialty_id=m.specialty_id, specialty_nombre=specialty.nombre if specialty else None, activo=m.activo)
+
+
+@router.get("/motivos", response_model=list[MotivoOut])
+async def list_motivos(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
+) -> list[MotivoOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    rows = (await db.execute(select(MotivoAtencion).where(MotivoAtencion.clinic_id == clinic_id, MotivoAtencion.deleted_at.is_(None)).order_by(MotivoAtencion.nombre))).scalars().all()
+    return [await _motivo_out(db, m) for m in rows]
+
+
+@router.post("/motivos", response_model=MotivoOut, status_code=status.HTTP_201_CREATED)
+async def crear_motivo(
+    payload: MotivoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.CREAR)),
+) -> MotivoOut:
+    clinic_id = empresa_clinic_id(ctx)
+    m = MotivoAtencion(clinic_id=clinic_id, nombre=payload.nombre, specialty_id=payload.specialty_id)
+    db.add(m)
+    await db.commit()
+    await db.refresh(m)
+    return await _motivo_out(db, m)
+
+
+async def _own_motivo(db: AsyncSession, clinic_id: uuid.UUID, motivo_id: uuid.UUID) -> MotivoAtencion:
+    m = await db.get(MotivoAtencion, motivo_id)
+    if m is None or m.deleted_at is not None or m.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Motivo no encontrado")
+    return m
+
+
+@router.patch("/motivos/{motivo_id}", response_model=MotivoOut)
+async def editar_motivo(
+    motivo_id: uuid.UUID,
+    payload: MotivoUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> MotivoOut:
+    clinic_id = empresa_clinic_id(ctx)
+    m = await _own_motivo(db, clinic_id, motivo_id)
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(m, k, v)
+    await db.commit()
+    await db.refresh(m)
+    return await _motivo_out(db, m)
+
+
+@router.delete("/motivos/{motivo_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_motivo(
+    motivo_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.ELIMINAR)),
+) -> None:
+    clinic_id = empresa_clinic_id(ctx)
+    m = await _own_motivo(db, clinic_id, motivo_id)
+    await db.delete(m)  # baja lógica vía listener
+    await db.commit()
 
 
 async def _bloque_out(db: AsyncSession, block: AvailabilityBlock) -> BloqueOut:

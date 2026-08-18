@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     insurance,
     integrations,
     patient,
+    professional,
     scheduling,
     tax,
     tenant,

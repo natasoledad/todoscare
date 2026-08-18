@@ -16,6 +16,8 @@ import type {
   AuthOut,
   Bloque,
   Recinto,
+  Especialidad,
+  MotivoAtencion,
   Branch,
   Afiliado,
   Arancel as ArancelAseg,
@@ -248,6 +250,19 @@ export const api = {
     crearBloque: (body: { professional_id: string; branch_id: string; inicio: string; fin: string; room_id?: string; reglas?: Record<string, unknown> }) =>
       post<Bloque>('/empresa/agendas', body),
     eliminarBloque: (id: string) => del(`/empresa/agendas/${id}`),
+    // especialidades + perfil del profesional + motivos (punto 54)
+    especialidades: () => get<Especialidad[]>('/empresa/especialidades'),
+    crearEspecialidad: (body: { nombre: string; tipo: string; icono?: string }) => post<Especialidad>('/empresa/especialidades', body),
+    editarEspecialidad: (id: string, body: { nombre?: string; tipo?: string; icono?: string; activo?: boolean }) =>
+      patch<Especialidad>(`/empresa/especialidades/${id}`, body),
+    editarPerfilProfesional: (
+      profId: string,
+      body: { specialty_id?: string | null; duracion_min?: number; modalidad?: string; color?: string; activo?: boolean },
+    ) => patch<Profesional>(`/empresa/profesionales/${profId}/perfil`, body),
+    motivos: () => get<MotivoAtencion[]>('/empresa/motivos'),
+    crearMotivo: (body: { nombre: string; specialty_id?: string }) => post<MotivoAtencion>('/empresa/motivos', body),
+    editarMotivo: (id: string, body: { nombre?: string; specialty_id?: string; activo?: boolean }) => patch<MotivoAtencion>(`/empresa/motivos/${id}`, body),
+    eliminarMotivo: (id: string) => del(`/empresa/motivos/${id}`),
     recintos: (tipo?: string) => get<Recinto[]>(`/empresa/recintos${tipo ? `?tipo=${tipo}` : ''}`),
     crearRecinto: (body: { nombre: string; numero: number; tipo: string; branch_id?: string }) => post<Recinto>('/empresa/recintos', body),
     eliminarRecinto: (id: string) => del(`/empresa/recintos/${id}`),
