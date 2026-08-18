@@ -337,6 +337,8 @@ export const api = {
     movimiento: (id: string, body: { tipo: string; medio: string; monto: number; patient_id?: string; appointment_id?: string; convenio?: string; referencia?: string; boleta?: string; glosa?: string; emitir_boleta?: boolean; tipo_documento?: string; exento?: boolean; receptor_tax_id?: string; receptor_nombre?: string }) =>
       post<MovimientoCaja>(`/empresa/cajas/${id}/movimientos`, body),
     cerrar: (id: string, fondo_fijo: number) => post<CajaDetalle>(`/empresa/cajas/${id}/cerrar`, { fondo_fijo }),
+    // anulación auditada de pagos (67)
+    anularPago: (paymentId: string, motivo?: string) => post<unknown>(`/empresa/cajas/pagos/${paymentId}/anular`, motivo ? { motivo } : {}),
   },
   tributario: {
     tipos: () => get<TributarioTipos>('/tributario/tipos'),

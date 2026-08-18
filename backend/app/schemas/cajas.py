@@ -68,3 +68,21 @@ class CajaOut(BaseModel):
 class CajaDetalleOut(CajaOut):
     por_medio: dict[str, float]
     transacciones: list[MovimientoOut]
+
+
+# ---- anulación de pagos (67) ----
+class AnularPagoIn(BaseModel):
+    motivo: str | None = Field(default=None, max_length=255)
+
+
+class PagoAnuladoOut(BaseModel):
+    id: uuid.UUID
+    tipo: str
+    medio: str
+    monto: float
+    paciente_nombre: str | None
+    appointment_id: uuid.UUID | None
+    fecha: datetime            # recepción original
+    anulado_at: datetime | None
+    anulado_por: str | None    # nombre de quien anuló (auditoría)
+    motivo: str | None

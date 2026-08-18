@@ -139,3 +139,9 @@ class CashPayment(Base, AuditMixin, TenantMixin):
     referencia: Mapped[str | None] = mapped_column(String(120))
     boleta: Mapped[str | None] = mapped_column(String(120))
     glosa: Mapped[str | None] = mapped_column(String(255))  # descripción (útil en gastos)
+    # Anulación auditada (67.1/67.2): el pago no se borra; se marca anulado con
+    # traza (quién, cuándo, por qué) y se asienta un reverso inmutable en el ledger.
+    anulado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    anulado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    anulado_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    motivo_anulacion: Mapped[str | None] = mapped_column(String(255))

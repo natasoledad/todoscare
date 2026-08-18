@@ -12,6 +12,7 @@ from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.database import get_db
 from app.integrations import tributario as tributario_conn
@@ -26,11 +27,13 @@ from app.routers.empresa import empresa_clinic_id
 from app.schemas.cajas import (
     MEDIOS,
     AbrirCajaIn,
+    AnularPagoIn,
     CajaDetalleOut,
     CajaOut,
     CerrarCajaIn,
     MovimientoIn,
     MovimientoOut,
+    PagoAnuladoOut,
 )
 from app.services.medico import audit
 from app.tenancy.context import TenantContext
@@ -42,7 +45,7 @@ async def _totales(db: AsyncSession, caja_id: uuid.UUID) -> tuple[float, float, 
     rows = (
         await db.execute(
             select(CashPayment.tipo, CashPayment.medio, func.coalesce(func.sum(CashPayment.monto), 0))
-            .where(CashPayment.cash_register_id == caja_id, CashPayment.deleted_at.is_(None))
+            .where(CashPayment.cash_register_id == caja_id, CashPayment.deleted_at.is_(None), CashPayment.anulado.is_(False))
             .group_by(CashPayment.tipo, CashPayment.medio)
         )
     ).all()
@@ -84,7 +87,7 @@ async def _caja_out(db: AsyncSession, caja: CashRegister, *, detalle: bool = Fal
             select(CashPayment, User.nombre)
             .outerjoin(Patient, Patient.id == CashPayment.patient_id)
             .outerjoin(User, User.id == Patient.user_id)
-            .where(CashPayment.cash_register_id == caja.id, CashPayment.deleted_at.is_(None))
+            .where(CashPayment.cash_register_id == caja.id, CashPayment.deleted_at.is_(None), CashPayment.anulado.is_(False))
             .order_by(CashPayment.created_at.desc())
         )
     ).all()
@@ -314,3 +317,68 @@ async def cerrar_caja(
     await db.commit()
     await db.refresh(caja)
     return await _caja_out(db, caja, detalle=True)  # type: ignore[return-value]
+
+
+# ─────────────────────────── anulación de pagos (67) ───────────────────────────
+@router.post("/pagos/{payment_id}/anular", response_model=PagoAnuladoOut)
+async def anular_pago(
+    payment_id: uuid.UUID,
+    payload: AnularPagoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CAJAS, Action.EDITAR)),
+) -> PagoAnuladoOut:
+    """Anula un pago dejando traza (67.1/67.2). El pago no se borra: se marca
+    anulado (sale de los totales de la caja) y se asienta un reverso inmutable
+    en el ledger. Solo sobre una caja abierta, para no alterar un arqueo cerrado."""
+    clinic_id = empresa_clinic_id(ctx)
+    mov = await db.get(CashPayment, payment_id)
+    if mov is None or mov.deleted_at is not None or mov.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Pago no encontrado")
+    if mov.anulado:
+        raise HTTPException(status.HTTP_409_CONFLICT, "El pago ya está anulado")
+    caja = await db.get(CashRegister, mov.cash_register_id)
+    if caja is None or caja.estado != "abierta":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Solo se pueden anular pagos de una caja abierta")
+
+    mov.anulado = True
+    mov.anulado_por = ctx.user_id
+    mov.anulado_at = datetime.now(timezone.utc)
+    mov.motivo_anulacion = payload.motivo
+    tipo_rev = "egreso_anulado" if mov.tipo == "gasto" else "cobro_anulado"
+    db.add(LedgerEntry(clinic_id=clinic_id, tipo=tipo_rev, monto=mov.monto, ref=f"cash_payment:{mov.id}:anulacion"))
+    audit(db, ctx, clinic_id=clinic_id, accion="anular_pago", recurso=f"cash_payment:{mov.id}", despues={"motivo": payload.motivo, "monto": float(mov.monto)})
+    await db.commit()
+
+    autor = await db.get(User, mov.anulado_por)
+    return PagoAnuladoOut(
+        id=mov.id, tipo=mov.tipo, medio=mov.medio, monto=float(mov.monto), paciente_nombre=None,
+        appointment_id=mov.appointment_id, fecha=mov.created_at, anulado_at=mov.anulado_at,
+        anulado_por=autor.nombre if autor else None, motivo=mov.motivo_anulacion,
+    )
+
+
+@router.get("/pagos/anulados", response_model=list[PagoAnuladoOut])
+async def pagos_anulados(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CAJAS, Action.VER)),
+) -> list[PagoAnuladoOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    pat_user = aliased(User)
+    anul_user = aliased(User)
+    rows = (
+        await db.execute(
+            select(CashPayment, pat_user.nombre, anul_user.nombre)
+            .outerjoin(Patient, Patient.id == CashPayment.patient_id)
+            .outerjoin(pat_user, pat_user.id == Patient.user_id)
+            .outerjoin(anul_user, anul_user.id == CashPayment.anulado_por)
+            .where(CashPayment.clinic_id == clinic_id, CashPayment.deleted_at.is_(None), CashPayment.anulado.is_(True))
+            .order_by(CashPayment.anulado_at.desc())
+        )
+    ).all()
+    return [
+        PagoAnuladoOut(
+            id=p.id, tipo=p.tipo, medio=p.medio, monto=float(p.monto), paciente_nombre=pac,
+            appointment_id=p.appointment_id, fecha=p.created_at, anulado_at=p.anulado_at, anulado_por=anulador, motivo=p.motivo_anulacion,
+        )
+        for p, pac, anulador in rows
+    ]
