@@ -216,6 +216,36 @@ export interface GastosResumen {
   gastos: GastoLinea[];
 }
 
+export interface Arancel {
+  id: string;
+  nombre: string;
+  tipo: string; // base | particular | empresa
+  es_base: boolean;
+  activo: boolean;
+  n_items: number;
+}
+
+export interface ArancelCat {
+  id: string;
+  arancel_id: string;
+  nombre: string;
+  orden: number;
+}
+
+export interface ArancelItem {
+  id: string;
+  arancel_id: string;
+  categoria_id: string | null;
+  categoria_nombre: string | null;
+  codigo: string | null;
+  nombre: string;
+  precio: number;
+  precio_referencia: number | null;
+  permite_descuento: boolean;
+  comisiona: boolean;
+  activo: boolean;
+}
+
 export interface Branch {
   id: string;
   nombre: string;
