@@ -72,6 +72,28 @@ class AvailabilityBlock(Base, AuditMixin, TenantMixin):
     reglas: Mapped[dict | None] = mapped_column(JSONB)  # cupos, telemedicina, buffers, excepciones
 
 
+class ScheduleException(Base, AuditMixin, TenantMixin):
+    """Bloqueo negativo de agenda — cierra la disponibilidad de un profesional
+    en un rango de fechas/horas (puntos 51 y 52.9).
+
+    Es la contraparte de los availability_blocks (que SUMAN disponibilidad):
+    esto la RESTA. Sirve para vacaciones, permisos, licencias o feriados. La
+    reserva y la disponibilidad lo respetan (no se puede agendar dentro de un
+    bloqueo) y la generación de bloques desde el horario semanal lo salta.
+
+      · `branch_id` NULL  -> aplica a todas las sucursales del profesional.
+      · `motivo`          -> etiqueta visible (Vacaciones, Permiso, Feriado…).
+      · `created_by`      -> auditoría "creado por" (AuditMixin), como en la
+                            tabla de bloqueos de Medilink."""
+
+    __tablename__ = "schedule_exceptions"
+
+    professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("branches.id"), index=True)
+    rango: Mapped[Any] = mapped_column(TSTZRANGE, nullable=False)
+    motivo: Mapped[str | None] = mapped_column(String(160))
+
+
 class Appointment(Base, AuditMixin, TenantMixin):
     """The booking itself. The EXCLUDE constraint is the actual anti
     double-booking guarantee — enforced by Postgres, not application code

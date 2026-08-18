@@ -17,7 +17,7 @@ from app.models.professional import ProfessionalProfile
 from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
-from app.models.scheduling import Appointment, AvailabilityBlock, WeeklyScheduleTemplate
+from app.models.scheduling import Appointment, AvailabilityBlock, ScheduleException, WeeklyScheduleTemplate
 from app.models.tenant import Branch, Clinic
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource, RoleCode
@@ -39,6 +39,8 @@ from app.schemas.empresa import (
     EspecialidadIn,
     EspecialidadOut,
     EspecialidadUpdate,
+    BloqueoIn,
+    BloqueoOut,
     EstadoProfesionalIn,
     GenerarBloquesIn,
     GenerarBloquesOut,
@@ -68,6 +70,7 @@ from app.schemas.empresa import (
 )
 from app.services.crm import month_bounds
 from app.services.medico import audit
+from app.services.scheduling import overlaps_exception
 from app.tenancy.context import TenantContext
 
 router = APIRouter(prefix="/empresa", tags=["empresa"])
@@ -961,6 +964,10 @@ async def generar_bloques(
     omitidos = 0
     for t, s, e in candidatos:
         async with AsyncSessionLocal() as sess:
+            # No materializar dentro de un bloqueo negativo (52.9).
+            if await overlaps_exception(sess, clinic_id, t.professional_id, s, e, t.branch_id):
+                omitidos += 1
+                continue
             existe = (
                 await sess.execute(
                     select(AvailabilityBlock.id).where(
@@ -990,6 +997,71 @@ async def generar_bloques(
                 omitidos += 1
 
     return GenerarBloquesOut(generados=generados, omitidos=omitidos, dias=dias)
+
+
+# ─────────────────────────── bloqueos negativos de agenda (51 / 52.9) ───────────────────────────
+async def _bloqueo_out(db: AsyncSession, b: ScheduleException) -> BloqueoOut:
+    prof = await db.get(User, b.professional_id)
+    branch = await db.get(Branch, b.branch_id) if b.branch_id else None
+    autor = await db.get(User, b.created_by) if b.created_by else None
+    return BloqueoOut(
+        id=b.id, professional_id=b.professional_id, professional_nombre=prof.nombre if prof else "",
+        branch_id=b.branch_id, branch_nombre=branch.nombre if branch else None,
+        inicio=b.rango.lower, fin=b.rango.upper, motivo=b.motivo, creado_por=autor.nombre if autor else None,
+    )
+
+
+@router.get("/bloqueos", response_model=list[BloqueoOut])
+async def list_bloqueos(
+    professional_id: uuid.UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
+) -> list[BloqueoOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    q = select(ScheduleException).where(ScheduleException.clinic_id == clinic_id, ScheduleException.deleted_at.is_(None))
+    if professional_id:
+        q = q.where(ScheduleException.professional_id == professional_id)
+    q = q.order_by(func.lower(ScheduleException.rango).desc())
+    rows = (await db.execute(q)).scalars().all()
+    return [await _bloqueo_out(db, b) for b in rows]
+
+
+@router.post("/bloqueos", response_model=BloqueoOut, status_code=status.HTTP_201_CREATED)
+async def crear_bloqueo(
+    payload: BloqueoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.CREAR)),
+) -> BloqueoOut:
+    clinic_id = empresa_clinic_id(ctx)
+    if payload.fin <= payload.inicio:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El fin del bloqueo debe ser posterior al inicio")
+    await _assert_medico_clinica(db, clinic_id, payload.professional_id)
+    if payload.branch_id is not None:
+        branch = await db.get(Branch, payload.branch_id)
+        if branch is None or branch.clinic_id != clinic_id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Sucursal inválida")
+    b = ScheduleException(
+        clinic_id=clinic_id, professional_id=payload.professional_id, branch_id=payload.branch_id,
+        rango=Range(payload.inicio, payload.fin), motivo=payload.motivo, created_by=ctx.user_id,
+    )
+    db.add(b)
+    await db.commit()
+    await db.refresh(b)
+    return await _bloqueo_out(db, b)
+
+
+@router.delete("/bloqueos/{bloqueo_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_bloqueo(
+    bloqueo_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.ELIMINAR)),
+) -> None:
+    clinic_id = empresa_clinic_id(ctx)
+    b = await db.get(ScheduleException, bloqueo_id)
+    if b is None or b.deleted_at is not None or b.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Bloqueo no encontrado")
+    await db.delete(b)  # baja lógica vía listener
+    await db.commit()
 
 
 async def _bloque_out(db: AsyncSession, block: AvailabilityBlock) -> BloqueOut:
