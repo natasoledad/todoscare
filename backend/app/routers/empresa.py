@@ -17,12 +17,14 @@ from app.models.professional import ProfessionalProfile
 from app.models.finance import CashPayment, Company, CompanyEmployee, FinancialEntity, LedgerEntry, PaymentMethod, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
-from app.models.scheduling import Appointment, AvailabilityBlock, ScheduleException, WeeklyScheduleTemplate
+from app.models.scheduling import Appointment, AvailabilityBlock, OnlineBookingRequest, ScheduleException, WeeklyScheduleTemplate
 from app.models.tenant import Branch, Clinic
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource, RoleCode
 from app.schemas.empresa import (
     AgendaDiaOut,
+    AgendaOnlineConfigOut,
+    AgendaOnlineConfigUpdate,
     BloqueIn,
     BloqueOut,
     BloqueUpdate,
@@ -31,6 +33,8 @@ from app.schemas.empresa import (
     CitaAgendaOut,
     DesempenoGrupo,
     DesempenoOut,
+    ServicioReservableIn,
+    SolicitudOnlineOut,
     DesempenoProfesional,
     PacienteEstadoIn,
     PacienteListaOut,
@@ -1530,7 +1534,8 @@ async def _servicio_out(db: AsyncSession, item: CatalogItem) -> ServicioAdminOut
     specialty = await db.get(Specialty, item.specialty_id) if item.specialty_id else None
     return ServicioAdminOut(
         id=item.id, nombre=item.nombre, precio=float(item.precio), duracion_min=item.duracion_min, activo=item.activo,
-        specialty_nombre=specialty.nombre if specialty else None, afecto_iva=item.afecto_iva, comisiona=item.comisiona
+        specialty_nombre=specialty.nombre if specialty else None, afecto_iva=item.afecto_iva, comisiona=item.comisiona,
+        reservable_online=item.reservable_online,
     )
 
 
@@ -1759,3 +1764,190 @@ async def baja_funcionario(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Funcionario no encontrado")
     ce.estado = "baja"  # baja lógica: conserva el registro, marca el estado
     await db.commit()
+
+
+# ─────────────────────── Agenda online pública (60) ───────────────────────
+_AGENDA_ONLINE_DEFAULTS = {"habilitada": False, "anticipacion_horas": 2, "ventana_dias": 30, "mensaje": None}
+
+
+def _agenda_cfg(clinic: Clinic) -> dict:
+    return {**_AGENDA_ONLINE_DEFAULTS, **(clinic.agenda_online or {})}
+
+
+def _config_out(clinic: Clinic) -> AgendaOnlineConfigOut:
+    cfg = _agenda_cfg(clinic)
+    return AgendaOnlineConfigOut(
+        slug=clinic.slug,
+        habilitada=bool(cfg["habilitada"]),
+        anticipacion_horas=int(cfg["anticipacion_horas"]),
+        ventana_dias=int(cfg["ventana_dias"]),
+        mensaje=cfg["mensaje"],
+        reservable_url=f"/reservar/{clinic.slug}" if clinic.slug else None,
+    )
+
+
+@router.get("/agenda-online/config", response_model=AgendaOnlineConfigOut)
+async def get_agenda_online(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
+) -> AgendaOnlineConfigOut:
+    clinic = await db.get(Clinic, empresa_clinic_id(ctx))
+    if clinic is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Clínica no encontrada")
+    return _config_out(clinic)
+
+
+@router.put("/agenda-online/config", response_model=AgendaOnlineConfigOut)
+async def set_agenda_online(
+    payload: AgendaOnlineConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> AgendaOnlineConfigOut:
+    clinic = await db.get(Clinic, empresa_clinic_id(ctx))
+    if clinic is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Clínica no encontrada")
+
+    if payload.slug is not None and payload.slug != clinic.slug:
+        taken = (await db.execute(select(Clinic.id).where(Clinic.slug == payload.slug, Clinic.id != clinic.id))).scalars().first()
+        if taken:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Ese enlace público ya está en uso")
+        clinic.slug = payload.slug
+
+    cfg = _agenda_cfg(clinic)
+    for k in ("habilitada", "anticipacion_horas", "ventana_dias", "mensaje"):
+        val = getattr(payload, k)
+        if val is not None:
+            cfg[k] = val
+    clinic.agenda_online = cfg
+    await db.commit()
+    await db.refresh(clinic)
+    return _config_out(clinic)
+
+
+@router.patch("/servicios/{service_id}/reservable", status_code=status.HTTP_204_NO_CONTENT)
+async def marcar_servicio_reservable(
+    service_id: uuid.UUID,
+    payload: ServicioReservableIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.EDITAR)),
+) -> None:
+    clinic_id = empresa_clinic_id(ctx)
+    item = await db.get(CatalogItem, service_id)
+    if item is None or item.clinic_id != clinic_id or item.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Servicio no encontrado")
+    item.reservable_online = payload.reservable_online
+    await db.commit()
+
+
+async def _solicitud_out(db: AsyncSession, req: OnlineBookingRequest) -> SolicitudOnlineOut:
+    servicio_nombre = None
+    if req.service_id:
+        svc = await db.get(CatalogItem, req.service_id)
+        servicio_nombre = svc.nombre if svc else None
+    prof = await db.get(User, req.professional_id)
+    return SolicitudOnlineOut(
+        id=req.id,
+        codigo=req.codigo,
+        estado=req.estado,
+        paciente_nombre=req.paciente_nombre,
+        paciente_rut=req.paciente_rut,
+        paciente_telefono=req.paciente_telefono,
+        paciente_email=req.paciente_email,
+        servicio_nombre=servicio_nombre,
+        profesional_nombre=prof.nombre if prof else "",
+        inicio=req.slot.lower,
+        fin=req.slot.upper,
+        notas=req.notas,
+        creada=req.created_at,
+        appointment_id=req.appointment_id,
+    )
+
+
+@router.get("/solicitudes", response_model=list[SolicitudOnlineOut])
+async def list_solicitudes(
+    estado: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
+) -> list[SolicitudOnlineOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    q = select(OnlineBookingRequest).where(
+        OnlineBookingRequest.clinic_id == clinic_id,
+        OnlineBookingRequest.deleted_at.is_(None),
+    )
+    if estado:
+        q = q.where(OnlineBookingRequest.estado == estado)
+    q = q.order_by(OnlineBookingRequest.created_at.desc())
+    reqs = (await db.execute(q)).scalars().all()
+    return [await _solicitud_out(db, r) for r in reqs]
+
+
+@router.post("/solicitudes/{req_id}/confirmar", response_model=SolicitudOnlineOut)
+async def confirmar_solicitud(
+    req_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> SolicitudOnlineOut:
+    clinic_id = empresa_clinic_id(ctx)
+    req = await db.get(OnlineBookingRequest, req_id)
+    if req is None or req.clinic_id != clinic_id or req.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada")
+    if req.estado != "pendiente":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La solicitud ya está {req.estado}")
+
+    # Materializar la cita exige un paciente registrado (Patient exige un User).
+    patient = None
+    if req.paciente_rut:
+        patient = (
+            await db.execute(
+                select(Patient).where(
+                    Patient.clinic_id == clinic_id,
+                    Patient.rut == req.paciente_rut,
+                    Patient.deleted_at.is_(None),
+                )
+            )
+        ).scalars().first()
+    if patient is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "No hay un paciente registrado con ese RUT — regístralo primero y vuelve a confirmar.",
+        )
+
+    appt = Appointment(
+        clinic_id=clinic_id,
+        branch_id=req.branch_id,
+        professional_id=req.professional_id,
+        patient_id=patient.id,
+        service_id=req.service_id,
+        slot=Range(req.slot.lower, req.slot.upper),
+        estado="confirmada",
+    )
+    db.add(appt)
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ese horario ya no está disponible.") from None
+
+    req.estado = "confirmada"
+    req.appointment_id = appt.id
+    await db.commit()
+    await db.refresh(req)
+    return await _solicitud_out(db, req)
+
+
+@router.post("/solicitudes/{req_id}/rechazar", response_model=SolicitudOnlineOut)
+async def rechazar_solicitud(
+    req_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.EDITAR)),
+) -> SolicitudOnlineOut:
+    clinic_id = empresa_clinic_id(ctx)
+    req = await db.get(OnlineBookingRequest, req_id)
+    if req is None or req.clinic_id != clinic_id or req.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada")
+    if req.estado != "pendiente":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La solicitud ya está {req.estado}")
+    req.estado = "rechazada"
+    await db.commit()
+    await db.refresh(req)
+    return await _solicitud_out(db, req)

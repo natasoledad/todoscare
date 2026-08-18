@@ -41,7 +41,7 @@ router = APIRouter(tags=["patients"])
 
 @router.get("/clinics/public", response_model=list[ClinicPublicOut])
 async def list_public_clinics(db: AsyncSession = Depends(get_db)) -> list[ClinicPublicOut]:
-    rows = (await db.execute(select(Clinic).where(Clinic.activo.is_(True), Clinic.deleted_at.is_(None)))).scalars().all()
+    rows = (await db.execute(select(Clinic).where(Clinic.activo.is_(True), Clinic.deleted_at.is_(None)).order_by(Clinic.razon_social))).scalars().all()
     return [ClinicPublicOut(id=c.id, razon_social=c.razon_social, pais=c.pais) for c in rows]
 
 

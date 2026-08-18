@@ -117,6 +117,7 @@ class ServicioAdminOut(BaseModel):
     specialty_nombre: str | None
     afecto_iva: bool
     comisiona: bool
+    reservable_online: bool
 
 
 # ---- promociones ----
@@ -462,3 +463,42 @@ class EntidadFinancieraOut(BaseModel):
     nombre: str
     tipo: str
     activo: bool
+
+
+# ---- agenda online pública (60) ----
+class AgendaOnlineConfigOut(BaseModel):
+    slug: str | None
+    habilitada: bool
+    anticipacion_horas: int
+    ventana_dias: int
+    mensaje: str | None
+    reservable_url: str | None  # /reservar/<slug> si hay slug
+
+
+class AgendaOnlineConfigUpdate(BaseModel):
+    slug: str | None = Field(default=None, min_length=3, max_length=80, pattern=r"^[a-z0-9-]+$")
+    habilitada: bool | None = None
+    anticipacion_horas: int | None = Field(default=None, ge=0, le=720)
+    ventana_dias: int | None = Field(default=None, ge=1, le=365)
+    mensaje: str | None = Field(default=None, max_length=500)
+
+
+class ServicioReservableIn(BaseModel):
+    reservable_online: bool
+
+
+class SolicitudOnlineOut(BaseModel):
+    id: uuid.UUID
+    codigo: str
+    estado: str
+    paciente_nombre: str
+    paciente_rut: str | None
+    paciente_telefono: str | None
+    paciente_email: str | None
+    servicio_nombre: str | None
+    profesional_nombre: str
+    inicio: datetime
+    fin: datetime
+    notas: str | None
+    creada: datetime
+    appointment_id: uuid.UUID | None

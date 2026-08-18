@@ -237,6 +237,14 @@ async def main() -> None:
         for nombre, precio, duracion_min in SERVICIOS_CLINICA_A:
             catalog[nombre] = await get_or_create_catalog_item(db, clinic_a.id, specialties[nombre].id, nombre, precio, duracion_min)
 
+        # Agenda online pública (60): la clínica demo publica su reserva sin login
+        # en /reservar/<slug> y ofrece sus prestaciones como reservables.
+        if clinic_a.slug is None:
+            clinic_a.slug = "clinica-demo-a"
+        clinic_a.agenda_online = {"habilitada": True, "anticipacion_horas": 2, "ventana_dias": 45, "mensaje": "Reserva tu hora en línea; te confirmaremos a la brevedad."}
+        for item in catalog.values():
+            item.reservable_online = True
+
         # medico_a is available all day today, at branch_a1, for any
         # specialty (specialty_id=None) — a real deployment would seed one
         # block per specialty/professional; kept to one block for Fase 2.

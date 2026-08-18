@@ -15,6 +15,7 @@ const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string;
     titulo: 'Operación del día',
     items: [
       { id: 'agenda-clinica', icon: '🗓️', t: 'Agenda de la clínica', d: 'Citas del día, estado y situación de pago' },
+      { id: 'agenda-online', icon: '🌐', t: 'Agenda online', d: 'Reserva pública sin login y solicitudes de hora' },
       { id: 'cajas', icon: '💰', t: 'Cajas', d: 'Arqueo diario: abrir, cobrar, gastos y cierre' },
       { id: 'tributario', icon: '🧾', t: 'Documentos tributarios', d: 'Boleta SII (Chile) / Nota Fiscal (Brasil), folios y anulación' },
       { id: 'pacientes', icon: '🧑‍🤝‍🧑', t: 'Pacientes', d: 'Listado con deudas y habilitar/deshabilitar' },
