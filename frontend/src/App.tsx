@@ -66,6 +66,10 @@ const EmpresaInfo = lazyNamed(() => import('./routes/empresa/Info'), 'Info');
 const EmpresaFuncionarios = lazyNamed(() => import('./routes/empresa/Funcionarios'), 'Funcionarios');
 const EmpresaCrm = lazyNamed(() => import('./routes/empresa/Crm'), 'Crm');
 const CampanasEmpresa = lazyNamed(() => import('./routes/empresa/CampanasEmpresa'), 'CampanasEmpresa');
+const EmpresaAgendaOnline = lazyNamed(() => import('./routes/empresa/AgendaOnline'), 'AgendaOnline');
+
+// ── Pública (sin login) ──
+const Reservar = lazyNamed(() => import('./routes/public/Reservar'), 'Reservar');
 
 // ── Administrador ──
 const AdminInicio = lazyNamed(() => import('./routes/admin/Inicio'), 'Inicio');
@@ -107,6 +111,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/qr/:token" element={<QrResolve />} />
+            <Route path="/reservar/:slug" element={<Reservar />} />
 
             <Route element={<RequireAuth />}>
               {/* ── Paciente ── */}
@@ -154,6 +159,7 @@ function App() {
                 <Route path="/empresa/desempeno" element={<EmpresaDesempeno />} />
                 <Route path="/empresa/gestion-crm" element={<EmpresaCrmGestion />} />
                 <Route path="/empresa/agendas" element={<EmpresaAgendas />} />
+                <Route path="/empresa/agenda-online" element={<EmpresaAgendaOnline />} />
                 <Route path="/empresa/servicios" element={<EmpresaServicios />} />
                 <Route path="/empresa/especialidades" element={<EmpresaEspecialidades />} />
                 <Route path="/empresa/horario-semanal" element={<EmpresaHorarioSemanal />} />

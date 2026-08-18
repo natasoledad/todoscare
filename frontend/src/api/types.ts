@@ -281,6 +281,7 @@ export interface ServicioAdmin {
   specialty_nombre: string | null;
   afecto_iva: boolean;
   comisiona: boolean;
+  reservable_online: boolean;
 }
 
 export interface Promocion {
@@ -478,6 +479,78 @@ export interface ReservaInput {
   professional_id: string;
   inicio: string;
   fin: string;
+}
+
+// ---- agenda online pública (60) ----
+export interface ServicioPublico {
+  id: string;
+  nombre: string;
+  especialidad: string | null;
+  icono: string | null;
+  precio: number;
+  duracion_min: number;
+}
+export interface SucursalPublica {
+  id: string;
+  nombre: string;
+  direccion: string | null;
+}
+export interface ClinicaPublica {
+  slug: string;
+  nombre: string;
+  habilitada: boolean;
+  mensaje: string | null;
+  servicios: ServicioPublico[];
+  sucursales: SucursalPublica[];
+}
+export interface SlotPublico {
+  professional_id: string;
+  profesional_nombre: string;
+  inicio: string;
+  fin: string;
+}
+export interface ReservaPublicaInput {
+  service_id: string;
+  professional_id: string;
+  inicio: string;
+  fin: string;
+  nombre: string;
+  rut?: string;
+  telefono?: string;
+  email?: string;
+  notas?: string;
+}
+export interface ReservaPublicaOut {
+  codigo: string;
+  estado: string;
+  inicio: string;
+  fin: string;
+  servicio_nombre: string | null;
+  profesional_nombre: string;
+}
+export interface AgendaOnlineConfig {
+  slug: string | null;
+  habilitada: boolean;
+  anticipacion_horas: number;
+  ventana_dias: number;
+  mensaje: string | null;
+  reservable_url: string | null;
+}
+export interface SolicitudOnline {
+  id: string;
+  codigo: string;
+  estado: string;
+  paciente_nombre: string;
+  paciente_rut: string | null;
+  paciente_telefono: string | null;
+  paciente_email: string | null;
+  servicio_nombre: string | null;
+  profesional_nombre: string;
+  inicio: string;
+  fin: string;
+  notas: string | null;
+  creada: string;
+  appointment_id: string | null;
 }
 
 export interface Cita {

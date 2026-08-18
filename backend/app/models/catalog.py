@@ -60,6 +60,10 @@ class CatalogItem(Base, AuditMixin, TenantMixin):
     # acciones clínicas comisionan; el laboratorio y los insumos se cobran al
     # paciente pero NO cargan en la liquidación del profesional.
     comisiona: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    # ¿La prestación se ofrece en la agenda online pública? (60). Solo los
+    # servicios marcados aparecen en la página de reserva sin login; el resto
+    # queda para agenda interna.
+    reservable_online: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
 
 class Promotion(Base, AuditMixin, TenantMixin):

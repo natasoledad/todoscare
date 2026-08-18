@@ -139,3 +139,38 @@ class Appointment(Base, AuditMixin, TenantMixin):
     slot: Mapped[Any] = mapped_column(TSTZRANGE, nullable=False)
     estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="confirmada")
     # confirmada | completada | cancelada | no_show
+
+
+class OnlineBookingRequest(Base, AuditMixin, TenantMixin):
+    """Solicitud de hora hecha desde la agenda online pública (punto 60).
+
+    El paciente que reserva sin login puede no existir todavía como Patient
+    (que exige un User). Por eso la reserva online NO crea una cita directa:
+    crea esta *solicitud* con el horario deseado y los datos de contacto. El
+    personal (empresa) la revisa y la CONFIRMA, momento en el que —si el rut
+    corresponde a un paciente registrado— se materializa el `Appointment`
+    real (con su garantía anti doble-reserva de Postgres) y se enlaza aquí.
+
+    Mientras está `pendiente` la solicitud reserva el hueco de forma optimista
+    (la disponibilidad pública descuenta las solicitudes pendientes), pero la
+    exclusividad dura la garantiza el EXCLUDE de `appointments` al confirmar.
+
+      · `codigo`         referencia corta que ve el paciente para consultar.
+      · `estado`         pendiente | confirmada | rechazada | cancelada.
+      · `appointment_id` la cita creada al confirmar (si la hubo).
+    """
+
+    __tablename__ = "online_booking_requests"
+
+    branch_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=False, index=True)
+    professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    service_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("catalog_items.id"))
+    slot: Mapped[Any] = mapped_column(TSTZRANGE, nullable=False)
+    codigo: Mapped[str] = mapped_column(String(12), nullable=False, index=True)
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendiente")
+    paciente_nombre: Mapped[str] = mapped_column(String(255), nullable=False)
+    paciente_rut: Mapped[str | None] = mapped_column(String(50))
+    paciente_telefono: Mapped[str | None] = mapped_column(String(40))
+    paciente_email: Mapped[str | None] = mapped_column(String(255))
+    notas: Mapped[str | None] = mapped_column(String(500))
+    appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("appointments.id"), index=True)
