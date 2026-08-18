@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, select
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
@@ -42,8 +42,12 @@ from app.schemas.empresa import (
     BloqueoIn,
     BloqueoOut,
     EstadoProfesionalIn,
+    FinalizarLiquidacionIn,
+    FinalizarLiquidacionOut,
     GenerarBloquesIn,
     GenerarBloquesOut,
+    LiquidacionDetalleOut,
+    LiquidacionProfOut,
     HorarioIn,
     HorarioOut,
     HorarioUpdate,
@@ -763,6 +767,121 @@ async def eliminar_motivo(
     m = await _own_motivo(db, clinic_id, motivo_id)
     await db.delete(m)  # baja lógica vía listener
     await db.commit()
+
+
+# ─────────────────────────── liquidación de profesionales (58) ───────────────────────────
+# Se apoya en los PaymentSplit ya existentes (una atención que comisiona -> un
+# split al profesional). "Activas" = splits pendientes; "finalizar" = marcar
+# conciliado y asentar el egreso, igual que la conciliación del CRM.
+def _split_estado(estado: str) -> str:
+    return "conciliado" if estado == "finalizadas" else "pendiente"
+
+
+@router.get("/liquidaciones", response_model=list[LiquidacionProfOut])
+async def list_liquidaciones(
+    period: str | None = None,
+    estado: str = "activas",
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.LIQUIDACION_PROFESIONALES, Action.VER)),
+) -> list[LiquidacionProfOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    start, end = month_bounds(period)
+    rows = (
+        await db.execute(
+            select(PaymentSplit.beneficiario_id, User.nombre, PaymentSplit.monto, PaymentSplit.regla)
+            .join(User, User.id == PaymentSplit.beneficiario_id)
+            .where(
+                PaymentSplit.clinic_id == clinic_id,
+                PaymentSplit.deleted_at.is_(None),
+                PaymentSplit.estado == _split_estado(estado),
+                func.date(PaymentSplit.created_at) >= start,
+                func.date(PaymentSplit.created_at) < end,
+            )
+        )
+    ).all()
+    agg: dict[uuid.UUID, dict] = {}
+    for pid, nombre, monto, regla in rows:
+        a = agg.setdefault(pid, {"nombre": nombre, "cantidad": 0, "realizado": 0.0, "a_pagar": 0.0})
+        a["cantidad"] += 1
+        a["a_pagar"] += float(monto)
+        a["realizado"] += float((regla or {}).get("base", 0) or 0)
+    return [
+        LiquidacionProfOut(professional_id=pid, nombre=a["nombre"], cantidad=a["cantidad"], realizado=round(a["realizado"], 2), a_pagar=round(a["a_pagar"], 2))
+        for pid, a in sorted(agg.items(), key=lambda kv: kv[1]["a_pagar"], reverse=True)
+    ]
+
+
+@router.get("/liquidaciones/{professional_id}/detalle", response_model=list[LiquidacionDetalleOut])
+async def liquidacion_detalle(
+    professional_id: uuid.UUID,
+    period: str | None = None,
+    estado: str = "activas",
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.LIQUIDACION_PROFESIONALES, Action.VER)),
+) -> list[LiquidacionDetalleOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    start, end = month_bounds(period)
+    appt_id = cast(func.split_part(LedgerEntry.ref, ":", 2), PgUUID(as_uuid=True))
+    pat_user = aliased(User)
+    rows = (
+        await db.execute(
+            select(PaymentSplit, CatalogItem.nombre, pat_user.nombre)
+            .join(LedgerEntry, LedgerEntry.id == PaymentSplit.ledger_entry_id)
+            .outerjoin(Appointment, appt_id == Appointment.id)
+            .outerjoin(CatalogItem, CatalogItem.id == Appointment.service_id)
+            .outerjoin(Patient, Patient.id == Appointment.patient_id)
+            .outerjoin(pat_user, pat_user.id == Patient.user_id)
+            .where(
+                PaymentSplit.clinic_id == clinic_id,
+                PaymentSplit.beneficiario_id == professional_id,
+                PaymentSplit.deleted_at.is_(None),
+                PaymentSplit.estado == _split_estado(estado),
+                func.date(PaymentSplit.created_at) >= start,
+                func.date(PaymentSplit.created_at) < end,
+                LedgerEntry.ref.like("appointment:%"),
+            )
+            .order_by(PaymentSplit.created_at.desc())
+        )
+    ).all()
+    return [
+        LiquidacionDetalleOut(
+            split_id=s.id, fecha=s.created_at, prestacion=prestacion, paciente=paciente,
+            base=float((s.regla or {}).get("base", 0) or 0), monto=float(s.monto), estado=s.estado,
+        )
+        for s, prestacion, paciente in rows
+    ]
+
+
+@router.post("/liquidaciones/{professional_id}/finalizar", response_model=FinalizarLiquidacionOut)
+async def finalizar_liquidacion(
+    professional_id: uuid.UUID,
+    payload: FinalizarLiquidacionIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.LIQUIDACION_PROFESIONALES, Action.EDITAR)),
+) -> FinalizarLiquidacionOut:
+    """Finaliza (paga) la liquidación: marca conciliados los splits pendientes
+    del profesional —hasta la fecha `hasta` si se indica— y asienta el egreso
+    inmutable en el ledger, igual que la conciliación del CRM (58.6/58.10)."""
+    clinic_id = empresa_clinic_id(ctx)
+    q = select(PaymentSplit).where(
+        PaymentSplit.clinic_id == clinic_id,
+        PaymentSplit.beneficiario_id == professional_id,
+        PaymentSplit.deleted_at.is_(None),
+        PaymentSplit.estado == "pendiente",
+    )
+    if payload.hasta is not None:
+        q = q.where(func.date(PaymentSplit.created_at) <= payload.hasta)
+    splits = (await db.execute(q)).scalars().all()
+    now = datetime.now(timezone.utc)
+    total = 0.0
+    for s in splits:
+        s.estado = "conciliado"
+        s.conciliado_at = now
+        db.add(LedgerEntry(clinic_id=clinic_id, tipo="liquidacion_pagada", monto=s.monto, ref=f"split:{s.id}"))
+        total += float(s.monto)
+    await db.commit()
+    prof = await db.get(User, professional_id)
+    return FinalizarLiquidacionOut(professional_id=professional_id, profesional_nombre=prof.nombre if prof else "", finalizadas=len(splits), monto=round(total, 2))
 
 
 # ─────────────────────────── horario semanal recurrente (52) ───────────────────────────

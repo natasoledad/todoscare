@@ -21,6 +21,8 @@ import type {
   HorarioTemplate,
   GenerarBloquesResult,
   BloqueoAgenda,
+  LiquidacionProf,
+  LiquidacionDetalle,
   Branch,
   Afiliado,
   Arancel as ArancelAseg,
@@ -284,6 +286,21 @@ export const api = {
     crearBloqueo: (body: { professional_id: string; branch_id?: string | null; inicio: string; fin: string; motivo?: string }) =>
       post<BloqueoAgenda>('/empresa/bloqueos', body),
     eliminarBloqueo: (id: string) => del(`/empresa/bloqueos/${id}`),
+    // liquidación de profesionales (58)
+    liquidaciones: (period?: string, estado: string = 'activas') => {
+      const p = new URLSearchParams({ estado });
+      if (period) p.set('period', period);
+      return get<LiquidacionProf[]>(`/empresa/liquidaciones?${p.toString()}`);
+    },
+    liquidacionDetalle: (profId: string, period?: string, estado: string = 'activas') => {
+      const p = new URLSearchParams({ estado });
+      if (period) p.set('period', period);
+      return get<LiquidacionDetalle[]>(`/empresa/liquidaciones/${profId}/detalle?${p.toString()}`);
+    },
+    finalizarLiquidacion: (profId: string, hasta?: string) =>
+      post<{ professional_id: string; profesional_nombre: string; finalizadas: number; monto: number }>(
+        `/empresa/liquidaciones/${profId}/finalizar`, hasta ? { hasta } : {},
+      ),
     motivos: () => get<MotivoAtencion[]>('/empresa/motivos'),
     crearMotivo: (body: { nombre: string; specialty_id?: string }) => post<MotivoAtencion>('/empresa/motivos', body),
     editarMotivo: (id: string, body: { nombre?: string; specialty_id?: string; activo?: boolean }) => patch<MotivoAtencion>(`/empresa/motivos/${id}`, body),

@@ -385,3 +385,33 @@ class BloqueoOut(BaseModel):
     fin: datetime
     motivo: str | None
     creado_por: str | None  # auditoría "creado por" (51.6)
+
+
+# ---- liquidación de profesionales (58) ----
+class LiquidacionProfOut(BaseModel):
+    professional_id: uuid.UUID
+    nombre: str
+    cantidad: int          # nº de prestaciones que comisionan en el período
+    realizado: float       # base producida (precio de las prestaciones)
+    a_pagar: float         # comisión a pagar (suma de splits)
+
+
+class LiquidacionDetalleOut(BaseModel):
+    split_id: uuid.UUID
+    fecha: datetime
+    prestacion: str | None
+    paciente: str | None
+    base: float
+    monto: float
+    estado: str
+
+
+class FinalizarLiquidacionIn(BaseModel):
+    hasta: date | None = None  # None = todo lo pendiente del período
+
+
+class FinalizarLiquidacionOut(BaseModel):
+    professional_id: uuid.UUID
+    profesional_nombre: str
+    finalizadas: int
+    monto: float
