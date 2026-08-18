@@ -14,7 +14,7 @@ from app.core.database import get_db
 from app.models.catalog import CatalogItem, MotivoAtencion, Promotion, Specialty
 from app.models.facility import Room
 from app.models.professional import ProfessionalProfile
-from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry, PaymentSplit
+from app.models.finance import CashPayment, Company, CompanyEmployee, LedgerEntry, PaymentMethod, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
 from app.models.scheduling import Appointment, AvailabilityBlock, ScheduleException, WeeklyScheduleTemplate
@@ -48,6 +48,9 @@ from app.schemas.empresa import (
     GenerarBloquesOut,
     LiquidacionDetalleOut,
     LiquidacionProfOut,
+    MedioPagoIn,
+    MedioPagoOut,
+    MedioPagoUpdate,
     HorarioIn,
     HorarioOut,
     HorarioUpdate,
@@ -765,6 +768,73 @@ async def eliminar_motivo(
 ) -> None:
     clinic_id = empresa_clinic_id(ctx)
     m = await _own_motivo(db, clinic_id, motivo_id)
+    await db.delete(m)  # baja lógica vía listener
+    await db.commit()
+
+
+# ─────────────────────────── medios de pago (66) ───────────────────────────
+def _medio_out(m: PaymentMethod) -> MedioPagoOut:
+    return MedioPagoOut(
+        id=m.id, nombre=m.nombre, retencion_pct=float(m.retencion_pct), facturable=m.facturable,
+        permite_devolucion=m.permite_devolucion, acepta_cuotas=m.acepta_cuotas, activo=m.activo,
+    )
+
+
+@router.get("/medios-pago", response_model=list[MedioPagoOut])
+async def list_medios_pago(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.VER)),
+) -> list[MedioPagoOut]:
+    clinic_id = empresa_clinic_id(ctx)
+    rows = (await db.execute(select(PaymentMethod).where(PaymentMethod.clinic_id == clinic_id, PaymentMethod.deleted_at.is_(None)).order_by(PaymentMethod.nombre))).scalars().all()
+    return [_medio_out(m) for m in rows]
+
+
+@router.post("/medios-pago", response_model=MedioPagoOut, status_code=status.HTTP_201_CREATED)
+async def crear_medio_pago(
+    payload: MedioPagoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.CREAR)),
+) -> MedioPagoOut:
+    clinic_id = empresa_clinic_id(ctx)
+    m = PaymentMethod(clinic_id=clinic_id, **payload.model_dump())
+    db.add(m)
+    await db.commit()
+    await db.refresh(m)
+    return _medio_out(m)
+
+
+async def _own_medio(db: AsyncSession, clinic_id: uuid.UUID, medio_id: uuid.UUID) -> PaymentMethod:
+    m = await db.get(PaymentMethod, medio_id)
+    if m is None or m.deleted_at is not None or m.clinic_id != clinic_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Medio de pago no encontrado")
+    return m
+
+
+@router.patch("/medios-pago/{medio_id}", response_model=MedioPagoOut)
+async def editar_medio_pago(
+    medio_id: uuid.UUID,
+    payload: MedioPagoUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.EDITAR)),
+) -> MedioPagoOut:
+    clinic_id = empresa_clinic_id(ctx)
+    m = await _own_medio(db, clinic_id, medio_id)
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(m, k, v)
+    await db.commit()
+    await db.refresh(m)
+    return _medio_out(m)
+
+
+@router.delete("/medios-pago/{medio_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_medio_pago(
+    medio_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.ELIMINAR)),
+) -> None:
+    clinic_id = empresa_clinic_id(ctx)
+    m = await _own_medio(db, clinic_id, medio_id)
     await db.delete(m)  # baja lógica vía listener
     await db.commit()
 
