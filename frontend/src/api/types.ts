@@ -128,6 +128,30 @@ export interface MotivoAtencion {
   activo: boolean;
 }
 
+export interface HorarioTemplate {
+  id: string;
+  professional_id: string;
+  professional_nombre: string;
+  branch_id: string;
+  branch_nombre: string;
+  room_id: string | null;
+  room_nombre: string | null;
+  dia_semana: number; // 0=lunes … 6=domingo
+  hora_inicio: string; // "HH:MM(:SS)"
+  hora_fin: string;
+  descanso_inicio: string | null;
+  descanso_fin: string | null;
+  modalidad: string;
+  capacidad: number;
+  activo: boolean;
+}
+
+export interface GenerarBloquesResult {
+  generados: number;
+  omitidos: number;
+  dias: number;
+}
+
 export interface Branch {
   id: string;
   nombre: string;

@@ -18,6 +18,8 @@ import type {
   Recinto,
   Especialidad,
   MotivoAtencion,
+  HorarioTemplate,
+  GenerarBloquesResult,
   Branch,
   Afiliado,
   Arancel as ArancelAseg,
@@ -264,6 +266,17 @@ export const api = {
       post<{ origen_id: string; destino_id: string; destino_nombre: string; movidas: number; conflictos: number }>(
         `/empresa/profesionales/${profId}/remanejo`, { destino_id: destinoId },
       ),
+    // horario semanal recurrente (52)
+    horarios: (professionalId?: string) =>
+      get<HorarioTemplate[]>(`/empresa/horarios${professionalId ? `?professional_id=${professionalId}` : ''}`),
+    crearHorario: (body: {
+      professional_id: string; branch_id: string; dia_semana: number; hora_inicio: string; hora_fin: string;
+      descanso_inicio?: string | null; descanso_fin?: string | null; modalidad?: string; capacidad?: number; room_id?: string | null;
+    }) => post<HorarioTemplate>('/empresa/horarios', body),
+    editarHorario: (id: string, body: Record<string, unknown>) => patch<HorarioTemplate>(`/empresa/horarios/${id}`, body),
+    eliminarHorario: (id: string) => del(`/empresa/horarios/${id}`),
+    generarBloques: (body: { professional_id?: string; desde: string; hasta: string }) =>
+      post<GenerarBloquesResult>('/empresa/horarios/generar', body),
     motivos: () => get<MotivoAtencion[]>('/empresa/motivos'),
     crearMotivo: (body: { nombre: string; specialty_id?: string }) => post<MotivoAtencion>('/empresa/motivos', body),
     editarMotivo: (id: string, body: { nombre?: string; specialty_id?: string; activo?: boolean }) => patch<MotivoAtencion>(`/empresa/motivos/${id}`, body),

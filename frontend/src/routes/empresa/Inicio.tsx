@@ -31,7 +31,8 @@ const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string;
   {
     titulo: 'Configuración',
     items: [
-      { id: 'agendas', icon: '📅', t: 'Configurar agendas', d: 'Horarios por profesional y sucursal' },
+      { id: 'agendas', icon: '📅', t: 'Configurar agendas', d: 'Bloques puntuales por profesional y sucursal' },
+      { id: 'horario-semanal', icon: '🗓️', t: 'Horario semanal', d: 'Patrón recurrente, descanso y modalidad; genera la agenda' },
       { id: 'especialidades', icon: '🩺', t: 'Especialidades y perfiles', d: 'Especialidades, perfil del profesional y motivos' },
       { id: 'servicios', icon: '🏷️', t: 'Productos y servicios', d: 'Catálogo y precios' },
       { id: 'promociones', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },
