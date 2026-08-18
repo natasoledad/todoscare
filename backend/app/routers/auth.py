@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -5,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import create_access_token, verify_password
 from app.models.identity import Role, RoleAssignment, User
+from app.models.professional import ProfessionalProfile
+from app.rbac.permissions import RoleCode
 from app.schemas.auth import LoginRequest, LoginResponse, MeOut, RoleGrantOut
 from app.tenancy.context import TenantContext
 from app.tenancy.deps import get_current_ctx
@@ -30,6 +34,31 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> Lo
     ]
     if not grants:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "El usuario no tiene roles asignados")
+
+    # 55.2 — un profesional PURO (solo rol médico) inhabilitado en TODAS sus
+    # clínicas no puede loguear. No afecta a usuarios con otros roles ni a los
+    # que sigan activos en alguna clínica (modelo multi-clínica).
+    if grants and all(g.role == RoleCode.MEDICO.value for g in grants):
+        activo_en_alguna = False
+        for g in grants:
+            if g.clinic_id is None:
+                activo_en_alguna = True
+                break
+            inactivo = (
+                await db.execute(
+                    select(ProfessionalProfile.id).where(
+                        ProfessionalProfile.clinic_id == uuid.UUID(g.clinic_id),
+                        ProfessionalProfile.user_id == user.id,
+                        ProfessionalProfile.deleted_at.is_(None),
+                        ProfessionalProfile.activo.is_(False),
+                    )
+                )
+            ).scalars().first()
+            if inactivo is None:  # sin perfil o perfil activo -> sigue habilitado aquí
+                activo_en_alguna = True
+                break
+        if not activo_en_alguna:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Profesional inhabilitado. Contacta a la administración de la clínica.")
 
     token = create_access_token({"sub": str(user.id)})
     return LoginResponse(access_token=token, grants=grants)

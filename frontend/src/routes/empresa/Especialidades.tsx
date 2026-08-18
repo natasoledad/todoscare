@@ -78,6 +78,32 @@ export function Especialidades() {
     }
   };
 
+  const toggleEstadoProf = async (p: Profesional) => {
+    await api.empresa.cambiarEstadoProfesional(p.id, !(p.activo ?? true));
+    await loadProfs();
+  };
+
+  // ── remanejo de pacientes ──
+  const [remanejoProf, setRemanejoProf] = useState<Profesional | null>(null);
+  const [destino, setDestino] = useState('');
+  const [remanejoMsg, setRemanejoMsg] = useState<string | null>(null);
+  const [remanejando, setRemanejando] = useState(false);
+
+  const abrirRemanejo = (p: Profesional) => { setRemanejoProf(p); setDestino(''); setRemanejoMsg(null); };
+  const confirmarRemanejo = async () => {
+    if (!remanejoProf || !destino) return;
+    setRemanejando(true); setRemanejoMsg(null);
+    try {
+      const r = await api.empresa.remanejarPacientes(remanejoProf.id, destino);
+      setRemanejoMsg(`Se movieron ${r.movidas} cita(s) a ${r.destino_nombre}.${r.conflictos ? ` ${r.conflictos} quedaron por choque de horario.` : ''}`);
+      await loadProfs();
+    } catch (e) {
+      setRemanejoMsg(e instanceof ApiError ? String(e.detail) : 'No se pudo remanejar');
+    } finally {
+      setRemanejando(false);
+    }
+  };
+
   // ── alta de motivo ──
   const [motOpen, setMotOpen] = useState(false);
   const [motNombre, setMotNombre] = useState('');
@@ -140,20 +166,34 @@ export function Especialidades() {
         {tab === 'perfiles' && (
           <>
             {profs.length === 0 && <div className="text-center text-sm text-sub py-8">No hay profesionales en la clínica.</div>}
-            {profs.map((p) => (
-              <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3.5">
-                <div className="w-11 h-11 rounded-xl bg-teal-soft flex items-center justify-center text-lg shrink-0">🩺</div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm text-ink">{p.nombre}</div>
-                  <div className="mt-0.5 text-xs text-sub">
-                    {p.specialty_nombre ? `${p.specialty_nombre}` : 'Sin especialidad'}
-                    {p.duracion_min ? ` · ${p.duracion_min} min` : ''}
-                    {p.modalidad ? ` · ${MODALIDADES[p.modalidad] ?? p.modalidad}` : ''}
+            {profs.map((p) => {
+              const activo = p.activo ?? true;
+              return (
+                <div key={p.id} className={`rounded-2xl border border-border bg-white px-4 py-3.5 ${activo ? '' : 'opacity-70'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-teal-soft flex items-center justify-center text-lg shrink-0">🩺</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm text-ink">{p.nombre}</div>
+                      <div className="mt-0.5 text-xs text-sub">
+                        {p.specialty_nombre ? `${p.specialty_nombre}` : 'Sin especialidad'}
+                        {p.duracion_min ? ` · ${p.duracion_min} min` : ''}
+                        {p.modalidad ? ` · ${MODALIDADES[p.modalidad] ?? p.modalidad}` : ''}
+                      </div>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${activo ? 'bg-teal-soft text-teal-dark' : 'bg-[#FBE9E7] text-danger'}`}>
+                      {activo ? 'Habilitado' : 'Inhabilitado'}
+                    </span>
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-4 pl-14 text-[13px] font-bold">
+                    <button onClick={() => abrirPerfil(p)} className="text-teal-dark">Editar</button>
+                    <button onClick={() => toggleEstadoProf(p)} className={activo ? 'text-danger' : 'text-teal-dark'}>
+                      {activo ? 'Inhabilitar' : 'Habilitar'}
+                    </button>
+                    {!activo && <button onClick={() => abrirRemanejo(p)} className="text-ink">Remanejar pacientes</button>}
                   </div>
                 </div>
-                <div onClick={() => abrirPerfil(p)} className="cursor-pointer text-[13px] font-bold text-teal-dark">Editar</div>
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
 
@@ -226,6 +266,26 @@ export function Especialidades() {
           </select>
           {pError && <div className="text-xs text-danger">{pError}</div>}
           <Button onClick={guardarPerfil} className="w-full">Guardar perfil</Button>
+        </BottomSheet>
+      )}
+
+      {/* remanejo de pacientes */}
+      {remanejoProf && (
+        <BottomSheet onClose={() => setRemanejoProf(null)}>
+          <div className="font-heading font-extrabold text-[17px] text-ink">Remanejar pacientes</div>
+          <div className="text-[12.5px] text-sub">Reasigna las citas futuras de <b>{remanejoProf.nombre}</b> a otro profesional activo. Las que choquen de horario quedan sin mover.</div>
+          <label className="font-heading font-semibold text-xs text-sub">Profesional destino</label>
+          <select value={destino} onChange={(e) => setDestino(e.target.value)}
+            className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-3 text-sm text-ink outline-none focus:border-teal">
+            <option value="">Selecciona…</option>
+            {profs.filter((x) => x.id !== remanejoProf.id && (x.activo ?? true)).map((x) => (
+              <option key={x.id} value={x.id}>{x.nombre}{x.specialty_nombre ? ` · ${x.specialty_nombre}` : ''}</option>
+            ))}
+          </select>
+          {remanejoMsg && <div className="text-xs text-teal-dark">{remanejoMsg}</div>}
+          <Button onClick={confirmarRemanejo} disabled={!destino || remanejando} className="w-full">
+            {remanejando ? 'Remanejando…' : 'Remanejar citas futuras'}
+          </Button>
         </BottomSheet>
       )}
 

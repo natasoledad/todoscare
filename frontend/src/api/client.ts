@@ -259,6 +259,11 @@ export const api = {
       profId: string,
       body: { specialty_id?: string | null; duracion_min?: number; modalidad?: string; color?: string; activo?: boolean },
     ) => patch<Profesional>(`/empresa/profesionales/${profId}/perfil`, body),
+    cambiarEstadoProfesional: (profId: string, activo: boolean) => patch<Profesional>(`/empresa/profesionales/${profId}/estado`, { activo }),
+    remanejarPacientes: (profId: string, destinoId: string) =>
+      post<{ origen_id: string; destino_id: string; destino_nombre: string; movidas: number; conflictos: number }>(
+        `/empresa/profesionales/${profId}/remanejo`, { destino_id: destinoId },
+      ),
     motivos: () => get<MotivoAtencion[]>('/empresa/motivos'),
     crearMotivo: (body: { nombre: string; specialty_id?: string }) => post<MotivoAtencion>('/empresa/motivos', body),
     editarMotivo: (id: string, body: { nombre?: string; specialty_id?: string; activo?: boolean }) => patch<MotivoAtencion>(`/empresa/motivos/${id}`, body),

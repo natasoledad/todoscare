@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.catalog import CatalogItem, Specialty
+from app.models.professional import ProfessionalProfile
 from app.models.scheduling import Appointment, AvailabilityBlock
 from app.models.tenant import Branch
 from app.rbac.deps import require
@@ -89,6 +90,20 @@ async def reservar(
     service = await db.get(CatalogItem, payload.service_id)
     if service is None or service.clinic_id != patient.clinic_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Servicio no encontrado")
+
+    # Un profesional inhabilitado tiene la agenda congelada: no acepta nuevas citas (55.3).
+    prof_inactivo = (
+        await db.execute(
+            select(ProfessionalProfile.activo).where(
+                ProfessionalProfile.clinic_id == patient.clinic_id,
+                ProfessionalProfile.user_id == payload.professional_id,
+                ProfessionalProfile.deleted_at.is_(None),
+                ProfessionalProfile.activo.is_(False),
+            )
+        )
+    ).scalars().first()
+    if prof_inactivo is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "El profesional no está disponible para nuevas citas")
 
     block = (
         await db.execute(

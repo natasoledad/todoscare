@@ -287,3 +287,20 @@ class MotivoOut(BaseModel):
     specialty_id: uuid.UUID | None
     specialty_nombre: str | None
     activo: bool
+
+
+# ---- estado del profesional (55) ----
+class EstadoProfesionalIn(BaseModel):
+    activo: bool
+
+
+class RemanejoIn(BaseModel):
+    destino_id: uuid.UUID  # profesional activo al que se reasignan las citas futuras
+
+
+class RemanejoOut(BaseModel):
+    origen_id: uuid.UUID
+    destino_id: uuid.UUID
+    destino_nombre: str
+    movidas: int       # citas futuras reasignadas
+    conflictos: int    # citas que no se pudieron mover (choque de horario/recinto en el destino)
