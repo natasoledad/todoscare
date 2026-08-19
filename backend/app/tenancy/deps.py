@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
-from app.models.identity import Role, RoleAssignment, User
+from app.models.identity import PermissionOverride, Role, RoleAssignment, User
 from app.rbac.permissions import RoleCode
-from app.tenancy.context import RoleGrant, TenantContext
+from app.tenancy.context import PermissionGrant, RoleGrant, TenantContext
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -40,7 +40,20 @@ async def get_current_ctx(
     if not grants:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "El usuario no tiene roles asignados")
 
-    return TenantContext(user_id=user.id, email=user.email, grants=grants)
+    # Permisos personalizados (48): overrides finos del usuario.
+    ov_rows = (
+        await db.execute(
+            select(PermissionOverride).where(
+                PermissionOverride.user_id == user_id, PermissionOverride.deleted_at.is_(None)
+            )
+        )
+    ).scalars().all()
+    overrides = tuple(
+        PermissionGrant(clinic_id=o.clinic_id, resource=o.resource, action=o.action, allow=o.allow)
+        for o in ov_rows
+    )
+
+    return TenantContext(user_id=user.id, email=user.email, grants=grants, overrides=overrides)
 
 
 def require_clinic_access(ctx: TenantContext, clinic_id: uuid.UUID) -> None:

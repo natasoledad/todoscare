@@ -49,3 +49,22 @@ class RoleAssignment(Base, AuditMixin):
     clinic_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clinics.id"), nullable=True, index=True)
     branch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True, index=True)
     insurer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("insurers.id"), nullable=True, index=True)
+
+
+class PermissionOverride(Base, AuditMixin):
+    """Permiso personalizado por usuario y clínica (48.3/48.4, 71.18).
+
+    Capa fina sobre el RBAC fijo por rol: concede (`allow=True`) o revoca
+    (`allow=False`) una acción concreta sobre un recurso para un usuario dentro
+    de una clínica, sin cambiar su rol. Si no hay override para (recurso,
+    acción), rige la matriz del rol —así el comportamiento por defecto no
+    cambia—. Un override explícito gana sobre la matriz."""
+
+    __tablename__ = "permission_overrides"
+    __table_args__ = (UniqueConstraint("user_id", "clinic_id", "resource", "action", name="uq_permission_override"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    clinic_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clinics.id"), nullable=False, index=True)
+    resource: Mapped[str] = mapped_column(String(50), nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    allow: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
