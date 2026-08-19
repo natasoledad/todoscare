@@ -10,6 +10,7 @@ resuelve la clínica por su `slug` y fija el `clinic_id` explícitamente.
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -24,6 +25,7 @@ from app.models.scheduling import Appointment, AvailabilityBlock, OnlineBookingR
 from app.models.tenant import Branch, Clinic
 from app.schemas.public import (
     ClinicaPublicaOut,
+    PrepagoPublicoOut,
     ReservaPublicaIn,
     ReservaPublicaOut,
     ServicioPublicoOut,
@@ -35,7 +37,7 @@ from app.services.scheduling import generate_slots, overlaps_exception
 
 router = APIRouter(prefix="/public/reservas", tags=["public"])
 
-DEFAULT_CFG = {"habilitada": False, "anticipacion_horas": 2, "ventana_dias": 30, "mensaje": None}
+DEFAULT_CFG = {"habilitada": False, "anticipacion_horas": 2, "ventana_dias": 30, "mensaje": None, "requiere_prepago": False, "monto_prepago": 0}
 
 
 def _cfg(clinic: Clinic) -> dict:
@@ -260,6 +262,9 @@ async def reservar_publico(
     if clash_appt or clash_req:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ese horario ya no está disponible — elige otro.")
 
+    requiere_prepago = bool(cfg["requiere_prepago"]) and float(cfg["monto_prepago"]) > 0
+    monto_prepago = Decimal(str(cfg["monto_prepago"])) if requiere_prepago else Decimal(0)
+
     codigo = secrets.token_hex(4).upper()
     req = OnlineBookingRequest(
         clinic_id=clinic.id,
@@ -274,6 +279,8 @@ async def reservar_publico(
         paciente_telefono=payload.telefono,
         paciente_email=payload.email,
         notas=payload.notas,
+        prepago_requerido=requiere_prepago,
+        prepago_monto=monto_prepago,
     )
     db.add(req)
     await db.commit()
@@ -286,7 +293,38 @@ async def reservar_publico(
         fin=payload.fin,
         servicio_nombre=service.nombre,
         profesional_nombre=prof.nombre if prof else "",
+        prepago_requerido=requiere_prepago,
+        prepago_monto=float(monto_prepago),
+        prepagado=False,
     )
+
+
+@router.post("/{slug}/prepago/{codigo}", response_model=PrepagoPublicoOut)
+async def pagar_prepago(slug: str, codigo: str, db: AsyncSession = Depends(get_db)) -> PrepagoPublicoOut:
+    """Hookpoint de prepago (61.7). En producción aquí corre la pasarela de
+    pago; sin red se marca la solicitud como prepagada con una referencia
+    simulada. Una solicitud ya no se puede confirmar sin este paso si la
+    clínica exige prepago."""
+    clinic = await _clinic_by_slug(db, slug)
+    req = (
+        await db.execute(
+            select(OnlineBookingRequest).where(
+                OnlineBookingRequest.clinic_id == clinic.id,
+                OnlineBookingRequest.codigo == codigo.upper(),
+                OnlineBookingRequest.deleted_at.is_(None),
+            )
+        )
+    ).scalars().first()
+    if req is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada")
+    if not req.prepago_requerido:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Esta reserva no requiere prepago")
+    if req.prepagado:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El prepago ya fue realizado")
+    req.prepagado = True
+    req.prepago_ref = f"SIMPAY-{secrets.token_hex(4).upper()}"
+    await db.commit()
+    return PrepagoPublicoOut(codigo=req.codigo, prepagado=True, monto=float(req.prepago_monto), ref=req.prepago_ref)
 
 
 @router.get("/{slug}/estado/{codigo}", response_model=SolicitudEstadoOut)

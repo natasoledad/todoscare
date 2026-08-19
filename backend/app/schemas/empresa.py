@@ -472,6 +472,8 @@ class AgendaOnlineConfigOut(BaseModel):
     anticipacion_horas: int
     ventana_dias: int
     mensaje: str | None
+    requiere_prepago: bool
+    monto_prepago: int
     reservable_url: str | None  # /reservar/<slug> si hay slug
 
 
@@ -481,6 +483,8 @@ class AgendaOnlineConfigUpdate(BaseModel):
     anticipacion_horas: int | None = Field(default=None, ge=0, le=720)
     ventana_dias: int | None = Field(default=None, ge=1, le=365)
     mensaje: str | None = Field(default=None, max_length=500)
+    requiere_prepago: bool | None = None
+    monto_prepago: int | None = Field(default=None, ge=0)
 
 
 class ServicioReservableIn(BaseModel):
@@ -502,6 +506,9 @@ class SolicitudOnlineOut(BaseModel):
     notas: str | None
     creada: datetime
     appointment_id: uuid.UUID | None
+    prepago_requerido: bool = False
+    prepagado: bool = False
+    prepago_monto: float = 0
 
 
 # ---- dashboard de conversión de la agenda online (60.12) ----

@@ -62,6 +62,8 @@ export function AgendaOnline() {
   const [mensaje, setMensaje] = useState('');
   const [antic, setAntic] = useState('2');
   const [ventana, setVentana] = useState('30');
+  const [prepago, setPrepago] = useState(false);
+  const [montoPrepago, setMontoPrepago] = useState('0');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export function AgendaOnline() {
   const loadCfg = () => api.empresa.agendaOnline().then((c) => {
     setCfg(c); setSlug(c.slug || ''); setMensaje(c.mensaje || '');
     setAntic(String(c.anticipacion_horas)); setVentana(String(c.ventana_dias));
+    setPrepago(c.requiere_prepago); setMontoPrepago(String(c.monto_prepago));
   });
   const loadServicios = () => api.empresa.servicios().then(setServicios);
   const loadSolicitudes = () => api.empresa.solicitudes('pendiente').then(setSolicitudes);
@@ -79,7 +82,8 @@ export function AgendaOnline() {
     try {
       const c = await api.empresa.guardarAgendaOnline({
         slug: slug.trim() || undefined, mensaje: mensaje.trim() || undefined,
-        anticipacion_horas: Number(antic) || 0, ventana_dias: Number(ventana) || 30, ...patch,
+        anticipacion_horas: Number(antic) || 0, ventana_dias: Number(ventana) || 30,
+        requiere_prepago: prepago, monto_prepago: Number(montoPrepago) || 0, ...patch,
       });
       setCfg(c); setSlug(c.slug || '');
     } catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo guardar.'); }
@@ -147,6 +151,22 @@ export function AgendaOnline() {
             <label className="text-[11px] font-semibold text-sub">Mensaje al paciente</label>
             <input value={mensaje} onChange={(e) => setMensaje(e.target.value)} placeholder="Reserva tu hora; te confirmaremos pronto."
               className="w-full mt-1 rounded-lg border-[1.5px] border-border-strong bg-white px-2.5 py-2 text-sm text-ink outline-none focus:border-teal" />
+          </div>
+
+          {/* Prepago al agendar (61.7) */}
+          <div className="rounded-xl bg-[#F6FBF9] px-3 py-2.5">
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-[12.5px] font-semibold text-ink">Exigir prepago al reservar</span>
+              <input type="checkbox" checked={prepago} onChange={(e) => setPrepago(e.target.checked)} className="w-4 h-4 accent-teal" />
+            </label>
+            <div className="text-[10.5px] text-sub mt-0.5">Reduce inasistencias: el paciente paga un monto para confirmar.</div>
+            {prepago && (
+              <div className="mt-2">
+                <label className="text-[11px] font-semibold text-sub">Monto del prepago (CLP)</label>
+                <input value={montoPrepago} onChange={(e) => setMontoPrepago(e.target.value)} inputMode="numeric"
+                  className="w-full mt-1 rounded-lg border-[1.5px] border-border-strong bg-white px-2.5 py-2 text-sm text-ink outline-none focus:border-teal" />
+              </div>
+            )}
           </div>
 
           {error && <div className="text-xs text-danger">{error}</div>}

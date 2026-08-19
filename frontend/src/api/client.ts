@@ -60,6 +60,7 @@ import type {
   SlotPublico,
   ReservaPublicaInput,
   ReservaPublicaOut,
+  PrepagoPublico,
   AgendaOnlineConfig,
   AgendaOnlineDashboard,
   SolicitudOnline,
@@ -379,7 +380,7 @@ export const api = {
     bajaFuncionario: (id: string) => del(`/empresa/funcionarios/${id}`),
     // agenda online pública (60)
     agendaOnline: () => get<AgendaOnlineConfig>('/empresa/agenda-online/config'),
-    guardarAgendaOnline: (body: { slug?: string; habilitada?: boolean; anticipacion_horas?: number; ventana_dias?: number; mensaje?: string }) => put<AgendaOnlineConfig>('/empresa/agenda-online/config', body),
+    guardarAgendaOnline: (body: { slug?: string; habilitada?: boolean; anticipacion_horas?: number; ventana_dias?: number; mensaje?: string; requiere_prepago?: boolean; monto_prepago?: number }) => put<AgendaOnlineConfig>('/empresa/agenda-online/config', body),
     agendaOnlineDashboard: (dias = 30) => get<AgendaOnlineDashboard>(`/empresa/agenda-online/dashboard?dias=${dias}`),
     marcarReservable: (serviceId: string, reservable: boolean) => patch<void>(`/empresa/servicios/${serviceId}/reservable`, { reservable_online: reservable }),
     solicitudes: (estado?: string) => get<SolicitudOnline[]>(`/empresa/solicitudes${estado ? `?estado=${estado}` : ''}`),
@@ -391,6 +392,7 @@ export const api = {
     disponibilidad: (slug: string, serviceId: string) => get<SlotPublico[]>(`/public/reservas/${slug}/disponibilidad?service_id=${serviceId}`),
     reservar: (slug: string, body: ReservaPublicaInput) => post<ReservaPublicaOut>(`/public/reservas/${slug}`, body),
     estado: (slug: string, codigo: string) => get<{ codigo: string; estado: string; inicio: string; fin: string }>(`/public/reservas/${slug}/estado/${codigo}`),
+    prepago: (slug: string, codigo: string) => post<PrepagoPublico>(`/public/reservas/${slug}/prepago/${codigo}`),
   },
   cajas: {
     lista: (estado?: string) => get<Caja[]>(`/empresa/cajas${estado ? `?estado=${estado}` : ''}`),

@@ -2,7 +2,7 @@ import uuid
 from datetime import time
 from typing import Any
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Time, text
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Time, text
 from sqlalchemy.dialects.postgresql import JSONB, TSTZRANGE, UUID, ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -174,6 +174,14 @@ class OnlineBookingRequest(Base, AuditMixin, TenantMixin):
     paciente_email: Mapped[str | None] = mapped_column(String(255))
     notas: Mapped[str | None] = mapped_column(String(500))
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("appointments.id"), index=True)
+    # Prepago al agendar (61.7): si la clínica lo exige, la solicitud nace con
+    # `prepago_requerido` y un monto; el pago se confirma por el hookpoint
+    # público (pasarela real en producción) y sin él no se puede confirmar la
+    # cita — así se reducen las inasistencias.
+    prepago_requerido: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    prepago_monto: Mapped[Any] = mapped_column(Numeric(12, 2), nullable=False, server_default="0")
+    prepagado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    prepago_ref: Mapped[str | None] = mapped_column(String(80))
 
 
 class PublicAgendaVisit(Base, AuditMixin, TenantMixin):
