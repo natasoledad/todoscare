@@ -151,3 +151,24 @@ class IntegracionOut(BaseModel):
 
 class IntegracionUpdate(BaseModel):
     activo: bool
+
+
+# ---- permisos personalizados (48) ----
+class PermisoOverrideIn(BaseModel):
+    clinic_id: uuid.UUID
+    resource: str
+    action: str
+    allow: bool = True
+
+
+class PermisoOverrideOut(BaseModel):
+    id: uuid.UUID
+    clinic_id: uuid.UUID
+    resource: str
+    action: str
+    allow: bool
+
+
+class PermisoCatalogoOut(BaseModel):
+    resources: list[str]
+    actions: list[str]

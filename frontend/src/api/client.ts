@@ -126,6 +126,8 @@ import type {
   TycAdmin,
   TycVersion,
   UsuarioAdmin,
+  PermisoOverride,
+  PermisoCatalogo,
   Wallet,
 } from './types';
 
@@ -440,6 +442,10 @@ export const api = {
     bajaClinica: (id: string) => del(`/admin/clinicas/${id}`),
     usuarios: () => get<UsuarioAdmin[]>('/admin/usuarios'),
     crearUsuario: (body: { nombre: string; correo: string; password: string; role: string; clinic_id?: string }) => post<UsuarioAdmin>('/admin/usuarios', body),
+    permisosCatalogo: () => get<PermisoCatalogo>('/admin/permisos/catalogo'),
+    permisosUsuario: (userId: string) => get<PermisoOverride[]>(`/admin/usuarios/${userId}/permisos`),
+    setPermisoUsuario: (userId: string, body: { clinic_id: string; resource: string; action: string; allow: boolean }) => put<PermisoOverride>(`/admin/usuarios/${userId}/permisos`, body),
+    eliminarPermisoUsuario: (userId: string, overrideId: string) => del(`/admin/usuarios/${userId}/permisos/${overrideId}`),
     planes: () => get<PlanAdmin[]>('/admin/planes'),
     crearPlan: (body: { tipo: string; esfera?: string; nombre: string; precio: number }) => post<PlanAdmin>('/admin/planes', body),
     tyc: () => get<TycAdmin[]>('/admin/tyc'),

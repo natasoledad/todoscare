@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.finance import LedgerEntry, PaymentSplit, Plan
-from app.models.identity import Role, RoleAssignment, User
+from app.models.identity import PermissionOverride, Role, RoleAssignment, User
 from app.models.integrations import AuditLog, IntegrationConfig
 from app.models.patient import Patient, TycVersion
 from app.models.scheduling import Appointment
@@ -29,6 +29,9 @@ from app.schemas.admin import (
     IntegracionOut,
     IntegracionUpdate,
     LedgerEntryOut,
+    PermisoCatalogoOut,
+    PermisoOverrideIn,
+    PermisoOverrideOut,
     PlanIn,
     PlanOut,
     PublicarTycIn,
@@ -432,3 +435,89 @@ async def toggle_integracion(
     integ.activo = payload.activo
     await db.commit()
     return IntegracionOut(id=integ.id, tipo=integ.tipo, activo=integ.activo)
+
+
+# ═══════════════════════ Permisos personalizados (48) ═══════════════════════
+_RESOURCES = {r.value for r in Resource}
+_ACTIONS = {a.value for a in Action}
+
+
+@router.get("/permisos/catalogo", response_model=PermisoCatalogoOut)
+async def catalogo_permisos(
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.VER)),
+) -> PermisoCatalogoOut:
+    return PermisoCatalogoOut(resources=sorted(_RESOURCES), actions=[a.value for a in Action])
+
+
+async def _user_in_scope(db: AsyncSession, ctx: TenantContext, user_id: uuid.UUID) -> None:
+    """El usuario debe tener algún rol en una clínica del alcance del admin."""
+    scope = admin_scope(ctx)
+    if scope is None:
+        return
+    ras = (await db.execute(select(RoleAssignment.clinic_id).where(RoleAssignment.user_id == user_id, RoleAssignment.deleted_at.is_(None)))).scalars().all()
+    if not any(c in scope for c in ras if c is not None):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario fuera de tu alcance")
+
+
+def _override_out(o: PermissionOverride) -> PermisoOverrideOut:
+    return PermisoOverrideOut(id=o.id, clinic_id=o.clinic_id, resource=o.resource, action=o.action, allow=o.allow)
+
+
+@router.get("/usuarios/{user_id}/permisos", response_model=list[PermisoOverrideOut])
+async def list_permisos_usuario(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.VER)),
+) -> list[PermisoOverrideOut]:
+    await _user_in_scope(db, ctx, user_id)
+    scope = admin_scope(ctx)
+    rows = (await db.execute(select(PermissionOverride).where(PermissionOverride.user_id == user_id, PermissionOverride.deleted_at.is_(None)))).scalars().all()
+    return [_override_out(o) for o in rows if scope is None or o.clinic_id in scope]
+
+
+@router.put("/usuarios/{user_id}/permisos", response_model=PermisoOverrideOut)
+async def set_permiso_usuario(
+    user_id: uuid.UUID,
+    payload: PermisoOverrideIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.EDITAR)),
+) -> PermisoOverrideOut:
+    if payload.resource not in _RESOURCES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Recurso inválido: {payload.resource}")
+    if payload.action not in _ACTIONS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Acción inválida: {payload.action}")
+    assert_clinic_in_scope(ctx, payload.clinic_id)
+    await _user_in_scope(db, ctx, user_id)
+
+    o = (
+        await db.execute(
+            select(PermissionOverride).where(
+                PermissionOverride.user_id == user_id, PermissionOverride.clinic_id == payload.clinic_id,
+                PermissionOverride.resource == payload.resource, PermissionOverride.action == payload.action,
+                PermissionOverride.deleted_at.is_(None),
+            )
+        )
+    ).scalars().first()
+    if o is None:
+        o = PermissionOverride(user_id=user_id, clinic_id=payload.clinic_id, resource=payload.resource, action=payload.action, allow=payload.allow)
+        db.add(o)
+    else:
+        o.allow = payload.allow
+    await db.commit()
+    await db.refresh(o)
+    return _override_out(o)
+
+
+@router.delete("/usuarios/{user_id}/permisos/{override_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_permiso_usuario(
+    user_id: uuid.UUID,
+    override_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.EDITAR)),
+) -> None:
+    o = await db.get(PermissionOverride, override_id)
+    if o is None or o.user_id != user_id or o.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Permiso no encontrado")
+    assert_clinic_in_scope(ctx, o.clinic_id)
+    await db.delete(o)
+    await db.commit()

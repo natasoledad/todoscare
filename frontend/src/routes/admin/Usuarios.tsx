@@ -5,7 +5,16 @@ import { Button } from '../../components/Button';
 import { BottomSheet } from '../../components/BottomSheet';
 import { api, ApiError } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import type { ClinicAdmin, UsuarioAdmin } from '../../api/types';
+import type { ClinicAdmin, PermisoCatalogo, PermisoOverride, UsuarioAdmin } from '../../api/types';
+
+const RES_LABEL: Record<string, string> = {
+  clinic_agendas: 'Agendas de la clínica', catalogo_precios: 'Catálogo y precios', cajas: 'Cajas',
+  tributario: 'Tributario', liquidacion_profesionales: 'Liquidaciones', inventario: 'Inventario',
+  laboratorios: 'Laboratorios', promociones: 'Promociones', info_empresa: 'Info empresa',
+  funcionarios_b2b: 'Funcionarios B2B', crm_kpis_clinica: 'CRM (KPIs)', crm_campanas: 'CRM campañas',
+};
+const ACT_LABEL: Record<string, string> = { ver: 'Ver', crear: 'Crear', editar: 'Editar', eliminar: 'Eliminar' };
+const resLabel = (r: string) => RES_LABEL[r] ?? r;
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: 'Super-Admin', clinic_admin: 'Admin clínica', branch_admin: 'Admin sucursal',
@@ -22,6 +31,7 @@ export function Usuarios() {
   const [f, setF] = useState({ nombre: '', correo: '', password: '', role: 'medico', clinic_id: '' });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [permUser, setPermUser] = useState<UsuarioAdmin | null>(null);
 
   const load = () => api.admin.usuarios().then(setUsuarios);
   useEffect(() => {
@@ -55,16 +65,21 @@ export function Usuarios() {
           <div key={u.id} className="rounded-2xl border border-border bg-white px-4 py-3.5">
             <div className="font-semibold text-sm text-ink">{u.nombre}</div>
             <div className="mt-0.5 text-xs text-sub truncate">{u.email}</div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-2 flex flex-wrap gap-1.5 items-center">
               {u.roles.map((r) => (
                 <span key={r.id} className="font-heading font-bold text-[10.5px] px-2 py-0.5 rounded-full bg-teal-soft text-teal-dark">
                   {ROLE_LABEL[r.role] ?? r.role}
                 </span>
               ))}
+              {u.roles[0]?.clinic_id && (
+                <button onClick={() => setPermUser(u)} className="ml-auto text-[11.5px] font-semibold text-teal-dark">Permisos ›</button>
+              )}
             </div>
           </div>
         ))}
       </div>
+
+      {permUser && <PermisosSheet usuario={permUser} onClose={() => setPermUser(null)} />}
       <div className="absolute left-0 right-0 bottom-0 px-5 pb-6 pt-3 bg-gradient-to-t from-bg via-bg to-transparent">
         <Button onClick={() => setOpen(true)} className="w-full">+ Nuevo usuario</Button>
       </div>
@@ -98,5 +113,68 @@ export function Usuarios() {
         </BottomSheet>
       )}
     </div>
+  );
+}
+
+function PermisosSheet({ usuario, onClose }: { usuario: UsuarioAdmin; onClose: () => void }) {
+  const clinicId = usuario.roles[0]?.clinic_id || '';
+  const [overrides, setOverrides] = useState<PermisoOverride[]>([]);
+  const [cat, setCat] = useState<PermisoCatalogo | null>(null);
+  const [resource, setResource] = useState('');
+  const [action, setAction] = useState('ver');
+  const [allow, setAllow] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => api.admin.permisosUsuario(usuario.id).then(setOverrides).catch(() => setOverrides([]));
+  useEffect(() => {
+    load();
+    api.admin.permisosCatalogo().then((c) => { setCat(c); if (c.resources[0]) setResource(c.resources[0]); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario.id]);
+
+  const guardar = async () => {
+    if (!clinicId || !resource) return;
+    setSaving(true); setError(null);
+    try { await api.admin.setPermisoUsuario(usuario.id, { clinic_id: clinicId, resource, action, allow }); await load(); }
+    catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo guardar.'); }
+    finally { setSaving(false); }
+  };
+  const quitar = async (id: string) => { await api.admin.eliminarPermisoUsuario(usuario.id, id); await load(); };
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="font-heading font-extrabold text-[17px] text-ink">Permisos · {usuario.nombre}</div>
+      <div className="text-[11.5px] text-sub">Ajustes finos sobre su rol: concede o revoca acciones puntuales sin cambiar el rol.</div>
+
+      {overrides.length === 0 && <div className="text-[12px] text-sub">Sin permisos personalizados (rige el rol).</div>}
+      <div className="flex flex-col gap-1.5">
+        {overrides.map((o) => (
+          <div key={o.id} className="flex items-center justify-between rounded-xl bg-[#F6FBF9] px-3 py-2">
+            <span className="text-[12.5px] text-ink">
+              <span className={`font-semibold ${o.allow ? 'text-teal-dark' : 'text-danger'}`}>{o.allow ? 'Concede' : 'Revoca'}</span>{' '}
+              {ACT_LABEL[o.action] ?? o.action} · {resLabel(o.resource)}
+            </span>
+            <button onClick={() => quitar(o.id)} className="text-[11px] font-semibold text-danger">Quitar</button>
+          </div>
+        ))}
+      </div>
+
+      <div className="text-[12px] font-semibold text-ink mt-2">Agregar permiso</div>
+      <select value={resource} onChange={(e) => setResource(e.target.value)} className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+        {(cat?.resources ?? []).map((r) => <option key={r} value={r}>{resLabel(r)}</option>)}
+      </select>
+      <div className="flex gap-2">
+        <select value={action} onChange={(e) => setAction(e.target.value)} className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+          {(cat?.actions ?? ['ver', 'crear', 'editar', 'eliminar']).map((a) => <option key={a} value={a}>{ACT_LABEL[a] ?? a}</option>)}
+        </select>
+        <select value={allow ? '1' : '0'} onChange={(e) => setAllow(e.target.value === '1')} className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+          <option value="1">Conceder</option>
+          <option value="0">Revocar</option>
+        </select>
+      </div>
+      {error && <div className="text-xs text-danger">{error}</div>}
+      <Button onClick={guardar} disabled={saving || !resource} className="w-full">{saving ? 'Guardando…' : 'Aplicar permiso'}</Button>
+    </BottomSheet>
   );
 }

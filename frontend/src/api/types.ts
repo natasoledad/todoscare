@@ -651,6 +651,17 @@ export interface AgendaOnlineConfig {
   monto_prepago: number;
   reservable_url: string | null;
 }
+export interface PermisoOverride {
+  id: string;
+  clinic_id: string;
+  resource: string;
+  action: string;
+  allow: boolean;
+}
+export interface PermisoCatalogo {
+  resources: string[];
+  actions: string[];
+}
 export interface ReporteBib {
   id: string;
   nombre: string;
