@@ -25,6 +25,16 @@ class PermissionGrant:
 
 
 @dataclass(frozen=True)
+class ProfileGrant:
+    """Una casilla marcada de un perfil de acceso reutilizable (48): el usuario
+    tiene concedido (resource, action) dentro de `clinic_id` por su perfil."""
+
+    clinic_id: uuid.UUID
+    resource: str
+    action: str
+
+
+@dataclass(frozen=True)
 class TenantContext:
     """Reconstructed on every request from the JWT's role assignments —
     never trust a clinic_id passed in a request body/query without checking
@@ -34,6 +44,12 @@ class TenantContext:
     email: str
     grants: tuple[RoleGrant, ...]
     overrides: tuple[PermissionGrant, ...] = ()
+    # Perfiles de acceso reutilizables (48): allowlist autoritativa por perfil
+    # asignado. `profile_grants` son las casillas marcadas; `restricted_clinics`
+    # son las clínicas donde el usuario tiene un perfil que SÍ restringe (los
+    # perfiles con `sin_restriccion` no entran aquí — no limitan la matriz).
+    profile_grants: tuple[ProfileGrant, ...] = ()
+    restricted_clinics: frozenset[uuid.UUID] = frozenset()
 
     def is_super_admin(self) -> bool:
         return any(g.role == RoleCode.SUPER_ADMIN for g in self.grants)
@@ -69,11 +85,30 @@ class TenantContext:
             return None
         return all(o.allow for o in aplicables)  # cualquier deny bloquea
 
+    def _profile(self, resource: Resource, action: Action, clinic_id: uuid.UUID | None) -> bool | None:
+        """Decisión del perfil de acceso autoritativo (48). None si no aplica
+        (el usuario no tiene un perfil que restrinja la clínica en cuestión, o es
+        super_admin). Si aplica: True solo si (recurso, acción) está en la
+        allowlist del perfil de esa clínica."""
+        if self.is_super_admin():
+            return None
+        relevantes = {c for c in self.restricted_clinics if clinic_id is None or c == clinic_id}
+        if not relevantes:
+            return None
+        return any(
+            pg.clinic_id in relevantes and pg.resource == resource.value and pg.action == action.value
+            for pg in self.profile_grants
+        )
+
     def has_permission(self, resource: Resource, action: Action, clinic_id: uuid.UUID | None = None) -> bool:
-        # Permisos personalizados (48): el override explícito manda sobre la matriz.
+        # Permisos personalizados (48): el override explícito manda sobre todo.
         ov = self._override(resource, action, clinic_id)
         if ov is not None:
             return ov
+        # Perfil de acceso reutilizable (48): allowlist autoritativa sobre la matriz.
+        pf = self._profile(resource, action, clinic_id)
+        if pf is not None:
+            return pf
         for g in self.grants:
             if clinic_id is not None and g.clinic_id is not None and g.clinic_id != clinic_id:
                 continue

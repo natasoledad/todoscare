@@ -5,7 +5,7 @@ import { Button } from '../../components/Button';
 import { BottomSheet } from '../../components/BottomSheet';
 import { api, ApiError } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import type { ClinicAdmin, PermisoCatalogo, PermisoOverride, UsuarioAdmin } from '../../api/types';
+import type { ClinicAdmin, PerfilAcceso, PerfilAsignado, PermisoCatalogo, PermisoOverride, UsuarioAdmin } from '../../api/types';
 
 const RES_LABEL: Record<string, string> = {
   clinic_agendas: 'Agendas de la clínica', catalogo_precios: 'Catálogo y precios', cajas: 'Cajas',
@@ -72,7 +72,7 @@ export function Usuarios() {
                 </span>
               ))}
               {u.roles[0]?.clinic_id && (
-                <button onClick={() => setPermUser(u)} className="ml-auto text-[11.5px] font-semibold text-teal-dark">Permisos ›</button>
+                <button onClick={() => setPermUser(u)} className="ml-auto text-[11.5px] font-semibold text-teal-dark">Accesos ›</button>
               )}
             </div>
           </div>
@@ -125,13 +125,38 @@ function PermisosSheet({ usuario, onClose }: { usuario: UsuarioAdmin; onClose: (
   const [allow, setAllow] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Perfiles de acceso reutilizables (48)
+  const [perfiles, setPerfiles] = useState<PerfilAcceso[]>([]);
+  const [asignado, setAsignado] = useState<PerfilAsignado | null>(null);
+  const [perfilSel, setPerfilSel] = useState('');
+  const [savingPerfil, setSavingPerfil] = useState(false);
 
   const load = () => api.admin.permisosUsuario(usuario.id).then(setOverrides).catch(() => setOverrides([]));
+  const loadPerfil = () =>
+    api.admin.perfilUsuario(usuario.id)
+      .then((rows) => setAsignado(rows.find((r) => r.clinic_id === clinicId) ?? null))
+      .catch(() => setAsignado(null));
   useEffect(() => {
     load();
+    loadPerfil();
+    api.admin.perfiles().then((ps) => setPerfiles(ps.filter((p) => p.clinic_id === clinicId && p.activo))).catch(() => setPerfiles([]));
     api.admin.permisosCatalogo().then((c) => { setCat(c); if (c.resources[0]) setResource(c.resources[0]); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuario.id]);
+
+  const asignarPerfil = async () => {
+    if (!clinicId || !perfilSel) return;
+    setSavingPerfil(true); setError(null);
+    try { await api.admin.asignarPerfil(usuario.id, { clinic_id: clinicId, profile_id: perfilSel }); setPerfilSel(''); await loadPerfil(); }
+    catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo asignar el perfil.'); }
+    finally { setSavingPerfil(false); }
+  };
+  const quitarPerfil = async () => {
+    setSavingPerfil(true); setError(null);
+    try { await api.admin.quitarPerfil(usuario.id, clinicId); await loadPerfil(); }
+    catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo quitar el perfil.'); }
+    finally { setSavingPerfil(false); }
+  };
 
   const guardar = async () => {
     if (!clinicId || !resource) return;
@@ -144,10 +169,36 @@ function PermisosSheet({ usuario, onClose }: { usuario: UsuarioAdmin; onClose: (
 
   return (
     <BottomSheet onClose={onClose}>
-      <div className="font-heading font-extrabold text-[17px] text-ink">Permisos · {usuario.nombre}</div>
-      <div className="text-[11.5px] text-sub">Ajustes finos sobre su rol: concede o revoca acciones puntuales sin cambiar el rol.</div>
+      <div className="font-heading font-extrabold text-[17px] text-ink">Accesos · {usuario.nombre}</div>
 
-      {overrides.length === 0 && <div className="text-[12px] text-sub">Sin permisos personalizados (rige el rol).</div>}
+      {/* Perfil de acceso reutilizable (48) */}
+      <div className="rounded-xl border border-border bg-[#F6FBF9] px-3 py-2.5 flex flex-col gap-2">
+        <div className="text-[12px] font-semibold text-ink">Perfil de acceso</div>
+        {asignado ? (
+          <div className="flex items-center justify-between">
+            <span className="text-[12.5px] text-ink">
+              Perfil actual: <span className="font-semibold text-teal-dark">{asignado.profile_nombre}</span>
+            </span>
+            <button onClick={quitarPerfil} disabled={savingPerfil} className="text-[11px] font-semibold text-danger">Quitar</button>
+          </div>
+        ) : (
+          <div className="text-[11.5px] text-sub">Sin perfil: rige el rol y los ajustes finos de abajo.</div>
+        )}
+        <div className="flex gap-2">
+          <select value={perfilSel} onChange={(e) => setPerfilSel(e.target.value)}
+            className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+            <option value="">Elegir perfil…</option>
+            {perfiles.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+          <Button onClick={asignarPerfil} disabled={savingPerfil || !perfilSel} className="shrink-0">
+            {asignado ? 'Cambiar' : 'Asignar'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="text-[11.5px] text-sub mt-1">Ajustes finos sobre su rol o perfil: concede o revoca acciones puntuales. Un ajuste fino manda sobre el perfil.</div>
+
+      {overrides.length === 0 && <div className="text-[12px] text-sub">Sin ajustes finos.</div>}
       <div className="flex flex-col gap-1.5">
         {overrides.map((o) => (
           <div key={o.id} className="flex items-center justify-between rounded-xl bg-[#F6FBF9] px-3 py-2">

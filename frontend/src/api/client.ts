@@ -128,6 +128,9 @@ import type {
   UsuarioAdmin,
   PermisoOverride,
   PermisoCatalogo,
+  PermisoItem,
+  PerfilAcceso,
+  PerfilAsignado,
   Wallet,
 } from './types';
 
@@ -446,6 +449,17 @@ export const api = {
     permisosUsuario: (userId: string) => get<PermisoOverride[]>(`/admin/usuarios/${userId}/permisos`),
     setPermisoUsuario: (userId: string, body: { clinic_id: string; resource: string; action: string; allow: boolean }) => put<PermisoOverride>(`/admin/usuarios/${userId}/permisos`, body),
     eliminarPermisoUsuario: (userId: string, overrideId: string) => del(`/admin/usuarios/${userId}/permisos/${overrideId}`),
+    // Perfiles de acceso reutilizables (48)
+    perfiles: () => get<PerfilAcceso[]>('/admin/perfiles'),
+    crearPerfil: (body: { clinic_id: string; nombre: string; base_role: string; permisos: PermisoItem[]; sin_restriccion: boolean }) =>
+      post<PerfilAcceso>('/admin/perfiles', body),
+    editarPerfil: (id: string, body: Partial<{ nombre: string; permisos: PermisoItem[]; sin_restriccion: boolean; activo: boolean }>) =>
+      patch<PerfilAcceso>(`/admin/perfiles/${id}`, body),
+    eliminarPerfil: (id: string) => del(`/admin/perfiles/${id}`),
+    perfilUsuario: (userId: string) => get<PerfilAsignado[]>(`/admin/usuarios/${userId}/perfil`),
+    asignarPerfil: (userId: string, body: { clinic_id: string; profile_id: string }) =>
+      put<PerfilAsignado>(`/admin/usuarios/${userId}/perfil`, body),
+    quitarPerfil: (userId: string, clinicId: string) => del(`/admin/usuarios/${userId}/perfil/${clinicId}`),
     planes: () => get<PlanAdmin[]>('/admin/planes'),
     crearPlan: (body: { tipo: string; esfera?: string; nombre: string; precio: number }) => post<PlanAdmin>('/admin/planes', body),
     tyc: () => get<TycAdmin[]>('/admin/tyc'),

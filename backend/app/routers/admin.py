@@ -8,7 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.finance import LedgerEntry, PaymentSplit, Plan
-from app.models.identity import PermissionOverride, Role, RoleAssignment, User
+from app.models.identity import (
+    PermissionOverride,
+    PermissionProfile,
+    Role,
+    RoleAssignment,
+    User,
+    UserPermissionProfile,
+)
 from app.models.integrations import AuditLog, IntegrationConfig
 from app.models.patient import Patient, TycVersion
 from app.models.scheduling import Appointment
@@ -20,6 +27,7 @@ from app.schemas.admin import (
     AdminKpis,
     AltaClinicaIn,
     AltaClinicaOut,
+    AsignarPerfilIn,
     AsignarRolIn,
     AuditOut,
     ClinicOut,
@@ -29,7 +37,12 @@ from app.schemas.admin import (
     IntegracionOut,
     IntegracionUpdate,
     LedgerEntryOut,
+    PerfilAccesoIn,
+    PerfilAccesoOut,
+    PerfilAccesoUpdate,
+    PerfilAsignadoOut,
     PermisoCatalogoOut,
+    PermisoItem,
     PermisoOverrideIn,
     PermisoOverrideOut,
     PlanIn,
@@ -520,4 +533,214 @@ async def eliminar_permiso_usuario(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Permiso no encontrado")
     assert_clinic_in_scope(ctx, o.clinic_id)
     await db.delete(o)
+    await db.commit()
+
+
+# ═══════════════════════ Perfiles de acceso reutilizables (48) ═══════════════════════
+_BASE_ROLES = {RoleCode.EMPRESA.value, RoleCode.MEDICO.value, RoleCode.CLINIC_ADMIN.value}
+
+
+def _validar_permisos(permisos: list[PermisoItem]) -> list[dict]:
+    """Valida cada casilla contra los enums y la normaliza a dicts JSONB,
+    deduplicando (recurso, acción)."""
+    vistos: set[tuple[str, str]] = set()
+    out: list[dict] = []
+    for p in permisos:
+        if p.resource not in _RESOURCES:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Recurso inválido: {p.resource}")
+        if p.action not in _ACTIONS:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Acción inválida: {p.action}")
+        clave = (p.resource, p.action)
+        if clave not in vistos:
+            vistos.add(clave)
+            out.append({"resource": p.resource, "action": p.action})
+    return out
+
+
+async def _n_usuarios_perfil(db: AsyncSession, profile_id: uuid.UUID) -> int:
+    return (
+        await db.execute(
+            select(func.count(UserPermissionProfile.id)).where(
+                UserPermissionProfile.profile_id == profile_id, UserPermissionProfile.deleted_at.is_(None)
+            )
+        )
+    ).scalar_one()
+
+
+async def _perfil_out(db: AsyncSession, p: PermissionProfile) -> PerfilAccesoOut:
+    return PerfilAccesoOut(
+        id=p.id, clinic_id=p.clinic_id, nombre=p.nombre, base_role=p.base_role,
+        permisos=[PermisoItem(**i) for i in (p.permisos or [])],
+        sin_restriccion=p.sin_restriccion, activo=p.activo,
+        usuarios=await _n_usuarios_perfil(db, p.id),
+    )
+
+
+@router.get("/perfiles", response_model=list[PerfilAccesoOut])
+async def list_perfiles(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.VER)),
+) -> list[PerfilAccesoOut]:
+    scope = admin_scope(ctx)
+    q = select(PermissionProfile).where(PermissionProfile.deleted_at.is_(None))
+    if scope is not None:
+        q = q.where(PermissionProfile.clinic_id.in_(scope))
+    rows = (await db.execute(q.order_by(PermissionProfile.nombre))).scalars().all()
+    return [await _perfil_out(db, p) for p in rows]
+
+
+@router.post("/perfiles", response_model=PerfilAccesoOut, status_code=status.HTTP_201_CREATED)
+async def crear_perfil(
+    payload: PerfilAccesoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.CREAR)),
+) -> PerfilAccesoOut:
+    assert_clinic_in_scope(ctx, payload.clinic_id)
+    if payload.base_role not in _BASE_ROLES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Rol base inválido: {payload.base_role}")
+    permisos = _validar_permisos(payload.permisos)
+    dup = (
+        await db.execute(
+            select(PermissionProfile).where(
+                PermissionProfile.clinic_id == payload.clinic_id,
+                func.lower(PermissionProfile.nombre) == payload.nombre.lower(),
+                PermissionProfile.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if dup is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un perfil con ese nombre en la clínica")
+    p = PermissionProfile(
+        clinic_id=payload.clinic_id, nombre=payload.nombre, base_role=payload.base_role,
+        permisos=permisos, sin_restriccion=payload.sin_restriccion,
+    )
+    db.add(p)
+    await db.commit()
+    await db.refresh(p)
+    return await _perfil_out(db, p)
+
+
+@router.patch("/perfiles/{profile_id}", response_model=PerfilAccesoOut)
+async def editar_perfil(
+    profile_id: uuid.UUID,
+    payload: PerfilAccesoUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.EDITAR)),
+) -> PerfilAccesoOut:
+    p = await db.get(PermissionProfile, profile_id)
+    if p is None or p.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Perfil no encontrado")
+    assert_clinic_in_scope(ctx, p.clinic_id)
+    if payload.nombre is not None:
+        p.nombre = payload.nombre
+    if payload.permisos is not None:
+        p.permisos = _validar_permisos(payload.permisos)
+    if payload.sin_restriccion is not None:
+        p.sin_restriccion = payload.sin_restriccion
+    if payload.activo is not None:
+        p.activo = payload.activo
+    await db.commit()
+    await db.refresh(p)
+    return await _perfil_out(db, p)
+
+
+@router.delete("/perfiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_perfil(
+    profile_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.ELIMINAR)),
+) -> None:
+    p = await db.get(PermissionProfile, profile_id)
+    if p is None or p.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Perfil no encontrado")
+    assert_clinic_in_scope(ctx, p.clinic_id)
+    # Al eliminar el perfil, se retiran sus asignaciones (baja lógica).
+    asigs = (
+        await db.execute(
+            select(UserPermissionProfile).where(
+                UserPermissionProfile.profile_id == profile_id, UserPermissionProfile.deleted_at.is_(None)
+            )
+        )
+    ).scalars().all()
+    for a in asigs:
+        await db.delete(a)
+    await db.delete(p)
+    await db.commit()
+
+
+@router.get("/usuarios/{user_id}/perfil", response_model=list[PerfilAsignadoOut])
+async def perfiles_usuario(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.VER)),
+) -> list[PerfilAsignadoOut]:
+    await _user_in_scope(db, ctx, user_id)
+    scope = admin_scope(ctx)
+    rows = (
+        await db.execute(
+            select(UserPermissionProfile, PermissionProfile)
+            .join(PermissionProfile, PermissionProfile.id == UserPermissionProfile.profile_id)
+            .where(UserPermissionProfile.user_id == user_id, UserPermissionProfile.deleted_at.is_(None))
+        )
+    ).all()
+    return [
+        PerfilAsignadoOut(id=upp.id, clinic_id=upp.clinic_id, profile_id=prof.id, profile_nombre=prof.nombre, base_role=prof.base_role)
+        for upp, prof in rows
+        if scope is None or upp.clinic_id in scope
+    ]
+
+
+@router.put("/usuarios/{user_id}/perfil", response_model=PerfilAsignadoOut)
+async def asignar_perfil(
+    user_id: uuid.UUID,
+    payload: AsignarPerfilIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.EDITAR)),
+) -> PerfilAsignadoOut:
+    assert_clinic_in_scope(ctx, payload.clinic_id)
+    await _user_in_scope(db, ctx, user_id)
+    prof = await db.get(PermissionProfile, payload.profile_id)
+    if prof is None or prof.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Perfil no encontrado")
+    if prof.clinic_id != payload.clinic_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El perfil pertenece a otra clínica")
+    # Un solo perfil por (usuario, clínica): reemplaza el anterior si existe.
+    existente = (
+        await db.execute(
+            select(UserPermissionProfile).where(
+                UserPermissionProfile.user_id == user_id, UserPermissionProfile.clinic_id == payload.clinic_id,
+                UserPermissionProfile.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if existente is None:
+        upp = UserPermissionProfile(user_id=user_id, clinic_id=payload.clinic_id, profile_id=prof.id)
+        db.add(upp)
+    else:
+        existente.profile_id = prof.id
+        upp = existente
+    await db.commit()
+    await db.refresh(upp)
+    return PerfilAsignadoOut(id=upp.id, clinic_id=upp.clinic_id, profile_id=prof.id, profile_nombre=prof.nombre, base_role=prof.base_role)
+
+
+@router.delete("/usuarios/{user_id}/perfil/{clinic_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def quitar_perfil(
+    user_id: uuid.UUID,
+    clinic_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.EDITAR)),
+) -> None:
+    assert_clinic_in_scope(ctx, clinic_id)
+    upp = (
+        await db.execute(
+            select(UserPermissionProfile).where(
+                UserPermissionProfile.user_id == user_id, UserPermissionProfile.clinic_id == clinic_id,
+                UserPermissionProfile.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if upp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "El usuario no tiene perfil asignado en esta clínica")
+    await db.delete(upp)
     await db.commit()

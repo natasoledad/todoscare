@@ -172,3 +172,48 @@ class PermisoOverrideOut(BaseModel):
 class PermisoCatalogoOut(BaseModel):
     resources: list[str]
     actions: list[str]
+
+
+# ---- perfiles de acceso reutilizables (48) ----
+class PermisoItem(BaseModel):
+    resource: str
+    action: str
+
+
+class PerfilAccesoIn(BaseModel):
+    clinic_id: uuid.UUID
+    nombre: str = Field(min_length=2, max_length=80)
+    base_role: str  # empresa | medico | clinic_admin
+    permisos: list[PermisoItem] = Field(default_factory=list)
+    sin_restriccion: bool = False
+
+
+class PerfilAccesoUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=2, max_length=80)
+    permisos: list[PermisoItem] | None = None
+    sin_restriccion: bool | None = None
+    activo: bool | None = None
+
+
+class PerfilAccesoOut(BaseModel):
+    id: uuid.UUID
+    clinic_id: uuid.UUID
+    nombre: str
+    base_role: str
+    permisos: list[PermisoItem]
+    sin_restriccion: bool
+    activo: bool
+    usuarios: int  # cuántos usuarios lo tienen asignado
+
+
+class AsignarPerfilIn(BaseModel):
+    clinic_id: uuid.UUID
+    profile_id: uuid.UUID
+
+
+class PerfilAsignadoOut(BaseModel):
+    id: uuid.UUID  # id de la asignación (UserPermissionProfile)
+    clinic_id: uuid.UUID
+    profile_id: uuid.UUID
+    profile_nombre: str
+    base_role: str

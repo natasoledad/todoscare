@@ -17,7 +17,7 @@ from app.models.finance import Company, CompanyEmployee, LedgerEntry, PaymentSpl
 from app.models.insurance import Affiliate, Agreement, Arancel, Authorization, Insurer
 from app.models.integrations import IntegrationConfig
 from app.models.marketing import MarketingCampaign
-from app.models.identity import Role, RoleAssignment, User
+from app.models.identity import PermissionProfile, Role, RoleAssignment, User
 from app.models.patient import Patient, TycAcceptance, TycVersion
 from app.models.scheduling import Appointment, AvailabilityBlock
 from app.models.tax import TaxEmitter, TaxFolioRange
@@ -165,6 +165,113 @@ async def seed_tax_emitter(db, clinic_id, pais: str, *, tax_id, razon_social, gi
         db.add(IntegrationConfig(clinic_id=clinic_id, tipo="tributario", activo=True, credenciales=None))
 
 
+# ── Perfiles de acceso reutilizables (48) ──────────────────────────────────
+# Los 12 perfiles que espera una clínica que contrata el software. `base_role`
+# decide el panel (empresa → /empresa, medico → /medico, clinic_admin → /admin);
+# los permisos son la allowlist autoritativa dentro de ese panel. Gerencia y
+# Administrador de Cuenta usan `sin_restriccion` (acceso total al panel admin).
+PERFILES_BASE: list[dict] = [
+    {"nombre": "Recepción", "base_role": "empresa", "sin_restriccion": False, "permisos": [
+        ("clinic_agendas", ["ver", "crear", "editar", "eliminar"]),
+        ("catalogo_precios", ["ver"]),
+        ("cajas", ["ver", "crear", "editar"]),
+        ("info_empresa", ["ver"]),
+    ]},
+    {"nombre": "TENS", "base_role": "medico", "sin_restriccion": False, "permisos": [
+        ("own_agenda", ["ver"]),
+        ("prontuario_atendidos", ["ver", "crear", "editar"]),
+        ("ordenes_examen", ["ver"]),
+    ]},
+    {"nombre": "TONS", "base_role": "medico", "sin_restriccion": False, "permisos": [
+        ("own_agenda", ["ver"]),
+        ("prontuario_atendidos", ["ver", "crear", "editar"]),
+        ("ordenes_examen", ["ver", "crear"]),
+    ]},
+    {"nombre": "Médico", "base_role": "medico", "sin_restriccion": False, "permisos": [
+        ("own_agenda", ["ver", "crear", "editar", "eliminar"]),
+        ("prontuario_atendidos", ["ver", "crear", "editar"]),
+        ("prescripciones", ["ver", "crear", "editar"]),
+        ("ordenes_examen", ["ver", "crear", "editar", "eliminar"]),
+        ("liquidacion_propia", ["ver"]),
+    ]},
+    {"nombre": "Dentista", "base_role": "medico", "sin_restriccion": False, "permisos": [
+        ("own_agenda", ["ver", "crear", "editar", "eliminar"]),
+        ("prontuario_atendidos", ["ver", "crear", "editar"]),
+        ("prescripciones", ["ver", "crear", "editar"]),
+        ("ordenes_examen", ["ver", "crear", "editar", "eliminar"]),
+        ("liquidacion_propia", ["ver"]),
+    ]},
+    {"nombre": "Líder", "base_role": "empresa", "sin_restriccion": False, "permisos": [
+        ("clinic_agendas", ["ver", "crear", "editar", "eliminar"]),
+        ("catalogo_precios", ["ver", "crear", "editar"]),
+        ("promociones", ["ver", "crear", "editar"]),
+        ("cajas", ["ver", "crear", "editar"]),
+        ("inventario", ["ver", "crear", "editar"]),
+        ("laboratorios", ["ver", "crear", "editar"]),
+        ("liquidacion_profesionales", ["ver", "editar"]),
+        ("crm_kpis_clinica", ["ver"]),
+        ("crm_campanas", ["ver", "crear", "editar", "eliminar"]),
+        ("info_empresa", ["ver", "editar"]),
+        ("funcionarios_b2b", ["ver", "crear", "editar"]),
+    ]},
+    {"nombre": "Coordinación", "base_role": "empresa", "sin_restriccion": False, "permisos": [
+        ("clinic_agendas", ["ver", "crear", "editar", "eliminar"]),
+        ("catalogo_precios", ["ver", "editar"]),
+        ("promociones", ["ver", "crear", "editar"]),
+        ("crm_kpis_clinica", ["ver"]),
+        ("crm_campanas", ["ver", "crear", "editar"]),
+        ("funcionarios_b2b", ["ver", "crear", "editar"]),
+        ("info_empresa", ["ver"]),
+    ]},
+    {"nombre": "Gerencia", "base_role": "clinic_admin", "sin_restriccion": True, "permisos": []},
+    {"nombre": "Reportería", "base_role": "empresa", "sin_restriccion": False, "permisos": [
+        ("clinic_agendas", ["ver"]),
+        ("catalogo_precios", ["ver"]),
+        ("cajas", ["ver"]),
+        ("inventario", ["ver"]),
+        ("laboratorios", ["ver"]),
+        ("liquidacion_profesionales", ["ver"]),
+        ("crm_kpis_clinica", ["ver"]),
+    ]},
+    {"nombre": "CallCenter", "base_role": "empresa", "sin_restriccion": False, "permisos": [
+        ("clinic_agendas", ["ver", "crear", "editar"]),
+        ("catalogo_precios", ["ver"]),
+        ("info_empresa", ["ver"]),
+    ]},
+    {"nombre": "Administrativo", "base_role": "empresa", "sin_restriccion": False, "permisos": [
+        ("cajas", ["ver", "crear", "editar"]),
+        ("tributario", ["ver", "crear", "editar"]),
+        ("liquidacion_profesionales", ["ver", "editar"]),
+        ("inventario", ["ver", "crear", "editar", "eliminar"]),
+        ("laboratorios", ["ver", "crear", "editar", "eliminar"]),
+        ("catalogo_precios", ["ver", "editar"]),
+    ]},
+    {"nombre": "Administrador de Cuenta", "base_role": "clinic_admin", "sin_restriccion": True, "permisos": []},
+]
+
+
+async def seed_permission_profiles(db, clinic_id) -> None:
+    """Crea (idempotente) los 12 perfiles de acceso base para una clínica. Solo
+    define los perfiles; no los asigna a ningún usuario, así que no altera los
+    permisos efectivos de los usuarios ya sembrados."""
+    for spec in PERFILES_BASE:
+        existe = (
+            await db.execute(
+                select(PermissionProfile).where(
+                    PermissionProfile.clinic_id == clinic_id, PermissionProfile.nombre == spec["nombre"]
+                )
+            )
+        ).scalar_one_or_none()
+        if existe is not None:
+            continue
+        permisos = [{"resource": r, "action": a} for r, acts in spec["permisos"] for a in acts]
+        db.add(PermissionProfile(
+            clinic_id=clinic_id, nombre=spec["nombre"], base_role=spec["base_role"],
+            permisos=permisos, sin_restriccion=spec["sin_restriccion"],
+        ))
+    await db.flush()
+
+
 async def assign_role(db, user_id, role_id, clinic_id=None, branch_id=None, insurer_id=None) -> None:
     existing = (
         await db.execute(
@@ -192,6 +299,10 @@ async def main() -> None:
         clinic_b = await get_or_create_clinic(db, "Clínica Demo B", "CL")
         clinic_c = await get_or_create_clinic(db, "Clínica Demo C", "BR")  # Tanda 7: emisión de Nota Fiscal
         branch_a1 = await get_or_create_branch(db, clinic_a.id, "Sucursal A1")
+
+        # Perfiles de acceso reutilizables (48): los 12 perfiles base por clínica.
+        await seed_permission_profiles(db, clinic_a.id)
+        await seed_permission_profiles(db, clinic_b.id)
 
         # Entidad aseguradora (global, no tenant) — el rol se vincula a ella.
         insurer_x = (await db.execute(select(Insurer).where(Insurer.nombre == "Seguros Bienestar MX"))).scalar_one_or_none()
