@@ -23,6 +23,8 @@ import type {
   AlertasInventario,
   LabDental,
   LabPrestacion,
+  LabOrden,
+  CuentaPorPagar,
   Plantilla,
   Tarea,
   AdminKpis,
@@ -514,6 +516,17 @@ export const api = {
     crearServicio: (labId: string, body: { nombre: string; costo: number; precio: number }) => post<LabPrestacion>(`/empresa/labs/${labId}/servicios`, body),
     editarServicio: (sid: string, body: Partial<{ nombre: string; costo: number; precio: number; activo: boolean }>) => patch<LabPrestacion>(`/empresa/labs/servicios/${sid}`, body),
     eliminarServicio: (sid: string) => del(`/empresa/labs/servicios/${sid}`),
+    ordenes: (params?: { estado?: string; lab_id?: string }) => {
+      const p = new URLSearchParams();
+      if (params?.estado) p.set('estado', params.estado);
+      if (params?.lab_id) p.set('lab_id', params.lab_id);
+      const qs = p.toString();
+      return get<LabOrden[]>(`/empresa/labs/ordenes${qs ? `?${qs}` : ''}`);
+    },
+    crearOrden: (body: { lab_id: string; descripcion: string; lab_service_id?: string; patient_id?: string; treatment_plan_id?: string; pieza?: string; costo?: number; precio?: number; fecha_entrega?: string; notas?: string }) => post<LabOrden>('/empresa/labs/ordenes', body),
+    cambiarEstadoOrden: (id: string, estado: string) => patch<LabOrden>(`/empresa/labs/ordenes/${id}/estado`, { estado }),
+    pagarOrden: (id: string) => post<LabOrden>(`/empresa/labs/ordenes/${id}/pagar`),
+    cuentasPorPagar: () => get<CuentaPorPagar[]>('/empresa/labs/cuentas-por-pagar'),
   },
   ia: {
     sugerencias: (estado?: string) => get<SugerenciaIA[]>(`/ia/sugerencias${estado ? `?estado=${estado}` : ''}`),

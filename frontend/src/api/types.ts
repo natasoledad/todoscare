@@ -290,6 +290,30 @@ export interface LabPrestacion {
   activo: boolean;
 }
 
+export interface LabOrden {
+  id: string;
+  lab_id: string;
+  lab_nombre: string | null;
+  descripcion: string;
+  pieza: string | null;
+  costo: number;
+  precio: number;
+  estado: string; // solicitado | en_proceso | en_revision | terminado | cancelado
+  fecha_entrega: string | null;
+  pagado: boolean;
+  patient_id: string | null;
+  paciente_nombre: string | null;
+  treatment_plan_id: string | null;
+  notas: string | null;
+  creada: string;
+}
+export interface CuentaPorPagar {
+  lab_id: string;
+  lab_nombre: string;
+  cantidad_ordenes: number;
+  total: number;
+}
+
 // ---- inventario (56) ----
 export interface Proveedor {
   id: string;
