@@ -9,6 +9,7 @@ const MENU = [
   { id: 'dental', icon: '🦷', t: 'Ficha dental', d: 'Odontograma y tratamientos' },
   { id: 'agendamientos', icon: '📅', t: 'Agendamientos realizados', d: 'Historial de consultas y citas' },
   { id: 'hospitalizaciones', icon: '🏥', t: 'Hospitalizaciones realizadas', d: 'Ingresos y cirugías' },
+  { id: 'documentos', icon: '✍️', t: 'Documentos y consentimientos', d: 'Firma tus consentimientos y descarga certificados' },
   { id: 'subir', icon: '📎', t: 'Subir info a tu ficha clínica', d: 'Imagen o PDF · la IA actualiza tu ficha' },
 ];
 

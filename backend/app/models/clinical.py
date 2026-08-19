@@ -154,10 +154,32 @@ class ClinicalDocument(Base, AuditMixin, TenantMixin):
 
     patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
     professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    tipo: Mapped[str] = mapped_column(String(30), nullable=False)  # consentimiento | licencia | interconsulta | otro
+    tipo: Mapped[str] = mapped_column(String(30), nullable=False)  # consentimiento | licencia | interconsulta | certificado | otro
     titulo: Mapped[str] = mapped_column(String(255), nullable=False)
     contenido: Mapped[str | None] = mapped_column(String(4000))
     estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="emitido")  # emitido | anulado
+    # Plantillas + firma del paciente (64): el documento puede nacer de una
+    # plantilla por bloques y exigir la firma del paciente (consentimientos).
+    template_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("document_templates.id"), index=True)
+    requiere_firma: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    firmado_paciente: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    firmado_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DocumentTemplate(Base, AuditMixin, TenantMixin):
+    """Plantilla de documento por bloques (64.3): consentimientos por
+    procedimiento (64.6), certificados (64.7), etc. `bloques` es una lista de
+    bloques —párrafos de texto fijo y campos a completar al emitir— con la que
+    se arma el contenido del documento. `requiere_firma` marca las plantillas
+    de consentimiento que el paciente debe firmar (64.8)."""
+
+    __tablename__ = "document_templates"
+
+    nombre: Mapped[str] = mapped_column(String(255), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(30), nullable=False)  # consentimiento | certificado | otro
+    bloques: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    requiere_firma: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class Periodontogram(Base, AuditMixin, TenantMixin):

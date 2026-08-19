@@ -38,3 +38,16 @@ class QrAccessLogOut(BaseModel):
 class QrResolveOut(BaseModel):
     patient_nombre: str
     resumen: dict
+
+
+# ---- documentos clínicos del paciente / firma (64.8) ----
+class DocumentoPacienteOut(BaseModel):
+    id: uuid.UUID
+    tipo: str
+    titulo: str
+    contenido: str | None
+    estado: str
+    requiere_firma: bool
+    firmado_paciente: bool
+    firmado_at: datetime | None
+    fecha: datetime

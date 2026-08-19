@@ -10,12 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.integrations import ia_clinica
 from app.integrations.base import log_event
-from app.models.clinical import AiFichaSuggestion, EmergencyQr, ExamOrder, ExamResult, Hospitalization, Odontogram, QrAccessLog
+from app.models.clinical import AiFichaSuggestion, ClinicalDocument, EmergencyQr, ExamOrder, ExamResult, Hospitalization, Odontogram, QrAccessLog
 from app.models.identity import User
 from app.rbac.deps import require, require_any_medico
 from app.rbac.permissions import Action, Resource
 from app.routers.patients import get_own_patient
 from app.schemas.salud import (
+    DocumentoPacienteOut,
     EmergencyQrOut,
     ExamenOut,
     HospitalizacionOut,
@@ -137,6 +138,54 @@ async def list_hospitalizaciones(
         )
     ).scalars().all()
     return [HospitalizacionOut(id=h.id, motivo=h.motivo, centro=h.centro, ingreso=h.ingreso, egreso=h.egreso) for h in rows]
+
+
+# ---- documentos clínicos del paciente + firma (64.8) ----
+def _doc_pac_out(d: ClinicalDocument) -> DocumentoPacienteOut:
+    return DocumentoPacienteOut(
+        id=d.id, tipo=d.tipo, titulo=d.titulo, contenido=d.contenido, estado=d.estado,
+        requiere_firma=d.requiere_firma, firmado_paciente=d.firmado_paciente, firmado_at=d.firmado_at, fecha=d.created_at,
+    )
+
+
+@router.get("/documentos", response_model=list[DocumentoPacienteOut])
+async def list_documentos(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.OWN_MEDICAL_RECORD, Action.VER)),
+) -> list[DocumentoPacienteOut]:
+    patient = await get_own_patient(db, ctx)
+    rows = (
+        await db.execute(
+            select(ClinicalDocument)
+            .where(ClinicalDocument.patient_id == patient.id, ClinicalDocument.estado == "emitido", ClinicalDocument.deleted_at.is_(None))
+            .order_by(ClinicalDocument.created_at.desc())
+        )
+    ).scalars().all()
+    return [_doc_pac_out(d) for d in rows]
+
+
+@router.post("/documentos/{doc_id}/firmar", response_model=DocumentoPacienteOut)
+async def firmar_documento(
+    doc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.OWN_MEDICAL_RECORD, Action.EDITAR)),
+) -> DocumentoPacienteOut:
+    """El paciente firma su propio consentimiento (64.8)."""
+    patient = await get_own_patient(db, ctx)
+    doc = await db.get(ClinicalDocument, doc_id)
+    if doc is None or doc.patient_id != patient.id or doc.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Documento no encontrado")
+    if doc.estado != "emitido":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"El documento está {doc.estado}")
+    if not doc.requiere_firma:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Este documento no requiere firma")
+    if doc.firmado_paciente:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El documento ya está firmado")
+    doc.firmado_paciente = True
+    doc.firmado_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_pac_out(doc)
 
 
 async def _get_wallet(db: AsyncSession, patient_id):

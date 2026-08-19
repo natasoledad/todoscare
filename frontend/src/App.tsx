@@ -35,6 +35,7 @@ const Hospitalizaciones = lazyNamed(() => import('./routes/salud/Hospitalizacion
 const Agendamientos = lazyNamed(() => import('./routes/salud/Agendamientos'), 'Agendamientos');
 const Qr = lazyNamed(() => import('./routes/salud/Qr'), 'Qr');
 const Subir = lazyNamed(() => import('./routes/salud/Subir'), 'Subir');
+const SaludDocumentos = lazyNamed(() => import('./routes/salud/Documentos'), 'Documentos');
 
 // ── Médico ──
 const MedicoShell = lazyNamed(() => import('./routes/medico/MedicoShell'), 'MedicoShell');
@@ -131,6 +132,7 @@ function App() {
                     <Route path="salud/examenes" element={<Examenes />} />
                     <Route path="salud/dental" element={<Dental />} />
                     <Route path="salud/hospitalizaciones" element={<Hospitalizaciones />} />
+                    <Route path="salud/documentos" element={<SaludDocumentos />} />
                     <Route path="salud/agendamientos" element={<Agendamientos />} />
                     <Route path="salud/qr" element={<Qr />} />
                     <Route path="salud/subir" element={<Subir />} />

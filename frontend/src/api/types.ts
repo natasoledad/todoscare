@@ -1151,6 +1151,34 @@ export interface DocumentoClinico {
   contenido: string | null;
   estado: string;
   fecha: string;
+  requiere_firma?: boolean;
+  firmado_paciente?: boolean;
+  firmado_at?: string | null;
+}
+export interface BloqueDoc {
+  tipo: string;         // parrafo | campo
+  texto?: string | null;
+  label?: string | null;
+  clave?: string | null;
+}
+export interface PlantillaDoc {
+  id: string;
+  nombre: string;
+  tipo: string;         // consentimiento | certificado | otro
+  bloques: BloqueDoc[];
+  requiere_firma: boolean;
+  activo: boolean;
+}
+export interface DocumentoPaciente {
+  id: string;
+  tipo: string;
+  titulo: string;
+  contenido: string | null;
+  estado: string;
+  requiere_firma: boolean;
+  firmado_paciente: boolean;
+  firmado_at: string | null;
+  fecha: string;
 }
 export interface Periodontograma {
   id: string;

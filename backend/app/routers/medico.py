@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.models.catalog import CatalogItem
 from app.models.clinical import (
     ClinicalDocument,
+    DocumentTemplate,
     ExamOrder,
     ExamResult,
     Hospitalization,
@@ -29,8 +30,12 @@ from app.schemas.medico import (
     AlertaClinica,
     CierreOut,
     CitaMedicoOut,
+    BloqueDoc,
     DocumentoIn,
     DocumentoOut,
+    PlantillaDocIn,
+    PlantillaDocOut,
+    PlantillaDocUpdate,
     EnmiendaInput,
     PeriodontogramaIn,
     PeriodontogramaOut,
@@ -789,12 +794,116 @@ async def cambiar_estado_item(
     return await _plan_out(db, plan)
 
 
-# ═══════════════════════ Tanda 5: documentos clínicos ═══════════════════════
-DOC_TIPOS = {"consentimiento", "licencia", "interconsulta", "otro"}
+# ═══════════════════════ Tanda 5 / punto 64: documentos clínicos ═══════════════════════
+DOC_TIPOS = {"consentimiento", "licencia", "interconsulta", "certificado", "otro"}
 
 
 def _doc_out(d: ClinicalDocument) -> DocumentoOut:
-    return DocumentoOut(id=d.id, tipo=d.tipo, titulo=d.titulo, contenido=d.contenido, estado=d.estado, fecha=d.created_at)
+    return DocumentoOut(
+        id=d.id, tipo=d.tipo, titulo=d.titulo, contenido=d.contenido, estado=d.estado, fecha=d.created_at,
+        requiere_firma=d.requiere_firma, firmado_paciente=d.firmado_paciente, firmado_at=d.firmado_at,
+    )
+
+
+def _medico_clinic_id(ctx: TenantContext) -> uuid.UUID:
+    ids = ctx.clinic_ids()
+    if not ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La cuenta no tiene una clínica asignada")
+    return next(iter(ids))
+
+
+def _render_bloques(bloques: list, campos: dict | None) -> str:
+    """Arma el contenido del documento desde los bloques de la plantilla,
+    rellenando los campos con los valores provistos (64.3)."""
+    campos = campos or {}
+    partes: list[str] = []
+    for b in bloques or []:
+        b = b if isinstance(b, dict) else dict(b)
+        if b.get("tipo") == "campo":
+            clave = b.get("clave") or b.get("label") or ""
+            valor = campos.get(clave, "")
+            partes.append(f"{b.get('label') or clave}: {valor}".strip())
+        else:
+            partes.append((b.get("texto") or "").strip())
+    return "\n\n".join(p for p in partes if p)
+
+
+def _plantilla_out(t: DocumentTemplate) -> PlantillaDocOut:
+    return PlantillaDocOut(
+        id=t.id, nombre=t.nombre, tipo=t.tipo,
+        bloques=[BloqueDoc(**b) if isinstance(b, dict) else b for b in (t.bloques or [])],
+        requiere_firma=t.requiere_firma, activo=t.activo,
+    )
+
+
+@router.get("/plantillas-documento", response_model=list[PlantillaDocOut])
+async def listar_plantillas_doc(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> list[PlantillaDocOut]:
+    cid = _medico_clinic_id(ctx)
+    rows = (await db.execute(select(DocumentTemplate).where(DocumentTemplate.clinic_id == cid, DocumentTemplate.deleted_at.is_(None)).order_by(DocumentTemplate.nombre))).scalars().all()
+    return [_plantilla_out(t) for t in rows]
+
+
+@router.post("/plantillas-documento", response_model=PlantillaDocOut, status_code=status.HTTP_201_CREATED)
+async def crear_plantilla_doc(
+    payload: PlantillaDocIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
+) -> PlantillaDocOut:
+    cid = _medico_clinic_id(ctx)
+    t = DocumentTemplate(
+        clinic_id=cid, nombre=payload.nombre, tipo=payload.tipo,
+        bloques=[b.model_dump() for b in payload.bloques], requiere_firma=payload.requiere_firma,
+    )
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return _plantilla_out(t)
+
+
+async def _own_plantilla(db: AsyncSession, cid: uuid.UUID, tid: uuid.UUID) -> DocumentTemplate:
+    t = await db.get(DocumentTemplate, tid)
+    if t is None or t.clinic_id != cid or t.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Plantilla no encontrada")
+    return t
+
+
+@router.patch("/plantillas-documento/{tid}", response_model=PlantillaDocOut)
+async def editar_plantilla_doc(
+    tid: uuid.UUID,
+    payload: PlantillaDocUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> PlantillaDocOut:
+    cid = _medico_clinic_id(ctx)
+    t = await _own_plantilla(db, cid, tid)
+    if payload.nombre is not None:
+        t.nombre = payload.nombre
+    if payload.tipo is not None:
+        t.tipo = payload.tipo
+    if payload.bloques is not None:
+        t.bloques = [b.model_dump() for b in payload.bloques]
+    if payload.requiere_firma is not None:
+        t.requiere_firma = payload.requiere_firma
+    if payload.activo is not None:
+        t.activo = payload.activo
+    await db.commit()
+    await db.refresh(t)
+    return _plantilla_out(t)
+
+
+@router.delete("/plantillas-documento/{tid}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_plantilla_doc(
+    tid: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> None:
+    cid = _medico_clinic_id(ctx)
+    t = await _own_plantilla(db, cid, tid)
+    await db.delete(t)  # baja lógica vía listener global
+    await db.commit()
 
 
 @router.get("/pacientes/{patient_id}/documentos", response_model=list[DocumentoOut])
@@ -821,12 +930,26 @@ async def crear_documento(
     db: AsyncSession = Depends(get_db),
     ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
 ) -> DocumentoOut:
-    if payload.tipo not in DOC_TIPOS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tipo inválido: {payload.tipo}")
     patient = await get_treated_patient(db, ctx, patient_id)
+
+    tipo = payload.tipo
+    contenido = payload.contenido
+    requiere_firma = bool(payload.requiere_firma)
+    if payload.template_id is not None:
+        tmpl = await db.get(DocumentTemplate, payload.template_id)
+        if tmpl is None or tmpl.clinic_id != patient.clinic_id or tmpl.deleted_at is not None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Plantilla inválida")
+        tipo = tmpl.tipo
+        if not contenido:
+            contenido = _render_bloques(tmpl.bloques, payload.campos)
+        requiere_firma = payload.requiere_firma if payload.requiere_firma is not None else tmpl.requiere_firma
+
+    if tipo not in DOC_TIPOS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tipo inválido: {tipo}")
     doc = ClinicalDocument(
         clinic_id=patient.clinic_id, patient_id=patient_id, professional_id=ctx.user_id,
-        tipo=payload.tipo, titulo=payload.titulo, contenido=payload.contenido,
+        tipo=tipo, titulo=payload.titulo, contenido=contenido,
+        template_id=payload.template_id, requiere_firma=requiere_firma,
     )
     db.add(doc)
     audit(db, ctx, clinic_id=patient.clinic_id, accion="crear_documento_clinico", recurso=f"patient:{patient_id}")
