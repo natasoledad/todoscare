@@ -272,6 +272,24 @@ export interface Recinto {
   branch_id: string | null;
 }
 
+// ---- laboratorios dentales (57) ----
+export interface LabDental {
+  id: string;
+  nombre: string;
+  rut: string | null;
+  contacto: string | null;
+  activo: boolean;
+}
+export interface LabPrestacion {
+  id: string;
+  lab_id: string;
+  nombre: string;
+  costo: number;
+  precio: number;
+  margen: number;
+  activo: boolean;
+}
+
 // ---- inventario (56) ----
 export interface Proveedor {
   id: string;

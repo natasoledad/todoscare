@@ -40,6 +40,7 @@ const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string;
       { id: 'servicios', icon: '🏷️', t: 'Productos y servicios', d: 'Catálogo y precios' },
       { id: 'aranceles', icon: '💲', t: 'Aranceles', d: 'Tablas de precio (base/particular/empresa) por categoría' },
       { id: 'inventario', icon: '📦', t: 'Inventario', d: 'Insumos, bodegas, proveedores y centros de costo' },
+      { id: 'laboratorios', icon: '🦷', t: 'Laboratorios', d: 'Labs dentales, prestaciones (costo/precio) y órdenes' },
       { id: 'medios-pago', icon: '💳', t: 'Medios de pago', d: 'Retención, facturable, devolución y cuotas' },
       { id: 'entidades-financieras', icon: '🏦', t: 'Bancos e Isapres', d: 'Catálogo de bancos y previsión (Fonasa/Isapre)' },
       { id: 'promociones', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },

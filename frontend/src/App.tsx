@@ -68,6 +68,7 @@ const EmpresaCrm = lazyNamed(() => import('./routes/empresa/Crm'), 'Crm');
 const CampanasEmpresa = lazyNamed(() => import('./routes/empresa/CampanasEmpresa'), 'CampanasEmpresa');
 const EmpresaAgendaOnline = lazyNamed(() => import('./routes/empresa/AgendaOnline'), 'AgendaOnline');
 const EmpresaInventario = lazyNamed(() => import('./routes/empresa/Inventario'), 'Inventario');
+const EmpresaLaboratorios = lazyNamed(() => import('./routes/empresa/Laboratorios'), 'Laboratorios');
 
 // ── Pública (sin login) ──
 const Reservar = lazyNamed(() => import('./routes/public/Reservar'), 'Reservar');
@@ -162,6 +163,7 @@ function App() {
                 <Route path="/empresa/agendas" element={<EmpresaAgendas />} />
                 <Route path="/empresa/agenda-online" element={<EmpresaAgendaOnline />} />
                 <Route path="/empresa/inventario" element={<EmpresaInventario />} />
+                <Route path="/empresa/laboratorios" element={<EmpresaLaboratorios />} />
                 <Route path="/empresa/servicios" element={<EmpresaServicios />} />
                 <Route path="/empresa/especialidades" element={<EmpresaEspecialidades />} />
                 <Route path="/empresa/horario-semanal" element={<EmpresaHorarioSemanal />} />
