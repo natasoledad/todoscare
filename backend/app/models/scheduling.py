@@ -1,8 +1,8 @@
 import uuid
-from datetime import time
+from datetime import datetime, time
 from typing import Any
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Time, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Time, text
 from sqlalchemy.dialects.postgresql import JSONB, TSTZRANGE, UUID, ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -139,6 +139,11 @@ class Appointment(Base, AuditMixin, TenantMixin):
     slot: Mapped[Any] = mapped_column(TSTZRANGE, nullable=False)
     estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="confirmada")
     # confirmada | completada | cancelada | no_show
+    # Marcas de tiempo del flujo de recepción, para el KPI de tiempo de espera
+    # (68.12): sala_espera_at cuando el paciente llega, atencion_at cuando pasa
+    # a atención. La espera = atencion_at - sala_espera_at.
+    sala_espera_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    atencion_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class OnlineBookingRequest(Base, AuditMixin, TenantMixin):

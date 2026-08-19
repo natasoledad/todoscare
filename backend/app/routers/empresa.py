@@ -283,6 +283,12 @@ async def cambiar_estado_cita(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La cita ya fue cerrada por el médico")
     antes = appt.estado
     appt.estado = nuevo
+    # Marcas para el KPI de tiempo de espera (68.12).
+    ahora = datetime.now(timezone.utc)
+    if nuevo == "en_sala_espera" and appt.sala_espera_at is None:
+        appt.sala_espera_at = ahora
+    elif nuevo == "en_atencion" and appt.atencion_at is None:
+        appt.atencion_at = ahora
     audit(db, ctx, clinic_id=clinic_id, accion="cambiar_estado_cita", recurso=f"appointment:{appt.id}", antes={"estado": antes}, despues={"estado": nuevo})
     await db.commit()
     await db.refresh(appt)

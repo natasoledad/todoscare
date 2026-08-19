@@ -28,6 +28,7 @@ const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string;
       { id: 'liquidaciones', icon: '🧾', t: 'Liquidaciones', d: 'Comisiones a pagar por profesional; finalizar y pagar' },
       { id: 'gastos', icon: '🔻', t: 'Gastos', d: 'Egresos de caja consolidados por período' },
       { id: 'crm', icon: '📈', t: 'Indicadores (CRM)', d: 'Ingresos, margen, ocupación y campañas' },
+      { id: 'reportes', icon: '📑', t: 'Reportes', d: 'KPIs de agenda (ocupación, no-show, espera) y export CSV' },
       { id: 'gestion-crm', icon: '📇', t: 'Gestión CRM', d: 'Tareas, encuestas de satisfacción y plantillas' },
     ],
   },
