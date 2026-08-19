@@ -33,6 +33,7 @@ _ADMIN_MATRIX: dict[Resource, set[Action]] = {
     Resource.TRIBUTARIO: {V},  # supervisión de la emisión tributaria de las clínicas
     Resource.LIQUIDACION_PROFESIONALES: {V},  # supervisión de las comisiones a pagar
     Resource.INVENTARIO: {V},  # supervisión del inventario de las clínicas
+    Resource.LABORATORIOS: {V},  # supervisión de los laboratorios de las clínicas
 }
 
 ROLE_PERMISSIONS: dict[RoleCode, dict[Resource, set[Action]]] = {
@@ -52,6 +53,7 @@ ROLE_PERMISSIONS: dict[RoleCode, dict[Resource, set[Action]]] = {
         Resource.TRIBUTARIO: {V, C, E},  # V=ver documentos, C=emitir/configurar emisor y folios, E=anular
         Resource.LIQUIDACION_PROFESIONALES: {V, E},  # V=ver liquidaciones, E=finalizar/marcar pagadas
         Resource.INVENTARIO: {V, C, E, D},  # insumos: bodegas, proveedores, centros de costo, stock y movimientos (56)
+        Resource.LABORATORIOS: {V, C, E, D},  # laboratorios dentales: catálogo, órdenes y cuentas por pagar (57)
 
         # CRM (Spec CRM §7 — fila Empresa/Clínica)
         Resource.CRM_KPIS_CLINICA: {V},
