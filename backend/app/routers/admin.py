@@ -53,6 +53,7 @@ from app.schemas.admin import (
     SucursalOut,
     TycOut,
     UsuarioOut,
+    UsuarioUpdate,
 )
 from app.services.admin import admin_scope, assert_clinic_in_scope, assert_super_admin
 from app.tenancy.context import TenantContext
@@ -241,7 +242,7 @@ async def list_usuarios(
     if not by_user:
         return []
     users = (await db.execute(select(User).where(User.id.in_(by_user.keys()), User.deleted_at.is_(None)))).scalars().all()
-    return [UsuarioOut(id=u.id, nombre=u.nombre, email=u.email, activo=u.activo, roles=by_user.get(u.id, [])) for u in users]
+    return [UsuarioOut(id=u.id, nombre=u.nombre, email=u.email, telefono=u.telefono, activo=u.activo, roles=by_user.get(u.id, [])) for u in users]
 
 
 @router.post("/usuarios", response_model=UsuarioOut, status_code=status.HTTP_201_CREATED)
@@ -267,6 +268,41 @@ async def crear_usuario(
         id=user.id, nombre=user.nombre, email=user.email, activo=user.activo,
         roles=[RoleAssignmentOut(id=uuid.uuid4(), role=payload.role, clinic_id=payload.clinic_id, branch_id=payload.branch_id)],
     )
+
+
+@router.patch("/usuarios/{user_id}", response_model=UsuarioOut)
+async def editar_usuario(
+    user_id: uuid.UUID,
+    payload: UsuarioUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.USUARIOS_ROLES, Action.EDITAR)),
+) -> UsuarioOut:
+    """Edita la cuenta del usuario (48): nombre, correo, teléfono, contraseña o
+    estado. Solo campos presentes en el cuerpo se modifican."""
+    await _user_in_scope(db, ctx, user_id)
+    user = await db.get(User, user_id)
+    if user is None or user.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario no encontrado")
+    if payload.correo is not None and payload.correo != user.email:
+        dup = (await db.execute(select(User).where(User.email == payload.correo, User.id != user_id))).scalar_one_or_none()
+        if dup is not None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe un usuario con ese correo")
+        user.email = payload.correo
+    if payload.nombre is not None:
+        user.nombre = payload.nombre
+    if payload.telefono is not None:
+        user.telefono = payload.telefono
+    if payload.password is not None:
+        user.password_hash = hash_password(payload.password)
+    if payload.activo is not None:
+        user.activo = payload.activo
+    await db.commit()
+
+    ra_rows = (
+        await db.execute(select(RoleAssignment, Role.code).join(Role, Role.id == RoleAssignment.role_id).where(RoleAssignment.user_id == user_id, RoleAssignment.deleted_at.is_(None)))
+    ).all()
+    roles = [RoleAssignmentOut(id=ra.id, role=code, clinic_id=ra.clinic_id, branch_id=ra.branch_id) for ra, code in ra_rows]
+    return UsuarioOut(id=user.id, nombre=user.nombre, email=user.email, telefono=user.telefono, activo=user.activo, roles=roles)
 
 
 @router.post("/usuarios/{user_id}/roles", status_code=status.HTTP_201_CREATED)

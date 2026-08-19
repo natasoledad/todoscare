@@ -451,6 +451,7 @@ export interface UsuarioAdmin {
   id: string;
   nombre: string;
   email: string;
+  telefono?: string | null;
   activo: boolean;
   roles: RoleAssignmentAdmin[];
 }

@@ -68,6 +68,7 @@ class UsuarioOut(BaseModel):
     id: uuid.UUID
     nombre: str
     email: str
+    telefono: str | None = None
     activo: bool
     roles: list[RoleAssignmentOut]
 
@@ -85,6 +86,17 @@ class AsignarRolIn(BaseModel):
     role: str
     clinic_id: uuid.UUID | None = None
     branch_id: uuid.UUID | None = None
+
+
+class UsuarioUpdate(BaseModel):
+    """Edición de la cuenta del usuario (48): datos de identidad. La contraseña
+    y el correo son opcionales; solo se tocan si vienen en el cuerpo."""
+
+    nombre: str | None = Field(default=None, min_length=2)
+    correo: EmailStr | None = None
+    telefono: str | None = Field(default=None, max_length=50)
+    password: str | None = Field(default=None, min_length=8)
+    activo: bool | None = None
 
 
 # ---- planes ----

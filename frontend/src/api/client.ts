@@ -445,6 +445,8 @@ export const api = {
     bajaClinica: (id: string) => del(`/admin/clinicas/${id}`),
     usuarios: () => get<UsuarioAdmin[]>('/admin/usuarios'),
     crearUsuario: (body: { nombre: string; correo: string; password: string; role: string; clinic_id?: string }) => post<UsuarioAdmin>('/admin/usuarios', body),
+    editarUsuario: (userId: string, body: Partial<{ nombre: string; correo: string; telefono: string; password: string; activo: boolean }>) =>
+      patch<UsuarioAdmin>(`/admin/usuarios/${userId}`, body),
     permisosCatalogo: () => get<PermisoCatalogo>('/admin/permisos/catalogo'),
     permisosUsuario: (userId: string) => get<PermisoOverride[]>(`/admin/usuarios/${userId}/permisos`),
     setPermisoUsuario: (userId: string, body: { clinic_id: string; resource: string; action: string; allow: boolean }) => put<PermisoOverride>(`/admin/usuarios/${userId}/permisos`, body),

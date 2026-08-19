@@ -32,6 +32,7 @@ export function Usuarios() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [permUser, setPermUser] = useState<UsuarioAdmin | null>(null);
+  const [editUser, setEditUser] = useState<UsuarioAdmin | null>(null);
 
   const load = () => api.admin.usuarios().then(setUsuarios);
   useEffect(() => {
@@ -71,8 +72,10 @@ export function Usuarios() {
                   {ROLE_LABEL[r.role] ?? r.role}
                 </span>
               ))}
+              {!u.activo && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#F1F1F1] text-sub">inactivo</span>}
+              <button onClick={() => setEditUser(u)} className="ml-auto text-[11.5px] font-semibold text-sub">Editar</button>
               {u.roles[0]?.clinic_id && (
-                <button onClick={() => setPermUser(u)} className="ml-auto text-[11.5px] font-semibold text-teal-dark">Accesos ›</button>
+                <button onClick={() => setPermUser(u)} className="text-[11.5px] font-semibold text-teal-dark">Accesos ›</button>
               )}
             </div>
           </div>
@@ -80,6 +83,7 @@ export function Usuarios() {
       </div>
 
       {permUser && <PermisosSheet usuario={permUser} onClose={() => setPermUser(null)} />}
+      {editUser && <EditarUsuarioSheet usuario={editUser} onClose={() => setEditUser(null)} onSaved={() => { setEditUser(null); load(); }} />}
       <div className="absolute left-0 right-0 bottom-0 px-5 pb-6 pt-3 bg-gradient-to-t from-bg via-bg to-transparent">
         <Button onClick={() => setOpen(true)} className="w-full">+ Nuevo usuario</Button>
       </div>
@@ -226,6 +230,48 @@ function PermisosSheet({ usuario, onClose }: { usuario: UsuarioAdmin; onClose: (
       </div>
       {error && <div className="text-xs text-danger">{error}</div>}
       <Button onClick={guardar} disabled={saving || !resource} className="w-full">{saving ? 'Guardando…' : 'Aplicar permiso'}</Button>
+    </BottomSheet>
+  );
+}
+
+function EditarUsuarioSheet({ usuario, onClose, onSaved }: { usuario: UsuarioAdmin; onClose: () => void; onSaved: () => void }) {
+  const [nombre, setNombre] = useState(usuario.nombre);
+  const [correo, setCorreo] = useState(usuario.email);
+  const [telefono, setTelefono] = useState(usuario.telefono ?? '');
+  const [password, setPassword] = useState('');
+  const [activo, setActivo] = useState(usuario.activo);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const guardar = async () => {
+    setSaving(true); setError(null);
+    const body: Record<string, unknown> = {};
+    if (nombre !== usuario.nombre) body.nombre = nombre;
+    if (correo !== usuario.email) body.correo = correo;
+    if (telefono !== (usuario.telefono ?? '')) body.telefono = telefono;
+    if (password) body.password = password;
+    if (activo !== usuario.activo) body.activo = activo;
+    try { await api.admin.editarUsuario(usuario.id, body); onSaved(); }
+    catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo guardar.'); setSaving(false); }
+  };
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="font-heading font-extrabold text-[17px] text-ink">Editar · {usuario.nombre}</div>
+      <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre completo"
+        className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+      <input value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="correo@ejemplo.com"
+        className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+      <input value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="Teléfono"
+        className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nueva contraseña (dejar vacío para no cambiar)"
+        className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+      <label className="flex items-center gap-2.5 py-1">
+        <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="w-4 h-4 accent-teal" />
+        <span className="text-[13px] text-ink">Usuario activo</span>
+      </label>
+      {error && <div className="text-xs text-danger">{error}</div>}
+      <Button onClick={guardar} disabled={saving || !nombre || !correo} className="w-full">{saving ? 'Guardando…' : 'Guardar cambios'}</Button>
     </BottomSheet>
   );
 }
