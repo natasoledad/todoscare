@@ -502,3 +502,15 @@ class SolicitudOnlineOut(BaseModel):
     notas: str | None
     creada: datetime
     appointment_id: uuid.UUID | None
+
+
+# ---- dashboard de conversión de la agenda online (60.12) ----
+class AgendaOnlineDashboardOut(BaseModel):
+    dias: int
+    visitas: int
+    solicitudes: int
+    confirmadas: int
+    pendientes: int
+    rechazadas: int
+    tasa_conversion: float    # solicitudes / visitas
+    tasa_confirmacion: float  # confirmadas / solicitudes

@@ -3,7 +3,50 @@ import { useNavigate } from 'react-router-dom';
 import { BackHeader } from '../../components/BackHeader';
 import { Button } from '../../components/Button';
 import { api, ApiError } from '../../api/client';
-import type { AgendaOnlineConfig, ServicioAdmin, SolicitudOnline } from '../../api/types';
+import type { AgendaOnlineConfig, AgendaOnlineDashboard, ServicioAdmin, SolicitudOnline } from '../../api/types';
+
+const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+function ConversionDashboard() {
+  const [d, setD] = useState<AgendaOnlineDashboard | null>(null);
+  useEffect(() => { api.empresa.agendaOnlineDashboard(30).then(setD).catch(() => setD(null)); }, []);
+  if (!d) return null;
+  const pasos = [
+    { label: 'Visitas', value: d.visitas },
+    { label: 'Solicitudes', value: d.solicitudes },
+    { label: 'Confirmadas', value: d.confirmadas },
+  ];
+  return (
+    <div className="rounded-2xl border border-border bg-white px-4 py-4 flex flex-col gap-3">
+      <div>
+        <div className="font-heading font-bold text-[14px] text-ink">Conversión (últimos {d.dias} días)</div>
+        <div className="text-[11px] text-sub">Del visitante a la hora confirmada.</div>
+      </div>
+      <div className="flex items-stretch gap-1.5">
+        {pasos.map((p, i) => (
+          <div key={p.label} className="flex-1 rounded-xl bg-[#F6FBF9] px-2 py-2.5 text-center">
+            <div className="font-heading font-extrabold text-[19px] text-teal-dark tabular-nums">{p.value}</div>
+            <div className="text-[10.5px] text-sub">{p.label}</div>
+            {i < pasos.length - 1 && <div className="text-[9px] text-sub mt-0.5">▼</div>}
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1 rounded-xl bg-teal-soft px-3 py-2 text-center">
+          <div className="font-bold text-[15px] text-teal-dark tabular-nums">{pct(d.tasa_conversion)}</div>
+          <div className="text-[10.5px] text-sub">Visita → solicitud</div>
+        </div>
+        <div className="flex-1 rounded-xl bg-teal-soft px-3 py-2 text-center">
+          <div className="font-bold text-[15px] text-teal-dark tabular-nums">{pct(d.tasa_confirmacion)}</div>
+          <div className="text-[10.5px] text-sub">Solicitud → confirmada</div>
+        </div>
+      </div>
+      {(d.pendientes > 0 || d.rechazadas > 0) && (
+        <div className="text-[11px] text-sub">Pendientes: {d.pendientes} · Rechazadas: {d.rechazadas}</div>
+      )}
+    </div>
+  );
+}
 
 const fechaHora = (iso: string) =>
   new Date(iso).toLocaleString('es-CL', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -109,6 +152,9 @@ export function AgendaOnline() {
           {error && <div className="text-xs text-danger">{error}</div>}
           <Button onClick={() => guardar()} disabled={saving} className="w-full">{saving ? 'Guardando…' : 'Guardar configuración'}</Button>
         </div>
+
+        {/* Dashboard de conversión (60.12) */}
+        <ConversionDashboard />
 
         {/* Servicios reservables */}
         <div>

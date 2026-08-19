@@ -17,7 +17,7 @@ from app.models.professional import ProfessionalProfile
 from app.models.finance import CashPayment, Company, CompanyEmployee, FinancialEntity, LedgerEntry, PaymentMethod, PaymentSplit
 from app.models.identity import Role, RoleAssignment, User
 from app.models.patient import Patient
-from app.models.scheduling import Appointment, AvailabilityBlock, OnlineBookingRequest, ScheduleException, WeeklyScheduleTemplate
+from app.models.scheduling import Appointment, AvailabilityBlock, OnlineBookingRequest, PublicAgendaVisit, ScheduleException, WeeklyScheduleTemplate
 from app.models.tenant import Branch, Clinic
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource, RoleCode
@@ -25,6 +25,7 @@ from app.schemas.empresa import (
     AgendaDiaOut,
     AgendaOnlineConfigOut,
     AgendaOnlineConfigUpdate,
+    AgendaOnlineDashboardOut,
     BloqueIn,
     BloqueOut,
     BloqueUpdate,
@@ -1822,6 +1823,54 @@ async def set_agenda_online(
     await db.commit()
     await db.refresh(clinic)
     return _config_out(clinic)
+
+
+@router.get("/agenda-online/dashboard", response_model=AgendaOnlineDashboardOut)
+async def agenda_online_dashboard(
+    dias: int = 30,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CLINIC_AGENDAS, Action.VER)),
+) -> AgendaOnlineDashboardOut:
+    """Embudo de conversión de la agenda online (60.12): visitas a la página
+    pública → solicitudes de hora → confirmadas, en los últimos `dias`."""
+    clinic_id = empresa_clinic_id(ctx)
+    dias = max(1, min(dias, 365))
+    desde = datetime.now(timezone.utc) - timedelta(days=dias)
+
+    visitas = (
+        await db.execute(
+            select(func.count(PublicAgendaVisit.id)).where(
+                PublicAgendaVisit.clinic_id == clinic_id,
+                PublicAgendaVisit.deleted_at.is_(None),
+                PublicAgendaVisit.created_at >= desde,
+            )
+        )
+    ).scalar_one()
+
+    estados = dict(
+        (
+            await db.execute(
+                select(OnlineBookingRequest.estado, func.count(OnlineBookingRequest.id))
+                .where(
+                    OnlineBookingRequest.clinic_id == clinic_id,
+                    OnlineBookingRequest.deleted_at.is_(None),
+                    OnlineBookingRequest.created_at >= desde,
+                )
+                .group_by(OnlineBookingRequest.estado)
+            )
+        ).all()
+    )
+    solicitudes = sum(estados.values())
+    confirmadas = estados.get("confirmada", 0)
+    pendientes = estados.get("pendiente", 0)
+    rechazadas = estados.get("rechazada", 0)
+
+    return AgendaOnlineDashboardOut(
+        dias=dias, visitas=visitas, solicitudes=solicitudes, confirmadas=confirmadas,
+        pendientes=pendientes, rechazadas=rechazadas,
+        tasa_conversion=round(solicitudes / visitas, 4) if visitas else 0.0,
+        tasa_confirmacion=round(confirmadas / solicitudes, 4) if solicitudes else 0.0,
+    )
 
 
 @router.patch("/servicios/{service_id}/reservable", status_code=status.HTTP_204_NO_CONTENT)
