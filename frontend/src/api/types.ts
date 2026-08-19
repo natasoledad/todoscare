@@ -651,6 +651,23 @@ export interface AgendaOnlineConfig {
   monto_prepago: number;
   reservable_url: string | null;
 }
+export interface ReporteBib {
+  id: string;
+  nombre: string;
+  categoria: string;
+  descripcion: string;
+  exportable: boolean;
+}
+export interface AgendaKpis {
+  dias: number;
+  total_citas: number;
+  completadas: number;
+  no_shows: number;
+  no_show_pct: number;
+  ocupacion_pct: number;
+  tiempo_espera_prom_min: number;
+  atendidas_con_espera: number;
+}
 export interface AgendaOnlineDashboard {
   dias: number;
   visitas: number;

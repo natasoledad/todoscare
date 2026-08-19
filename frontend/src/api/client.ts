@@ -66,6 +66,8 @@ import type {
   PrepagoPublico,
   AgendaOnlineConfig,
   AgendaOnlineDashboard,
+  ReporteBib,
+  AgendaKpis,
   SolicitudOnline,
   Convenio,
   CrmAsientoExport,
@@ -539,6 +541,19 @@ export const api = {
     cambiarEstadoOrden: (id: string, estado: string) => patch<LabOrden>(`/empresa/labs/ordenes/${id}/estado`, { estado }),
     pagarOrden: (id: string) => post<LabOrden>(`/empresa/labs/ordenes/${id}/pagar`),
     cuentasPorPagar: () => get<CuentaPorPagar[]>('/empresa/labs/cuentas-por-pagar'),
+  },
+  reportes: {
+    biblioteca: () => get<ReporteBib[]>('/empresa/reportes'),
+    agendaKpis: (dias = 30) => get<AgendaKpis>(`/empresa/reportes/agenda-kpis?dias=${dias}`),
+    // descarga el CSV autenticado y devuelve el blob para que el navegador lo guarde
+    exportar: async (id: string, dias = 30): Promise<Blob> => {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/empresa/reportes/${id}/export?dias=${dias}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new ApiError(res.status, 'No se pudo exportar');
+      return res.blob();
+    },
   },
   ia: {
     sugerencias: (estado?: string) => get<SugerenciaIA[]>(`/ia/sugerencias${estado ? `?estado=${estado}` : ''}`),
