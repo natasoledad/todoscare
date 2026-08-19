@@ -272,6 +272,39 @@ export interface Recinto {
   branch_id: string | null;
 }
 
+// ---- inventario (56) ----
+export interface Proveedor {
+  id: string;
+  nombre: string;
+  rut: string | null;
+  contacto: string | null;
+  activo: boolean;
+}
+export interface CentroCosto {
+  id: string;
+  nombre: string;
+  activo: boolean;
+}
+export interface Bodega {
+  id: string;
+  nombre: string;
+  branch_id: string | null;
+  branch_nombre: string | null;
+  activo: boolean;
+}
+export interface InsumoItem {
+  id: string;
+  nombre: string;
+  sku: string | null;
+  unidad: string;
+  stock_minimo: number;
+  supplier_id: string | null;
+  supplier_nombre: string | null;
+  cost_center_id: string | null;
+  cost_center_nombre: string | null;
+  activo: boolean;
+}
+
 export interface ServicioAdmin {
   id: string;
   nombre: string;

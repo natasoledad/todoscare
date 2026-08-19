@@ -32,6 +32,7 @@ _ADMIN_MATRIX: dict[Resource, set[Action]] = {
     Resource.CAJAS: {V},  # supervisión del arqueo de las clínicas
     Resource.TRIBUTARIO: {V},  # supervisión de la emisión tributaria de las clínicas
     Resource.LIQUIDACION_PROFESIONALES: {V},  # supervisión de las comisiones a pagar
+    Resource.INVENTARIO: {V},  # supervisión del inventario de las clínicas
 }
 
 ROLE_PERMISSIONS: dict[RoleCode, dict[Resource, set[Action]]] = {
@@ -50,6 +51,7 @@ ROLE_PERMISSIONS: dict[RoleCode, dict[Resource, set[Action]]] = {
         Resource.CAJAS: {V, C, E},  # V=ver, C=abrir caja/registrar movimiento, E=cerrar caja
         Resource.TRIBUTARIO: {V, C, E},  # V=ver documentos, C=emitir/configurar emisor y folios, E=anular
         Resource.LIQUIDACION_PROFESIONALES: {V, E},  # V=ver liquidaciones, E=finalizar/marcar pagadas
+        Resource.INVENTARIO: {V, C, E, D},  # insumos: bodegas, proveedores, centros de costo, stock y movimientos (56)
 
         # CRM (Spec CRM §7 — fila Empresa/Clínica)
         Resource.CRM_KPIS_CLINICA: {V},
