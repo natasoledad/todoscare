@@ -1,7 +1,8 @@
 import uuid
+from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -59,3 +60,39 @@ class InventoryItem(Base, AuditMixin, TenantMixin):
     supplier_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("suppliers.id"), index=True)
     cost_center_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cost_centers.id"), index=True)
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
+class StockLot(Base, AuditMixin, TenantMixin):
+    """Lote de un insumo en una bodega (56.9). Guarda la existencia real:
+    `cantidad` es la fuente de verdad del stock (el kardex es la bitácora). Un
+    lote puede llevar código y vencimiento para el control FEFO (primero el que
+    vence antes). El stock de un ítem = suma de sus lotes."""
+
+    __tablename__ = "stock_lots"
+
+    item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("inventory_items.id"), nullable=False, index=True)
+    warehouse_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("warehouses.id"), nullable=False, index=True)
+    lote: Mapped[str | None] = mapped_column(String(60))
+    vencimiento: Mapped[date | None] = mapped_column(Date, index=True)
+    cantidad: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+
+
+class StockMovement(Base, AuditMixin, TenantMixin):
+    """Kardex: bitácora inmutable de todo movimiento de stock (56.11).
+
+    `tipo` = entrada | salida | ajuste. `cantidad` va con signo (entrada +,
+    salida -, ajuste el delta aplicado). `saldo` es el stock total del item
+    tras el movimiento (para leer el kardex sin recomputar). Nunca se edita ni
+    se borra: las correcciones son un nuevo ajuste."""
+
+    __tablename__ = "stock_movements"
+
+    item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("inventory_items.id"), nullable=False, index=True)
+    warehouse_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("warehouses.id"), nullable=False, index=True)
+    lot_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("stock_lots.id"), index=True)
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False)  # entrada | salida | ajuste
+    cantidad: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)  # con signo
+    saldo: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)     # stock total del item tras el movimiento
+    motivo: Mapped[str | None] = mapped_column(String(255))
+    cost_center_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cost_centers.id"), index=True)
+    supplier_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("suppliers.id"), index=True)

@@ -298,11 +298,40 @@ export interface InsumoItem {
   sku: string | null;
   unidad: string;
   stock_minimo: number;
+  stock_actual: number;
+  estado: string; // ok | bajo | sin_stock
   supplier_id: string | null;
   supplier_nombre: string | null;
   cost_center_id: string | null;
   cost_center_nombre: string | null;
   activo: boolean;
+}
+export interface LoteInsumo {
+  id: string;
+  warehouse_id: string;
+  warehouse_nombre: string | null;
+  item_id: string;
+  item_nombre: string | null;
+  lote: string | null;
+  vencimiento: string | null;
+  cantidad: number;
+  estado: string; // vigente | por_vencer | vencido | sin_vencimiento
+}
+export interface MovimientoStock {
+  id: string;
+  tipo: string; // entrada | salida | ajuste
+  cantidad: number;
+  saldo: number;
+  warehouse_nombre: string | null;
+  motivo: string | null;
+  cost_center_nombre: string | null;
+  supplier_nombre: string | null;
+  fecha: string;
+}
+export interface AlertasInventario {
+  bajo_minimo: InsumoItem[];
+  lotes_por_vencer: LoteInsumo[];
+  lotes_vencidos: LoteInsumo[];
 }
 
 export interface ServicioAdmin {
