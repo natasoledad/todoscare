@@ -174,3 +174,12 @@ class OnlineBookingRequest(Base, AuditMixin, TenantMixin):
     paciente_email: Mapped[str | None] = mapped_column(String(255))
     notas: Mapped[str | None] = mapped_column(String(500))
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("appointments.id"), index=True)
+
+
+class PublicAgendaVisit(Base, AuditMixin, TenantMixin):
+    """Visita a la página pública de reserva (60.12). Se registra una fila por
+    carga de la ficha pública de la clínica; junto con las solicitudes y las
+    confirmaciones alimenta el embudo de conversión visitas→solicitudes→citas.
+    `created_at` (AuditMixin) es la marca de tiempo de la visita."""
+
+    __tablename__ = "public_agenda_visits"

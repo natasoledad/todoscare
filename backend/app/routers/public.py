@@ -20,7 +20,7 @@ from app.core.database import get_db
 from app.models.catalog import CatalogItem, Specialty
 from app.models.identity import User
 from app.models.professional import ProfessionalProfile
-from app.models.scheduling import Appointment, AvailabilityBlock, OnlineBookingRequest
+from app.models.scheduling import Appointment, AvailabilityBlock, OnlineBookingRequest, PublicAgendaVisit
 from app.models.tenant import Branch, Clinic
 from app.schemas.public import (
     ClinicaPublicaOut,
@@ -90,6 +90,12 @@ async def clinica_publica(slug: str, db: AsyncSession = Depends(get_db)) -> Clin
         )
     ).scalars().all()
     sucursales = [SucursalPublicaOut(id=b.id, nombre=b.nombre, direccion=b.direccion) for b in branch_rows]
+
+    # Registrar la visita para el embudo de conversión (60.12), solo si la
+    # agenda está publicada (una página apagada no cuenta como visita real).
+    if cfg["habilitada"]:
+        db.add(PublicAgendaVisit(clinic_id=clinic.id))
+        await db.commit()
 
     return ClinicaPublicaOut(
         slug=slug,

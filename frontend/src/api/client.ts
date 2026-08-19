@@ -61,6 +61,7 @@ import type {
   ReservaPublicaInput,
   ReservaPublicaOut,
   AgendaOnlineConfig,
+  AgendaOnlineDashboard,
   SolicitudOnline,
   Convenio,
   CrmAsientoExport,
@@ -379,6 +380,7 @@ export const api = {
     // agenda online pública (60)
     agendaOnline: () => get<AgendaOnlineConfig>('/empresa/agenda-online/config'),
     guardarAgendaOnline: (body: { slug?: string; habilitada?: boolean; anticipacion_horas?: number; ventana_dias?: number; mensaje?: string }) => put<AgendaOnlineConfig>('/empresa/agenda-online/config', body),
+    agendaOnlineDashboard: (dias = 30) => get<AgendaOnlineDashboard>(`/empresa/agenda-online/dashboard?dias=${dias}`),
     marcarReservable: (serviceId: string, reservable: boolean) => patch<void>(`/empresa/servicios/${serviceId}/reservable`, { reservable_online: reservable }),
     solicitudes: (estado?: string) => get<SolicitudOnline[]>(`/empresa/solicitudes${estado ? `?estado=${estado}` : ''}`),
     confirmarSolicitud: (id: string) => post<SolicitudOnline>(`/empresa/solicitudes/${id}/confirmar`),

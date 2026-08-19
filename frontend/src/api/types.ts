@@ -640,6 +640,16 @@ export interface AgendaOnlineConfig {
   mensaje: string | null;
   reservable_url: string | null;
 }
+export interface AgendaOnlineDashboard {
+  dias: number;
+  visitas: number;
+  solicitudes: number;
+  confirmadas: number;
+  pendientes: number;
+  rechazadas: number;
+  tasa_conversion: number;
+  tasa_confirmacion: number;
+}
 export interface SolicitudOnline {
   id: string;
   codigo: string;
