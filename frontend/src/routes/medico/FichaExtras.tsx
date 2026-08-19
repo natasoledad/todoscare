@@ -4,7 +4,7 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
 import { money } from '../../lib/citas';
-import type { DocumentoClinico, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
+import type { BloqueDoc, DocumentoClinico, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
 
@@ -297,25 +297,40 @@ const DOC_TIPOS = [
   { id: 'consentimiento', label: 'Consentimiento' },
   { id: 'licencia', label: 'Licencia médica' },
   { id: 'interconsulta', label: 'Interconsulta' },
+  { id: 'certificado', label: 'Certificado' },
   { id: 'otro', label: 'Otro' },
 ];
 const docLabel = (id: string) => DOC_TIPOS.find((t) => t.id === id)?.label ?? id;
 
 export function DocumentosSection({ patientId }: { patientId: string }) {
   const [docs, setDocs] = useState<DocumentoClinico[]>([]);
+  const [plantillas, setPlantillas] = useState<PlantillaDoc[]>([]);
   const [open, setOpen] = useState(false);
+  const [gestor, setGestor] = useState(false);
+  const [tplId, setTplId] = useState('');
   const [f, setF] = useState({ tipo: 'consentimiento', titulo: '', contenido: '' });
+  const [campos, setCampos] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => api.medico.documentos(patientId).then(setDocs);
-  useEffect(() => { load(); }, [patientId]);
+  const loadTpl = () => api.medico.plantillasDoc().then(setPlantillas).catch(() => setPlantillas([]));
+  useEffect(() => { load(); loadTpl(); }, [patientId]);
+
+  const tpl = plantillas.find((t) => t.id === tplId);
+  const camposTpl = tpl ? tpl.bloques.filter((b) => b.tipo === 'campo') : [];
+
+  const abrir = () => { setOpen(true); setError(null); setTplId(''); setCampos({}); setF({ tipo: 'consentimiento', titulo: '', contenido: '' }); };
 
   const crear = async () => {
     setSaving(true); setError(null);
     try {
-      await api.medico.crearDocumento(patientId, { tipo: f.tipo, titulo: f.titulo.trim(), contenido: f.contenido || undefined });
-      setOpen(false); setF({ tipo: 'consentimiento', titulo: '', contenido: '' });
+      if (tpl) {
+        await api.medico.crearDocumento(patientId, { tipo: tpl.tipo, titulo: f.titulo.trim() || tpl.nombre, template_id: tpl.id, campos });
+      } else {
+        await api.medico.crearDocumento(patientId, { tipo: f.tipo, titulo: f.titulo.trim(), contenido: f.contenido || undefined });
+      }
+      setOpen(false);
       await load();
     } catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo crear'); }
     finally { setSaving(false); }
@@ -326,7 +341,10 @@ export function DocumentosSection({ patientId }: { patientId: string }) {
     <div>
       <div className="flex items-center justify-between mb-2">
         <div className="font-heading font-bold text-[13px] text-ink">Documentos clínicos</div>
-        <button onClick={() => { setOpen(true); setError(null); }} className="text-[12.5px] font-semibold text-teal-dark">+ Nuevo</button>
+        <div className="flex gap-3">
+          <button onClick={() => setGestor(true)} className="text-[12.5px] font-semibold text-sub">Plantillas</button>
+          <button onClick={abrir} className="text-[12.5px] font-semibold text-teal-dark">+ Nuevo</button>
+        </div>
       </div>
       {docs.length === 0 && <div className="text-sm text-sub">Sin documentos.</div>}
       <div className="flex flex-col gap-2">
@@ -339,9 +357,14 @@ export function DocumentosSection({ patientId }: { patientId: string }) {
               </div>
               <StatusTag label={d.estado === 'anulado' ? 'Anulado' : 'Emitido'} tone={d.estado === 'anulado' ? 'warn' : 'teal'} />
             </div>
-            {d.contenido && <div className="mt-1.5 text-[12px] text-sub line-clamp-2">{d.contenido}</div>}
+            {d.contenido && <div className="mt-1.5 text-[12px] text-sub line-clamp-2 whitespace-pre-line">{d.contenido}</div>}
+            {d.requiere_firma && (
+              <div className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${d.firmado_paciente ? 'bg-teal-soft text-teal-dark' : 'bg-warn-bg text-[#8A6A00]'}`}>
+                {d.firmado_paciente ? '✓ Firmado por el paciente' : 'Pendiente de firma'}
+              </div>
+            )}
             {d.estado !== 'anulado' && (
-              <button onClick={() => anular(d.id)} className="mt-1.5 text-[11.5px] font-semibold text-danger">Anular</button>
+              <button onClick={() => anular(d.id)} className="mt-1.5 block text-[11.5px] font-semibold text-danger">Anular</button>
             )}
           </div>
         ))}
@@ -350,19 +373,100 @@ export function DocumentosSection({ patientId }: { patientId: string }) {
       {open && (
         <BottomSheet onClose={() => setOpen(false)}>
           <div className="font-heading font-extrabold text-[17px] text-ink">Nuevo documento</div>
-          <select value={f.tipo} onChange={(e) => setF((p) => ({ ...p, tipo: e.target.value }))}
-            className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-3 text-sm text-ink outline-none focus:border-teal">
-            {DOC_TIPOS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
+          {plantillas.length > 0 && (
+            <select value={tplId} onChange={(e) => { setTplId(e.target.value); setCampos({}); }}
+              className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-3 text-sm text-ink outline-none focus:border-teal">
+              <option value="">Sin plantilla (libre)</option>
+              {plantillas.map((t) => <option key={t.id} value={t.id}>{t.nombre}{t.requiere_firma ? ' · firma' : ''}</option>)}
+            </select>
+          )}
+          {!tpl && (
+            <select value={f.tipo} onChange={(e) => setF((p) => ({ ...p, tipo: e.target.value }))}
+              className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-3 text-sm text-ink outline-none focus:border-teal">
+              {DOC_TIPOS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          )}
           <input value={f.titulo} onChange={(e) => setF((p) => ({ ...p, titulo: e.target.value }))} placeholder="Título"
             className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
-          <textarea value={f.contenido} onChange={(e) => setF((p) => ({ ...p, contenido: e.target.value }))} placeholder="Contenido (opcional)" rows={4}
-            className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal resize-none" />
+          {tpl ? (
+            <div className="flex flex-col gap-1.5">
+              {camposTpl.map((b, i) => (
+                <input key={i} value={campos[b.clave || b.label || ''] || ''}
+                  onChange={(e) => setCampos((c) => ({ ...c, [b.clave || b.label || '']: e.target.value }))}
+                  placeholder={b.label || b.clave || 'Campo'}
+                  className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-2.5 text-sm text-ink outline-none focus:border-teal" />
+              ))}
+              {tpl.requiere_firma && <div className="text-[11px] text-sub">El paciente deberá firmar este documento.</div>}
+            </div>
+          ) : (
+            <textarea value={f.contenido} onChange={(e) => setF((p) => ({ ...p, contenido: e.target.value }))} placeholder="Contenido (opcional)" rows={4}
+              className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal resize-none" />
+          )}
           {error && <div className="text-xs text-danger">{error}</div>}
           <Button onClick={crear} disabled={saving || !f.titulo.trim()} className="w-full">{saving ? 'Guardando…' : 'Emitir documento'}</Button>
         </BottomSheet>
       )}
+
+      {gestor && <PlantillasManager plantillas={plantillas} onClose={() => setGestor(false)} onChanged={loadTpl} />}
     </div>
+  );
+}
+
+function PlantillasManager({ plantillas, onClose, onChanged }: { plantillas: PlantillaDoc[]; onClose: () => void; onChanged: () => void }) {
+  const [nombre, setNombre] = useState('');
+  const [tipo, setTipo] = useState('consentimiento');
+  const [firma, setFirma] = useState(true);
+  const [bloques, setBloques] = useState<BloqueDoc[]>([{ tipo: 'parrafo', texto: '' }]);
+  const [saving, setSaving] = useState(false);
+
+  const setBloque = (i: number, patch: Partial<BloqueDoc>) => setBloques((bs) => bs.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+
+  const crear = async () => {
+    setSaving(true);
+    try {
+      await api.medico.crearPlantillaDoc({
+        nombre: nombre.trim(), tipo, requiere_firma: firma,
+        bloques: bloques.filter((b) => (b.tipo === 'parrafo' ? (b.texto || '').trim() : (b.label || '').trim())),
+      });
+      setNombre(''); setBloques([{ tipo: 'parrafo', texto: '' }]); onChanged();
+    } finally { setSaving(false); }
+  };
+  const eliminar = async (id: string) => { await api.medico.eliminarPlantillaDoc(id); onChanged(); };
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="font-heading font-extrabold text-[17px] text-ink">Plantillas de documento</div>
+      {plantillas.map((t) => (
+        <div key={t.id} className="flex items-center justify-between rounded-xl bg-[#F6FBF9] px-3 py-2">
+          <span className="text-[13px] text-ink">{t.nombre}{t.requiere_firma ? ' · firma' : ''}</span>
+          <button onClick={() => eliminar(t.id)} className="text-[11px] font-semibold text-danger">Quitar</button>
+        </div>
+      ))}
+      <div className="text-[12px] font-semibold text-ink mt-2">Nueva plantilla</div>
+      <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre (ej. Consentimiento extracción)"
+        className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-2.5 text-sm text-ink outline-none focus:border-teal" />
+      <div className="flex gap-2 items-center">
+        <select value={tipo} onChange={(e) => setTipo(e.target.value)} className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+          <option value="consentimiento">Consentimiento</option>
+          <option value="certificado">Certificado</option>
+          <option value="otro">Otro</option>
+        </select>
+        <label className="flex items-center gap-1.5 text-[12px] text-ink"><input type="checkbox" checked={firma} onChange={(e) => setFirma(e.target.checked)} className="w-4 h-4 accent-teal" />Requiere firma</label>
+      </div>
+      {bloques.map((b, i) => (
+        <div key={i} className="flex gap-1.5 items-center">
+          <select value={b.tipo} onChange={(e) => setBloque(i, { tipo: e.target.value })} className="rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-[12px] text-ink outline-none focus:border-teal">
+            <option value="parrafo">Párrafo</option>
+            <option value="campo">Campo</option>
+          </select>
+          {b.tipo === 'parrafo'
+            ? <input value={b.texto || ''} onChange={(e) => setBloque(i, { texto: e.target.value })} placeholder="Texto fijo" className="flex-1 rounded-lg border-[1.5px] border-border-strong bg-white px-2.5 py-2 text-[13px] text-ink outline-none focus:border-teal" />
+            : <input value={b.label || ''} onChange={(e) => setBloque(i, { label: e.target.value, clave: e.target.value })} placeholder="Etiqueta del campo" className="flex-1 rounded-lg border-[1.5px] border-border-strong bg-white px-2.5 py-2 text-[13px] text-ink outline-none focus:border-teal" />}
+        </div>
+      ))}
+      <button onClick={() => setBloques((bs) => [...bs, { tipo: 'parrafo', texto: '' }])} className="text-[12.5px] font-semibold text-teal-dark self-start">+ Agregar bloque</button>
+      <Button onClick={crear} disabled={saving || !nombre.trim()} className="w-full">{saving ? 'Guardando…' : 'Crear plantilla'}</Button>
+    </BottomSheet>
   );
 }
 

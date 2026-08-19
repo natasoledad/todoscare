@@ -203,9 +203,15 @@ class PlanItemEstadoIn(BaseModel):
 
 # ---- Tanda 5: documentos clínicos ----
 class DocumentoIn(BaseModel):
-    tipo: str          # consentimiento | licencia | interconsulta | otro
+    tipo: str          # consentimiento | licencia | interconsulta | certificado | otro
     titulo: str = Field(min_length=1)
     contenido: str | None = None
+    # Documentos por plantilla (64): si viene `template_id`, el contenido se
+    # arma desde sus bloques rellenando `campos`; `requiere_firma` hereda de la
+    # plantilla salvo que se especifique.
+    template_id: uuid.UUID | None = None
+    campos: dict | None = None
+    requiere_firma: bool | None = None
 
 
 class DocumentoOut(BaseModel):
@@ -215,6 +221,41 @@ class DocumentoOut(BaseModel):
     contenido: str | None
     estado: str
     fecha: datetime
+    requiere_firma: bool = False
+    firmado_paciente: bool = False
+    firmado_at: datetime | None = None
+
+
+# ---- plantillas de documento (64.3) ----
+class BloqueDoc(BaseModel):
+    tipo: str  # parrafo | campo
+    texto: str | None = None    # parrafo: texto fijo
+    label: str | None = None    # campo: etiqueta
+    clave: str | None = None    # campo: clave para `campos`
+
+
+class PlantillaDocIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=255)
+    tipo: str = Field(pattern="^(consentimiento|certificado|otro)$")
+    bloques: list[BloqueDoc] = []
+    requiere_firma: bool = False
+
+
+class PlantillaDocUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=255)
+    tipo: str | None = Field(default=None, pattern="^(consentimiento|certificado|otro)$")
+    bloques: list[BloqueDoc] | None = None
+    requiere_firma: bool | None = None
+    activo: bool | None = None
+
+
+class PlantillaDocOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    tipo: str
+    bloques: list[BloqueDoc]
+    requiere_firma: bool
+    activo: bool
 
 
 # ---- Tanda 5: periodontograma ----
