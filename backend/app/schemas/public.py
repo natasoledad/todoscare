@@ -55,6 +55,16 @@ class ReservaPublicaOut(BaseModel):
     fin: datetime
     servicio_nombre: str | None
     profesional_nombre: str
+    prepago_requerido: bool = False
+    prepago_monto: float = 0
+    prepagado: bool = False
+
+
+class PrepagoPublicoOut(BaseModel):
+    codigo: str
+    prepagado: bool
+    monto: float
+    ref: str | None
 
 
 class SolicitudEstadoOut(BaseModel):

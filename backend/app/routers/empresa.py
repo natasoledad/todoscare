@@ -1768,7 +1768,7 @@ async def baja_funcionario(
 
 
 # ─────────────────────── Agenda online pública (60) ───────────────────────
-_AGENDA_ONLINE_DEFAULTS = {"habilitada": False, "anticipacion_horas": 2, "ventana_dias": 30, "mensaje": None}
+_AGENDA_ONLINE_DEFAULTS = {"habilitada": False, "anticipacion_horas": 2, "ventana_dias": 30, "mensaje": None, "requiere_prepago": False, "monto_prepago": 0}
 
 
 def _agenda_cfg(clinic: Clinic) -> dict:
@@ -1783,6 +1783,8 @@ def _config_out(clinic: Clinic) -> AgendaOnlineConfigOut:
         anticipacion_horas=int(cfg["anticipacion_horas"]),
         ventana_dias=int(cfg["ventana_dias"]),
         mensaje=cfg["mensaje"],
+        requiere_prepago=bool(cfg["requiere_prepago"]),
+        monto_prepago=int(cfg["monto_prepago"]),
         reservable_url=f"/reservar/{clinic.slug}" if clinic.slug else None,
     )
 
@@ -1815,7 +1817,7 @@ async def set_agenda_online(
         clinic.slug = payload.slug
 
     cfg = _agenda_cfg(clinic)
-    for k in ("habilitada", "anticipacion_horas", "ventana_dias", "mensaje"):
+    for k in ("habilitada", "anticipacion_horas", "ventana_dias", "mensaje", "requiere_prepago", "monto_prepago"):
         val = getattr(payload, k)
         if val is not None:
             cfg[k] = val
@@ -1909,6 +1911,9 @@ async def _solicitud_out(db: AsyncSession, req: OnlineBookingRequest) -> Solicit
         notas=req.notas,
         creada=req.created_at,
         appointment_id=req.appointment_id,
+        prepago_requerido=req.prepago_requerido,
+        prepagado=req.prepagado,
+        prepago_monto=float(req.prepago_monto),
     )
 
 
@@ -1942,6 +1947,9 @@ async def confirmar_solicitud(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Solicitud no encontrada")
     if req.estado != "pendiente":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"La solicitud ya está {req.estado}")
+    # Prepago al agendar (61.7): si la clínica lo exige, no se confirma sin el pago.
+    if req.prepago_requerido and not req.prepagado:
+        raise HTTPException(status.HTTP_409_CONFLICT, "La reserva requiere prepago y aún no se ha pagado")
 
     # Materializar la cita exige un paciente registrado (Patient exige un User).
     patient = None

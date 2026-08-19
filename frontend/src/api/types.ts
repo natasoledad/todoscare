@@ -631,6 +631,15 @@ export interface ReservaPublicaOut {
   fin: string;
   servicio_nombre: string | null;
   profesional_nombre: string;
+  prepago_requerido: boolean;
+  prepago_monto: number;
+  prepagado: boolean;
+}
+export interface PrepagoPublico {
+  codigo: string;
+  prepagado: boolean;
+  monto: number;
+  ref: string | null;
 }
 export interface AgendaOnlineConfig {
   slug: string | null;
@@ -638,6 +647,8 @@ export interface AgendaOnlineConfig {
   anticipacion_horas: number;
   ventana_dias: number;
   mensaje: string | null;
+  requiere_prepago: boolean;
+  monto_prepago: number;
   reservable_url: string | null;
 }
 export interface AgendaOnlineDashboard {

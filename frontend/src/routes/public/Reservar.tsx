@@ -27,6 +27,16 @@ export function Reservar() {
   const [notas, setNotas] = useState('');
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState<ReservaPublicaOut | null>(null);
+  const [prepagado, setPrepagado] = useState(false);
+  const [pagando, setPagando] = useState(false);
+
+  const pagarPrepago = async () => {
+    if (!ok) return;
+    setPagando(true);
+    try { await api.publica.prepago(slug, ok.codigo); setPrepagado(true); }
+    catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo procesar el pago.'); }
+    finally { setPagando(false); }
+  };
 
   useEffect(() => {
     api.publica.clinica(slug)
@@ -104,7 +114,18 @@ export function Reservar() {
             <div className="mt-2 text-[11px] text-sub">Código de tu solicitud</div>
             <div className="font-mono font-bold text-teal tracking-wider">{ok.codigo}</div>
           </div>
-          <div className="text-[11px] text-sub">Guarda este código para consultar el estado de tu hora.</div>
+
+          {ok.prepago_requerido && !prepagado ? (
+            <div className="w-full rounded-2xl border border-teal/40 bg-[#F0FBF7] px-4 py-3 flex flex-col gap-2">
+              <div className="text-[12.5px] text-ink">Para confirmar tu hora, {clinica.nombre} solicita un prepago de <b>{money(ok.prepago_monto)}</b>.</div>
+              {error && <div className="text-xs text-danger">{error}</div>}
+              <Button onClick={pagarPrepago} disabled={pagando} className="w-full">{pagando ? 'Procesando…' : `Pagar ${money(ok.prepago_monto)}`}</Button>
+            </div>
+          ) : ok.prepago_requerido && prepagado ? (
+            <div className="w-full rounded-2xl border border-teal/40 bg-[#F0FBF7] px-4 py-3 text-[12.5px] text-teal-dark font-semibold text-center">✓ Prepago recibido. Te confirmaremos la hora a la brevedad.</div>
+          ) : (
+            <div className="text-[11px] text-sub">Guarda este código para consultar el estado de tu hora.</div>
+          )}
         </div>
       </Centered>
     );
