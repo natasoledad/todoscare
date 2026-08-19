@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -164,6 +164,11 @@ class ClinicalDocument(Base, AuditMixin, TenantMixin):
     requiere_firma: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     firmado_paciente: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     firmado_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Firma del profesional (48): instantánea de la firma manuscrita del
+    # profesional emisor al momento de crear el documento (data URL PNG). Es una
+    # copia inmutable: cambiar la firma del profesional no altera documentos ya
+    # emitidos.
+    firma_profesional: Mapped[str | None] = mapped_column(Text)
 
 
 class DocumentTemplate(Base, AuditMixin, TenantMixin):

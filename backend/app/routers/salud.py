@@ -145,6 +145,7 @@ def _doc_pac_out(d: ClinicalDocument) -> DocumentoPacienteOut:
     return DocumentoPacienteOut(
         id=d.id, tipo=d.tipo, titulo=d.titulo, contenido=d.contenido, estado=d.estado,
         requiere_firma=d.requiere_firma, firmado_paciente=d.firmado_paciente, firmado_at=d.firmado_at, fecha=d.created_at,
+        firma_profesional=d.firma_profesional,
     )
 
 

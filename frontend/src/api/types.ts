@@ -1204,6 +1204,11 @@ export interface DocumentoClinico {
   requiere_firma?: boolean;
   firmado_paciente?: boolean;
   firmado_at?: string | null;
+  firma_profesional?: string | null;
+}
+export interface MiFirma {
+  firma: string | null;
+  especialidad: string | null;
 }
 export interface BloqueDoc {
   tipo: string;         // parrafo | campo

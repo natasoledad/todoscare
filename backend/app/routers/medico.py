@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.catalog import CatalogItem
+from app.models.catalog import CatalogItem, Specialty
 from app.models.clinical import (
     ClinicalDocument,
     DocumentTemplate,
@@ -23,6 +23,7 @@ from app.models.clinical import (
 )
 from app.models.identity import User
 from app.models.patient import Patient
+from app.models.professional import ProfessionalProfile
 from app.models.scheduling import Appointment
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource
@@ -43,6 +44,8 @@ from app.schemas.medico import (
     FichaPacienteOut,
     HospitalizacionFichaOut,
     LiquidacionOut,
+    MiFirmaIn,
+    MiFirmaOut,
     OrdenInput,
     OrdenOut,
     PlanEstadoIn,
@@ -802,7 +805,23 @@ def _doc_out(d: ClinicalDocument) -> DocumentoOut:
     return DocumentoOut(
         id=d.id, tipo=d.tipo, titulo=d.titulo, contenido=d.contenido, estado=d.estado, fecha=d.created_at,
         requiere_firma=d.requiere_firma, firmado_paciente=d.firmado_paciente, firmado_at=d.firmado_at,
+        firma_profesional=d.firma_profesional,
     )
+
+
+async def _mi_firma(db: AsyncSession, ctx: TenantContext) -> str | None:
+    """Firma manuscrita del profesional (48), tomada de su perfil profesional
+    (cualquiera de sus clínicas). None si aún no la ha dibujado."""
+    row = (
+        await db.execute(
+            select(ProfessionalProfile.firma).where(
+                ProfessionalProfile.user_id == ctx.user_id,
+                ProfessionalProfile.firma.isnot(None),
+                ProfessionalProfile.deleted_at.is_(None),
+            ).limit(1)
+        )
+    ).scalar_one_or_none()
+    return row
 
 
 def _medico_clinic_id(ctx: TenantContext) -> uuid.UUID:
@@ -950,6 +969,7 @@ async def crear_documento(
         clinic_id=patient.clinic_id, patient_id=patient_id, professional_id=ctx.user_id,
         tipo=tipo, titulo=payload.titulo, contenido=contenido,
         template_id=payload.template_id, requiere_firma=requiere_firma,
+        firma_profesional=await _mi_firma(db, ctx),  # instantánea inmutable de la firma
     )
     db.add(doc)
     audit(db, ctx, clinic_id=patient.clinic_id, accion="crear_documento_clinico", recurso=f"patient:{patient_id}")
@@ -973,6 +993,58 @@ async def anular_documento(
     await db.commit()
     await db.refresh(doc)
     return _doc_out(doc)
+
+
+# ═══════════════════════ Firma manuscrita del profesional (48) ═══════════════════════
+async def _mis_perfiles(db: AsyncSession, ctx: TenantContext) -> list[ProfessionalProfile]:
+    return list(
+        (
+            await db.execute(
+                select(ProfessionalProfile).where(
+                    ProfessionalProfile.user_id == ctx.user_id, ProfessionalProfile.deleted_at.is_(None)
+                )
+            )
+        ).scalars().all()
+    )
+
+
+@router.get("/mi-firma", response_model=MiFirmaOut)
+async def ver_mi_firma(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.OWN_AGENDA, Action.VER)),
+) -> MiFirmaOut:
+    """El profesional consulta su firma manuscrita y su especialidad."""
+    perfiles = await _mis_perfiles(db, ctx)
+    firma = next((p.firma for p in perfiles if p.firma), None)
+    especialidad = None
+    spec_id = next((p.specialty_id for p in perfiles if p.specialty_id), None)
+    if spec_id is not None:
+        especialidad = (await db.execute(select(Specialty.nombre).where(Specialty.id == spec_id))).scalar_one_or_none()
+    return MiFirmaOut(firma=firma, especialidad=especialidad)
+
+
+@router.put("/mi-firma", response_model=MiFirmaOut)
+async def guardar_mi_firma(
+    payload: MiFirmaIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.OWN_AGENDA, Action.EDITAR)),
+) -> MiFirmaOut:
+    """El profesional dibuja su firma en la app y la guarda. Se aplica a su
+    perfil en cada clínica donde trabaja; si aún no tenía perfil, se crea uno."""
+    if payload.firma is not None and len(payload.firma) > 2_000_000:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La firma es demasiado grande")
+    perfiles = await _mis_perfiles(db, ctx)
+    if perfiles:
+        for p in perfiles:
+            p.firma = payload.firma
+    else:
+        ids = ctx.clinic_ids()
+        if not ids:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "La cuenta no tiene una clínica asignada")
+        for cid in ids:
+            db.add(ProfessionalProfile(clinic_id=cid, user_id=ctx.user_id, firma=payload.firma))
+    await db.commit()
+    return MiFirmaOut(firma=payload.firma, especialidad=None)
 
 
 # ═══════════════════════ Tanda 5: periodontograma ═══════════════════════

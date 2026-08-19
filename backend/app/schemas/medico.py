@@ -224,6 +224,17 @@ class DocumentoOut(BaseModel):
     requiere_firma: bool = False
     firmado_paciente: bool = False
     firmado_at: datetime | None = None
+    firma_profesional: str | None = None  # firma manuscrita estampada (data URL PNG)
+
+
+# ---- firma manuscrita del profesional (48) ----
+class MiFirmaOut(BaseModel):
+    firma: str | None = None
+    especialidad: str | None = None
+
+
+class MiFirmaIn(BaseModel):
+    firma: str | None = None  # data URL PNG (o null para borrarla)
 
 
 # ---- plantillas de documento (64.3) ----

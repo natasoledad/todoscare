@@ -358,6 +358,12 @@ export function DocumentosSection({ patientId }: { patientId: string }) {
               <StatusTag label={d.estado === 'anulado' ? 'Anulado' : 'Emitido'} tone={d.estado === 'anulado' ? 'warn' : 'teal'} />
             </div>
             {d.contenido && <div className="mt-1.5 text-[12px] text-sub line-clamp-2 whitespace-pre-line">{d.contenido}</div>}
+            {d.firma_profesional && (
+              <div className="mt-2 flex items-center gap-2">
+                <img src={d.firma_profesional} alt="Firma del profesional" className="h-9 object-contain" />
+                <span className="text-[10.5px] text-sub">Firma del profesional</span>
+              </div>
+            )}
             {d.requiere_firma && (
               <div className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${d.firmado_paciente ? 'bg-teal-soft text-teal-dark' : 'bg-warn-bg text-[#8A6A00]'}`}>
                 {d.firmado_paciente ? '✓ Firmado por el paciente' : 'Pendiente de firma'}

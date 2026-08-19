@@ -51,3 +51,4 @@ class DocumentoPacienteOut(BaseModel):
     firmado_paciente: bool
     firmado_at: datetime | None
     fecha: datetime
+    firma_profesional: str | None = None  # firma manuscrita del profesional emisor

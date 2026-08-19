@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,3 +42,6 @@ class ProfessionalProfile(Base, AuditMixin, TenantMixin):
     # NULL = usar el % por defecto de la clínica (PROFESSIONAL_SPLIT_PCT).
     comision_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))  # 0.0000–1.0000
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    # Firma manuscrita del profesional (48): imagen dibujada en la app por el
+    # propio profesional (data URL PNG). Se estampa en los documentos que emite.
+    firma: Mapped[str | None] = mapped_column(Text)
