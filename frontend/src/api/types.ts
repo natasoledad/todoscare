@@ -662,6 +662,27 @@ export interface PermisoCatalogo {
   resources: string[];
   actions: string[];
 }
+export interface PermisoItem {
+  resource: string;
+  action: string;
+}
+export interface PerfilAcceso {
+  id: string;
+  clinic_id: string;
+  nombre: string;
+  base_role: string;
+  permisos: PermisoItem[];
+  sin_restriccion: boolean;
+  activo: boolean;
+  usuarios: number;
+}
+export interface PerfilAsignado {
+  id: string;
+  clinic_id: string;
+  profile_id: string;
+  profile_nombre: string;
+  base_role: string;
+}
 export interface ReporteBib {
   id: string;
   nombre: string;

@@ -7,9 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
-from app.models.identity import PermissionOverride, Role, RoleAssignment, User
+from app.models.identity import (
+    PermissionOverride,
+    PermissionProfile,
+    Role,
+    RoleAssignment,
+    User,
+    UserPermissionProfile,
+)
 from app.rbac.permissions import RoleCode
-from app.tenancy.context import PermissionGrant, RoleGrant, TenantContext
+from app.tenancy.context import PermissionGrant, ProfileGrant, RoleGrant, TenantContext
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -53,7 +60,38 @@ async def get_current_ctx(
         for o in ov_rows
     )
 
-    return TenantContext(user_id=user.id, email=user.email, grants=grants, overrides=overrides)
+    # Perfiles de acceso reutilizables (48): perfil asignado por clínica.
+    prof_rows = (
+        await db.execute(
+            select(PermissionProfile)
+            .join(UserPermissionProfile, UserPermissionProfile.profile_id == PermissionProfile.id)
+            .where(
+                UserPermissionProfile.user_id == user_id,
+                UserPermissionProfile.deleted_at.is_(None),
+                PermissionProfile.deleted_at.is_(None),
+                PermissionProfile.activo.is_(True),
+            )
+        )
+    ).scalars().all()
+    profile_grants: list[ProfileGrant] = []
+    restricted: set[uuid.UUID] = set()
+    for prof in prof_rows:
+        if prof.sin_restriccion:
+            continue  # acceso total: no restringe la matriz del rol base
+        restricted.add(prof.clinic_id)
+        for item in prof.permisos or []:
+            recurso, accion = item.get("resource"), item.get("action")
+            if recurso and accion:
+                profile_grants.append(ProfileGrant(clinic_id=prof.clinic_id, resource=recurso, action=accion))
+
+    return TenantContext(
+        user_id=user.id,
+        email=user.email,
+        grants=grants,
+        overrides=overrides,
+        profile_grants=tuple(profile_grants),
+        restricted_clinics=frozenset(restricted),
+    )
 
 
 def require_clinic_access(ctx: TenantContext, clinic_id: uuid.UUID) -> None:

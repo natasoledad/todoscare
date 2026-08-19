@@ -1,10 +1,10 @@
 import uuid
 
 from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import AuditMixin, Base
+from app.models.base import AuditMixin, Base, TenantMixin
 
 
 class User(Base, AuditMixin):
@@ -68,3 +68,42 @@ class PermissionOverride(Base, AuditMixin):
     resource: Mapped[str] = mapped_column(String(50), nullable=False)
     action: Mapped[str] = mapped_column(String(20), nullable=False)
     allow: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
+class PermissionProfile(Base, AuditMixin, TenantMixin):
+    """Perfil de acceso reutilizable (48): un conjunto nombrado de permisos
+    (las casillas) sobre un rol base, que el administrador de la clínica define
+    una vez y luego asigna a un usuario con un clic —sin revisar acceso por
+    acceso cada vez—.
+
+    El `base_role` decide a qué panel entra el usuario (empresa → /empresa,
+    medico → /medico, clinic_admin → /admin); el perfil refina qué puede hacer
+    dentro de ese panel.
+
+    Semántica de `permisos` (JSONB, lista de {"resource", "action"}):
+      - `sin_restriccion = False`: es una allowlist AUTORITATIVA. El usuario con
+        este perfil solo puede ejecutar los (recurso, acción) listados, dentro de
+        la clínica del perfil. Un override fino por usuario (PR-X) sigue ganando.
+      - `sin_restriccion = True`: el perfil no restringe; rige la matriz completa
+        del rol base (personas de acceso total: Gerencia, Administrador de Cuenta)."""
+
+    __tablename__ = "permission_profiles"
+    __table_args__ = (UniqueConstraint("clinic_id", "nombre", name="uq_permission_profile_nombre"),)
+
+    nombre: Mapped[str] = mapped_column(String(80), nullable=False)
+    base_role: Mapped[str] = mapped_column(String(50), nullable=False)  # empresa | medico | clinic_admin
+    permisos: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    sin_restriccion: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
+class UserPermissionProfile(Base, AuditMixin):
+    """Asignación de un perfil de acceso a un usuario dentro de una clínica.
+    A lo sumo un perfil por (usuario, clínica) — asignar reemplaza el anterior."""
+
+    __tablename__ = "user_permission_profiles"
+    __table_args__ = (UniqueConstraint("user_id", "clinic_id", name="uq_user_permission_profile"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    clinic_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("clinics.id"), nullable=False, index=True)
+    profile_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("permission_profiles.id"), nullable=False, index=True)

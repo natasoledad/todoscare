@@ -79,6 +79,7 @@ const Reservar = lazyNamed(() => import('./routes/public/Reservar'), 'Reservar')
 const AdminInicio = lazyNamed(() => import('./routes/admin/Inicio'), 'Inicio');
 const AdminClinicas = lazyNamed(() => import('./routes/admin/Clinicas'), 'Clinicas');
 const AdminUsuarios = lazyNamed(() => import('./routes/admin/Usuarios'), 'Usuarios');
+const AdminPerfiles = lazyNamed(() => import('./routes/admin/Perfiles'), 'Perfiles');
 const AdminConfig = lazyNamed(() => import('./routes/admin/Config'), 'Config');
 const AdminFinanzas = lazyNamed(() => import('./routes/admin/Finanzas'), 'Finanzas');
 const AdminAuditoria = lazyNamed(() => import('./routes/admin/Auditoria'), 'Auditoria');
@@ -188,6 +189,7 @@ function App() {
                 <Route path="/admin" element={<AdminInicio />} />
                 <Route path="/admin/clinicas" element={<AdminClinicas />} />
                 <Route path="/admin/usuarios" element={<AdminUsuarios />} />
+                <Route path="/admin/perfiles" element={<AdminPerfiles />} />
                 <Route path="/admin/config" element={<AdminConfig />} />
                 <Route path="/admin/finanzas" element={<AdminFinanzas />} />
                 <Route path="/admin/auditoria" element={<AdminAuditoria />} />
