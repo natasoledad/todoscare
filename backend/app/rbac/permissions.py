@@ -41,6 +41,7 @@ class Resource(str, Enum):
     CAJAS = "cajas"  # arqueo diario: abrir/cerrar caja, registrar pagos y gastos
     TRIBUTARIO = "tributario"  # emisión de documentos tributarios (SII Chile / Nota Fiscal Brasil)
     LIQUIDACION_PROFESIONALES = "liquidacion_profesionales"  # comisiones a pagar a los profesionales (58)
+    INVENTARIO = "inventario"  # insumos: bodegas, proveedores, centros de costo, stock y kardex (56)
 
     # --- Médico (Spec Medico §3) ---
     OWN_AGENDA = "own_agenda"

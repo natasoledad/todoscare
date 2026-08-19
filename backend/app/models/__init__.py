@@ -12,6 +12,7 @@ from app.models import (  # noqa: F401
     identity,
     insurance,
     integrations,
+    inventory,
     patient,
     professional,
     scheduling,
