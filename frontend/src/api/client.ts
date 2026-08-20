@@ -6,6 +6,8 @@ import type {
   Desempeno,
   DocumentoClinico,
   MiFirma,
+  Cie10Item,
+  Diagnostico,
   BloqueDoc,
   PlantillaDoc,
   DocumentoPaciente,
@@ -269,6 +271,12 @@ export const api = {
     cambiarEstadoItem: (planId: string, itemId: string, estado: string) => patch<PlanTratamiento>(`/medico/planes/${planId}/items/${itemId}/estado`, { estado }),
     miFirma: () => get<MiFirma>('/medico/mi-firma'),
     guardarMiFirma: (firma: string | null) => put<MiFirma>('/medico/mi-firma', { firma }),
+    // Diagnóstico CIE-10 (71.20)
+    buscarCie10: (q: string) => get<Cie10Item[]>(`/medico/cie10?q=${encodeURIComponent(q)}`),
+    diagnosticos: (patientId: string) => get<Diagnostico[]>(`/medico/pacientes/${patientId}/diagnosticos`),
+    agregarDiagnostico: (patientId: string, body: { codigo: string; tipo: string; observacion?: string; record_id?: string }) =>
+      post<Diagnostico>(`/medico/pacientes/${patientId}/diagnosticos`, body),
+    quitarDiagnostico: (dxId: string) => del(`/medico/diagnosticos/${dxId}`),
     documentos: (patientId: string) => get<DocumentoClinico[]>(`/medico/pacientes/${patientId}/documentos`),
     crearDocumento: (patientId: string, body: { tipo: string; titulo: string; contenido?: string; template_id?: string; campos?: Record<string, string>; requiere_firma?: boolean }) => post<DocumentoClinico>(`/medico/pacientes/${patientId}/documentos`, body),
     anularDocumento: (docId: string) => patch<DocumentoClinico>(`/medico/documentos/${docId}/anular`),

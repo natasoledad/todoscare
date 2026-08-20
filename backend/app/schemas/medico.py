@@ -227,6 +227,31 @@ class DocumentoOut(BaseModel):
     firma_profesional: str | None = None  # firma manuscrita estampada (data URL PNG)
 
 
+# ---- diagnóstico CIE-10 (71.20) ----
+class Cie10Out(BaseModel):
+    id: uuid.UUID
+    codigo: str
+    descripcion: str
+    categoria: str | None = None
+
+
+class DiagnosticoIn(BaseModel):
+    codigo: str = Field(min_length=1)          # código CIE-10 (p. ej. "K02.1")
+    tipo: str = "principal"                     # principal | secundario
+    observacion: str | None = Field(default=None, max_length=500)
+    record_id: uuid.UUID | None = None          # atención a la que se asocia (opcional)
+
+
+class DiagnosticoOut(BaseModel):
+    id: uuid.UUID
+    codigo: str
+    descripcion: str
+    categoria: str | None = None
+    tipo: str
+    observacion: str | None = None
+    fecha: datetime
+
+
 # ---- firma manuscrita del profesional (48) ----
 class MiFirmaOut(BaseModel):
     firma: str | None = None

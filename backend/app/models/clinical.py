@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,6 +19,35 @@ class MedicalRecord(Base, AuditMixin, TenantMixin):
     professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     appointment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("appointments.id"))
     contenido: Mapped[dict] = mapped_column(JSONB, nullable=False)  # motivo, evolución, diagnóstico — libre por especialidad
+
+
+class Cie10Code(Base, AuditMixin):
+    """Catálogo CIE-10 (71.20): referencia global (no tenant) de códigos de
+    diagnóstico. `codigo` es la clave clínica (p. ej. "K02.1"); `categoria`
+    agrupa por capítulo/bloque para navegar el catálogo."""
+
+    __tablename__ = "cie10_codes"
+    __table_args__ = (UniqueConstraint("codigo", name="uq_cie10_codigo"),)
+
+    codigo: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    descripcion: Mapped[str] = mapped_column(String(300), nullable=False)
+    categoria: Mapped[str | None] = mapped_column(String(120))  # capítulo/bloque
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
+class ClinicalDiagnosis(Base, AuditMixin, TenantMixin):
+    """Diagnóstico CIE-10 asignado a un paciente en una atención (71.20). Formaliza
+    el diagnóstico —hasta ahora texto libre en el prontuario— con un código
+    trazable y reportable. `tipo` distingue principal de secundario."""
+
+    __tablename__ = "clinical_diagnoses"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    professional_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    record_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("medical_records.id"), index=True)
+    cie10_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cie10_codes.id"), nullable=False, index=True)
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, server_default="principal")  # principal | secundario
+    observacion: Mapped[str | None] = mapped_column(String(500))
 
 
 class Prescription(Base, AuditMixin, TenantMixin):

@@ -2,12 +2,14 @@ import uuid
 from datetime import datetime, time, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.catalog import CatalogItem, Specialty
 from app.models.clinical import (
+    Cie10Code,
+    ClinicalDiagnosis,
     ClinicalDocument,
     DocumentTemplate,
     ExamOrder,
@@ -43,6 +45,9 @@ from app.schemas.medico import (
     ExamenFichaOut,
     FichaPacienteOut,
     HospitalizacionFichaOut,
+    Cie10Out,
+    DiagnosticoIn,
+    DiagnosticoOut,
     LiquidacionOut,
     MiFirmaIn,
     MiFirmaOut,
@@ -1045,6 +1050,96 @@ async def guardar_mi_firma(
             db.add(ProfessionalProfile(clinic_id=cid, user_id=ctx.user_id, firma=payload.firma))
     await db.commit()
     return MiFirmaOut(firma=payload.firma, especialidad=None)
+
+
+# ═══════════════════════ Diagnóstico CIE-10 (71.20) ═══════════════════════
+_DX_TIPOS = {"principal", "secundario"}
+
+
+@router.get("/cie10", response_model=list[Cie10Out])
+async def buscar_cie10(
+    q: str = "",
+    limit: int = 30,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> list[Cie10Out]:
+    """Busca en el catálogo CIE-10 por código o descripción (71.20)."""
+    limit = max(1, min(limit, 100))
+    stmt = select(Cie10Code).where(Cie10Code.activo.is_(True), Cie10Code.deleted_at.is_(None))
+    q = q.strip()
+    if q:
+        patron = f"%{q}%"
+        stmt = stmt.where(or_(Cie10Code.codigo.ilike(patron), Cie10Code.descripcion.ilike(patron)))
+    rows = (await db.execute(stmt.order_by(Cie10Code.codigo).limit(limit))).scalars().all()
+    return [Cie10Out(id=c.id, codigo=c.codigo, descripcion=c.descripcion, categoria=c.categoria) for c in rows]
+
+
+def _dx_out(d: ClinicalDiagnosis, code: Cie10Code) -> DiagnosticoOut:
+    return DiagnosticoOut(
+        id=d.id, codigo=code.codigo, descripcion=code.descripcion, categoria=code.categoria,
+        tipo=d.tipo, observacion=d.observacion, fecha=d.created_at,
+    )
+
+
+@router.get("/pacientes/{patient_id}/diagnosticos", response_model=list[DiagnosticoOut])
+async def listar_diagnosticos(
+    patient_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> list[DiagnosticoOut]:
+    await get_treated_patient(db, ctx, patient_id)
+    rows = (
+        await db.execute(
+            select(ClinicalDiagnosis, Cie10Code)
+            .join(Cie10Code, Cie10Code.id == ClinicalDiagnosis.cie10_id)
+            .where(ClinicalDiagnosis.patient_id == patient_id, ClinicalDiagnosis.deleted_at.is_(None))
+            .order_by(ClinicalDiagnosis.created_at.desc())
+        )
+    ).all()
+    return [_dx_out(d, c) for d, c in rows]
+
+
+@router.post("/pacientes/{patient_id}/diagnosticos", response_model=DiagnosticoOut, status_code=status.HTTP_201_CREATED)
+async def agregar_diagnostico(
+    patient_id: uuid.UUID,
+    payload: DiagnosticoIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
+) -> DiagnosticoOut:
+    patient = await get_treated_patient(db, ctx, patient_id)
+    if payload.tipo not in _DX_TIPOS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tipo inválido (principal | secundario)")
+    code = (await db.execute(select(Cie10Code).where(Cie10Code.codigo == payload.codigo, Cie10Code.deleted_at.is_(None)))).scalar_one_or_none()
+    if code is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Código CIE-10 inexistente: {payload.codigo}")
+    if payload.record_id is not None:
+        rec = await db.get(MedicalRecord, payload.record_id)
+        if rec is None or rec.patient_id != patient_id or rec.deleted_at is not None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Atención inválida")
+    dx = ClinicalDiagnosis(
+        clinic_id=patient.clinic_id, patient_id=patient_id, professional_id=ctx.user_id,
+        record_id=payload.record_id, cie10_id=code.id, tipo=payload.tipo, observacion=payload.observacion,
+    )
+    db.add(dx)
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="agregar_diagnostico_cie10", recurso=f"patient:{patient_id}", despues={"codigo": code.codigo})
+    await db.commit()
+    await db.refresh(dx)
+    return _dx_out(dx, code)
+
+
+@router.delete("/diagnosticos/{dx_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def quitar_diagnostico(
+    dx_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> None:
+    dx = await db.get(ClinicalDiagnosis, dx_id)
+    if dx is None or dx.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Diagnóstico no encontrado")
+    await get_treated_patient(db, ctx, dx.patient_id)  # valida atención + clínica
+    await db.delete(dx)  # baja lógica vía listener global
+    audit(db, ctx, clinic_id=dx.clinic_id, accion="quitar_diagnostico_cie10", recurso=f"clinical_diagnosis:{dx.id}")
+    await db.commit()
 
 
 # ═══════════════════════ Tanda 5: periodontograma ═══════════════════════

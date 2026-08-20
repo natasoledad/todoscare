@@ -4,7 +4,7 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
 import { money } from '../../lib/citas';
-import type { BloqueDoc, DocumentoClinico, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
+import type { BloqueDoc, Cie10Item, Diagnostico, DocumentoClinico, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
 
@@ -550,6 +550,112 @@ export function PeriodontogramaSection({ patientId }: { patientId: string }) {
         <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-danger inline-block" /> sangrado</span>
       </div>
       {dirty && <Button onClick={guardar} disabled={saving} className="w-full mt-2.5">{saving ? 'Guardando…' : 'Guardar toma'}</Button>}
+    </div>
+  );
+}
+
+// ─────────────────────── Diagnóstico CIE-10 (71.20) ───────────────────────
+export function DiagnosticosSection({ patientId }: { patientId: string }) {
+  const [lista, setLista] = useState<Diagnostico[]>([]);
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<Cie10Item[]>([]);
+  const [sel, setSel] = useState<Cie10Item | null>(null);
+  const [tipo, setTipo] = useState('principal');
+  const [obs, setObs] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => api.medico.diagnosticos(patientId).then(setLista).catch(() => setLista([]));
+  useEffect(() => { load(); }, [patientId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      if (q.trim().length < 2) { setHits([]); return; }
+      api.medico.buscarCie10(q.trim()).then(setHits).catch(() => setHits([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q, open]);
+
+  const abrir = () => { setOpen(true); setQ(''); setHits([]); setSel(null); setTipo('principal'); setObs(''); setError(null); };
+  const guardar = async () => {
+    if (!sel) return;
+    setSaving(true); setError(null);
+    try {
+      await api.medico.agregarDiagnostico(patientId, { codigo: sel.codigo, tipo, observacion: obs || undefined });
+      setOpen(false);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? String(e.detail) : 'No se pudo agregar el diagnóstico.');
+    } finally { setSaving(false); }
+  };
+  const quitar = async (id: string) => { await api.medico.quitarDiagnostico(id); await load(); };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-heading font-bold text-[13px] text-ink">Diagnósticos (CIE-10)</div>
+        <button onClick={abrir} className="text-[12px] font-semibold text-teal-dark">+ Agregar</button>
+      </div>
+      {lista.length === 0 ? (
+        <div className="text-sm text-sub">Sin diagnósticos registrados.</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {lista.map((d) => (
+            <div key={d.id} className="bg-white border border-border rounded-2xl px-3.5 py-3">
+              <div className="flex items-center gap-2">
+                <span className="font-heading font-bold text-[11px] px-2 py-0.5 rounded-full bg-teal-soft text-teal-dark tabular-nums">{d.codigo}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${d.tipo === 'principal' ? 'bg-[#EEF6FF] text-[#1E5AA8]' : 'bg-[#F1F1F1] text-sub'}`}>{d.tipo}</span>
+                <button onClick={() => quitar(d.id)} className="ml-auto text-[11px] font-semibold text-danger">Quitar</button>
+              </div>
+              <div className="mt-1 text-[13px] text-ink">{d.descripcion}</div>
+              {d.observacion && <div className="mt-0.5 text-[11.5px] text-sub">{d.observacion}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <BottomSheet onClose={() => setOpen(false)}>
+          <div className="font-heading font-extrabold text-[17px] text-ink">Agregar diagnóstico</div>
+          {!sel ? (
+            <>
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por código o descripción (ej. caries, K02)"
+                className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+              <div className="max-h-[45vh] overflow-y-auto scrollhide flex flex-col gap-1.5">
+                {q.trim().length < 2 && <div className="text-[12px] text-sub">Escribe al menos 2 caracteres.</div>}
+                {hits.map((h) => (
+                  <button key={h.id} onClick={() => setSel(h)} className="text-left rounded-xl bg-[#F6FBF9] px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-heading font-bold text-[11px] px-2 py-0.5 rounded-full bg-teal-soft text-teal-dark tabular-nums">{h.codigo}</span>
+                      <span className="text-[13px] text-ink">{h.descripcion}</span>
+                    </div>
+                    {h.categoria && <div className="mt-0.5 text-[10.5px] text-sub">{h.categoria}</div>}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rounded-xl bg-[#F6FBF9] px-3 py-2.5 flex items-center gap-2">
+                <span className="font-heading font-bold text-[11px] px-2 py-0.5 rounded-full bg-teal-soft text-teal-dark tabular-nums">{sel.codigo}</span>
+                <span className="text-[13px] text-ink flex-1">{sel.descripcion}</span>
+                <button onClick={() => setSel(null)} className="text-[11px] font-semibold text-teal-dark">Cambiar</button>
+              </div>
+              <select value={tipo} onChange={(e) => setTipo(e.target.value)}
+                className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-3 text-sm text-ink outline-none focus:border-teal">
+                <option value="principal">Diagnóstico principal</option>
+                <option value="secundario">Diagnóstico secundario</option>
+              </select>
+              <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Observación (opcional)"
+                className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+              {error && <div className="text-xs text-danger">{error}</div>}
+              <Button onClick={guardar} disabled={saving} className="w-full">{saving ? 'Guardando…' : 'Agregar diagnóstico'}</Button>
+            </>
+          )}
+        </BottomSheet>
+      )}
     </div>
   );
 }
