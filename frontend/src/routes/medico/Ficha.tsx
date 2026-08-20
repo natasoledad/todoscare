@@ -4,7 +4,7 @@ import { BackHeader } from '../../components/BackHeader';
 import { StatusTag } from '../../components/ListRow';
 import { api } from '../../api/client';
 import type { FichaPaciente } from '../../api/types';
-import { DiagnosticosSection, DocumentosSection, PeriodontogramaSection, PlanesSection, SignosVitalesSection, TimelineSection } from './FichaExtras';
+import { DiagnosticosSection, DocumentosSection, OdontogramaSection, PeriodontogramaSection, PlanesSection, SignosVitalesSection, TimelineSection } from './FichaExtras';
 
 const FICHA_LABELS: Record<string, string> = {
   fecha_nacimiento: 'Fecha de nacimiento',
@@ -21,25 +21,12 @@ export function Ficha() {
   const { patientId = '' } = useParams();
   const navigate = useNavigate();
   const [ficha, setFicha] = useState<FichaPaciente | null>(null);
-  const [piezas, setPiezas] = useState<Record<string, { estado: string }>>({});
 
   useEffect(() => {
-    api.medico.ficha(patientId).then((f) => {
-      setFicha(f);
-      setPiezas(f.odontograma || {});
-    });
+    api.medico.ficha(patientId).then(setFicha);
   }, [patientId]);
 
-  const togglePieza = async (key: string) => {
-    const current = piezas[key]?.estado === 'pendiente' ? 'tratada' : 'pendiente';
-    const next = { ...piezas, [key]: { estado: current } };
-    setPiezas(next);
-    await api.medico.odontograma(patientId, next);
-  };
-
   if (!ficha) return <div className="h-full flex items-center justify-center text-sub text-sm">Cargando…</div>;
-
-  const keys = Object.keys(piezas).length > 0 ? Object.keys(piezas) : Array.from({ length: 16 }, (_, i) => String(i));
 
   return (
     <div className="h-full flex flex-col">
@@ -101,21 +88,7 @@ export function Ficha() {
 
         <PeriodontogramaSection patientId={patientId} />
 
-        <div>
-          <div className="font-heading font-bold text-[13px] text-ink mb-2">Odontograma</div>
-          <div className="text-[11.5px] text-sub mb-2">Toca una pieza para alternar pendiente / tratada.</div>
-          <div className="bg-white border border-border rounded-2xl p-4 grid grid-cols-8 gap-1.5">
-            {keys.map((k) => (
-              <div
-                key={k}
-                onClick={() => togglePieza(k)}
-                className={`aspect-square rounded-md border border-border-strong cursor-pointer ${
-                  piezas[k]?.estado === 'pendiente' ? 'bg-[#F6D9CF]' : piezas[k]?.estado === 'tratada' ? 'bg-teal-soft' : 'bg-[#F2F6F5]'
-                }`}
-              />
-            ))}
-          </div>
-        </div>
+        <OdontogramaSection patientId={patientId} initial={ficha.odontograma || {}} />
       </div>
     </div>
   );

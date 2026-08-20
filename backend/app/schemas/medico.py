@@ -103,9 +103,34 @@ class OrdenOut(BaseModel):
     creada: datetime
 
 
-# ---- odontograma ----
+# ---- odontograma (70.11): caras + diagnóstico/tratamiento ----
+class OdontogramaCaraIn(BaseModel):
+    dx: str | None = None          # diagnóstico en la cara (p. ej. caries)
+    tx: str | None = None          # tratamiento en la cara (p. ej. obturación)
+    tx_estado: str | None = None   # planificado | realizado
+
+
+class OdontogramaPiezaIn(BaseModel):
+    pieza: str | None = None       # estado de la pieza completa (ausente, corona, …)
+    estado: str | None = None      # legacy: pendiente | tratada (compatibilidad)
+    caras: dict[str, OdontogramaCaraIn] | None = None
+
+
 class OdontogramaUpdateInput(BaseModel):
-    piezas: dict  # {"15": {"estado": "pendiente"}, ...}
+    piezas: dict[str, OdontogramaPiezaIn]
+
+
+class MarcaCatalogo(BaseModel):
+    codigo: str
+    label: str
+
+
+class OdontogramaCatalogoOut(BaseModel):
+    caras: list[MarcaCatalogo]
+    diagnosticos: list[MarcaCatalogo]
+    tratamientos: list[MarcaCatalogo]
+    pieza_estados: list[MarcaCatalogo]
+    tx_estados: list[MarcaCatalogo]
 
 
 # ---- cierre / liquidación ----

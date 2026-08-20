@@ -8,6 +8,8 @@ import type {
   MiFirma,
   Cie10Item,
   Diagnostico,
+  OdontogramaPiezas,
+  OdontogramaCatalogo,
   BloqueDoc,
   PlantillaDoc,
   DocumentoPaciente,
@@ -255,8 +257,9 @@ export const api = {
     prescribir: (citaId: string, items: { medicamento: string; cantidad?: string; indicaciones?: string }[], confirmarAlertas: boolean) =>
       post<PrescripcionResult>(`/medico/citas/${citaId}/prescripcion`, { items, confirmar_alertas: confirmarAlertas }),
     ordenExamen: (citaId: string, tipo: 'laboratorio' | 'imagenes') => post<Orden>(`/medico/citas/${citaId}/orden-examen`, { tipo }),
-    odontograma: (patientId: string, piezas: Record<string, { estado: string }>) =>
-      request<{ piezas: Record<string, { estado: string }> }>(`/medico/pacientes/${patientId}/odontograma`, { method: 'PUT', body: JSON.stringify({ piezas }) }),
+    odontograma: (patientId: string, piezas: OdontogramaPiezas) =>
+      request<{ piezas: OdontogramaPiezas }>(`/medico/pacientes/${patientId}/odontograma`, { method: 'PUT', body: JSON.stringify({ piezas }) }),
+    odontogramaCatalogo: () => get<OdontogramaCatalogo>('/medico/odontograma/catalogo'),
     cerrar: (citaId: string) => post<Cierre>(`/medico/citas/${citaId}/cerrar`),
     noShow: (citaId: string) => patch<Cierre>(`/medico/citas/${citaId}/no-show`),
     liquidaciones: () => get<Liquidacion[]>('/medico/liquidaciones'),
