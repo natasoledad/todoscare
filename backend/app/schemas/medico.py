@@ -320,8 +320,27 @@ class PlantillaDocOut(BaseModel):
 
 
 # ---- Tanda 5: periodontograma ----
+# Periodontograma completo (70.5): hasta 6 sitios por pieza (mv/v/dv/mp/p/dp)
+# con profundidad de sondaje (ps), recesión (rec) y sangrado; más movilidad y
+# furca por pieza. Compatible hacia atrás con el shape simple {ps, sangrado}.
+class PerioSitioIn(BaseModel):
+    ps: int | None = None          # profundidad de sondaje (mm)
+    rec: int | None = None         # recesión / margen gingival (mm; NIC = ps + rec)
+    sangrado: bool | None = None   # sangrado al sondaje
+    placa: bool | None = None
+    supuracion: bool | None = None
+
+
+class PerioPiezaIn(BaseModel):
+    ps: int | None = None          # legacy: profundidad simple de la pieza
+    sangrado: bool | None = None   # legacy: sangrado simple
+    movilidad: int | None = None   # 0–3
+    furca: int | None = None       # 0–3
+    sitios: dict[str, PerioSitioIn] | None = None
+
+
 class PeriodontogramaIn(BaseModel):
-    datos: dict          # { "1.6": {"ps": 3, "sangrado": true}, ... }
+    datos: dict[str, PerioPiezaIn]
     notas: str | None = None
 
 
@@ -331,6 +350,13 @@ class PeriodontogramaOut(BaseModel):
     notas: str | None
     fecha: datetime
     tomas_anteriores: int
+
+
+class PerioCatalogoOut(BaseModel):
+    sitios: list[MarcaCatalogo]
+    ps_max: int
+    movilidad_max: int
+    furca_max: int
 
 
 # ---- timeline clínico unificado (70.1) ----

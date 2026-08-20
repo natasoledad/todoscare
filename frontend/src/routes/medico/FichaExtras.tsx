@@ -4,7 +4,7 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
 import { money } from '../../lib/citas';
-import type { BloqueDoc, Cie10Item, Diagnostico, DocumentoClinico, OdontogramaCatalogo, OdontogramaPieza, OdontogramaPiezas, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
+import type { BloqueDoc, Cie10Item, Diagnostico, DocumentoClinico, OdontogramaCatalogo, OdontogramaPieza, OdontogramaPiezas, PerioDatos, PerioPieza, PerioSitio, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
 
@@ -476,20 +476,27 @@ function PlantillasManager({ plantillas, onClose, onChanged }: { plantillas: Pla
   );
 }
 
-// ─────────────────────── Periodontograma ───────────────────────
+// ─────────────────────── Periodontograma completo (70.5) ───────────────────────
 const FDI_SUP = ['1.8', '1.7', '1.6', '1.5', '1.4', '1.3', '1.2', '1.1', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8'];
 const FDI_INF = ['4.8', '4.7', '4.6', '4.5', '4.4', '4.3', '4.2', '4.1', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8'];
-const PS_CICLO = [undefined, 2, 4, 6]; // normal, leve, moderado, profundo
+const PERIO_SITIOS = ['mv', 'v', 'dv', 'mp', 'p', 'dp'];
+const SITIO_LABEL: Record<string, string> = { mv: 'MV', v: 'V', dv: 'DV', mp: 'MP', p: 'P', dp: 'DP' };
 const psColor = (ps?: number) => (ps == null ? 'bg-[#F2F6F5] text-sub' : ps >= 6 ? 'bg-[#F6D9CF] text-danger' : ps >= 4 ? 'bg-warn-bg text-warn' : 'bg-teal-soft text-teal-dark');
 
-type PerioDatos = Record<string, { ps?: number; sangrado?: boolean }>;
+function maxPs(p?: PerioPieza): number | undefined {
+  const vals = [p?.ps, ...Object.values(p?.sitios ?? {}).map((s) => s.ps)].filter((v): v is number => v != null);
+  return vals.length ? Math.max(...vals) : undefined;
+}
+function tieneSangrado(p?: PerioPieza): boolean {
+  return !!p?.sangrado || Object.values(p?.sitios ?? {}).some((s) => s.sangrado);
+}
 
 export function PeriodontogramaSection({ patientId }: { patientId: string }) {
   const [datos, setDatos] = useState<PerioDatos>({});
   const [anteriores, setAnteriores] = useState(0);
-  const [modo, setModo] = useState<'ps' | 'sangrado'>('ps');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sel, setSel] = useState<string | null>(null);
 
   useEffect(() => {
     api.medico.periodontograma(patientId).then((p) => {
@@ -499,28 +506,20 @@ export function PeriodontogramaSection({ patientId }: { patientId: string }) {
     });
   }, [patientId]);
 
-  const tap = (t: string) => {
-    setDatos((prev) => {
-      const cur = prev[t] ?? {};
-      if (modo === 'sangrado') return { ...prev, [t]: { ...cur, sangrado: !cur.sangrado } };
-      const idx = PS_CICLO.indexOf(cur.ps);
-      return { ...prev, [t]: { ...cur, ps: PS_CICLO[(idx + 1) % PS_CICLO.length] } };
-    });
-    setDirty(true);
-  };
-
   const guardar = async () => {
     setSaving(true);
-    try { const p = await api.medico.guardarPeriodontograma(patientId, datos); setAnteriores(p.tomas_anteriores + 1); setDirty(false); }
+    try { const p = await api.medico.guardarPeriodontograma(patientId, datos); setAnteriores(p.tomas_anteriores + 1); setDatos(p.datos); setDirty(false); }
     finally { setSaving(false); }
   };
 
   const Diente = ({ t }: { t: string }) => {
-    const d = datos[t] ?? {};
+    const p = datos[t];
+    const ps = maxPs(p);
     return (
-      <button onClick={() => tap(t)} className={`relative aspect-square rounded-md border border-border-strong text-[10px] font-bold tabular-nums flex items-center justify-center ${psColor(d.ps)}`}>
-        {d.ps ?? ''}
-        {d.sangrado && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-danger" />}
+      <button onClick={() => setSel(t)} className={`relative aspect-square rounded-md border border-border-strong text-[10px] font-bold tabular-nums flex items-center justify-center ${psColor(ps)}`}>
+        {ps ?? ''}
+        {tieneSangrado(p) && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-danger" />}
+        {p?.movilidad ? <span className="absolute bottom-0 left-0.5 text-[7px] text-sub">M{p.movilidad}</span> : null}
       </button>
     );
   };
@@ -531,13 +530,7 @@ export function PeriodontogramaSection({ patientId }: { patientId: string }) {
         <div className="font-heading font-bold text-[13px] text-ink">Periodontograma</div>
         {anteriores > 0 && <span className="text-[11px] text-sub">{anteriores} toma{anteriores === 1 ? '' : 's'}</span>}
       </div>
-      <div className="text-[11.5px] text-sub mb-2">
-        Toca un diente para {modo === 'ps' ? 'registrar profundidad de surco (mm)' : 'marcar sangrado'}.
-      </div>
-      <div className="flex gap-2 mb-2 text-[12px]">
-        <button onClick={() => setModo('ps')} className={`rounded-full px-3 py-1 font-semibold border ${modo === 'ps' ? 'bg-teal text-white border-teal' : 'bg-white text-sub border-border'}`}>Profundidad</button>
-        <button onClick={() => setModo('sangrado')} className={`rounded-full px-3 py-1 font-semibold border ${modo === 'sangrado' ? 'bg-danger text-white border-danger' : 'bg-white text-sub border-border'}`}>Sangrado</button>
-      </div>
+      <div className="text-[11.5px] text-sub mb-2">Toca un diente para registrar sondaje por sitio, recesión, sangrado, movilidad y furca.</div>
       <div className="bg-white border border-border rounded-2xl p-3 flex flex-col gap-1.5">
         <div className="grid grid-cols-8 gap-1">{FDI_SUP.map((t) => <Diente key={t} t={t} />)}</div>
         <div className="text-[10px] text-sub text-center">— maxilar superior / inferior —</div>
@@ -550,7 +543,86 @@ export function PeriodontogramaSection({ patientId }: { patientId: string }) {
         <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-danger inline-block" /> sangrado</span>
       </div>
       {dirty && <Button onClick={guardar} disabled={saving} className="w-full mt-2.5">{saving ? 'Guardando…' : 'Guardar toma'}</Button>}
+
+      {sel && (
+        <PerioPiezaEditor
+          num={sel} pieza={datos[sel]}
+          onClose={() => setSel(null)}
+          onSave={(p) => { setDatos((prev) => { const n = { ...prev }; if (p) n[sel] = p; else delete n[sel]; return n; }); setDirty(true); setSel(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+function PerioPiezaEditor({ num, pieza, onClose, onSave }: {
+  num: string; pieza?: PerioPieza; onClose: () => void; onSave: (p: PerioPieza | null) => void;
+}) {
+  const [sitios, setSitios] = useState<Record<string, PerioSitio>>(() => ({ ...(pieza?.sitios ?? {}) }));
+  const [movilidad, setMovilidad] = useState(pieza?.movilidad != null ? String(pieza.movilidad) : '');
+  const [furca, setFurca] = useState(pieza?.furca != null ? String(pieza.furca) : '');
+
+  const setSitio = (s: string, campo: 'ps' | 'rec', val: string) => {
+    setSitios((prev) => {
+      const cur = { ...(prev[s] ?? {}) };
+      if (val === '') delete cur[campo]; else cur[campo] = Number(val);
+      return { ...prev, [s]: cur };
+    });
+  };
+  const toggleSangrado = (s: string) => setSitios((prev) => ({ ...prev, [s]: { ...(prev[s] ?? {}), sangrado: !prev[s]?.sangrado } }));
+
+  const guardar = () => {
+    const outSitios: Record<string, PerioSitio> = {};
+    for (const s of PERIO_SITIOS) {
+      const v = sitios[s] ?? {};
+      const e: PerioSitio = {};
+      if (v.ps != null) e.ps = v.ps;
+      if (v.rec != null) e.rec = v.rec;
+      if (v.sangrado) e.sangrado = true;
+      if (Object.keys(e).length) outSitios[s] = e;
+    }
+    const out: PerioPieza = {};
+    if (Object.keys(outSitios).length) out.sitios = outSitios;
+    if (movilidad !== '') out.movilidad = Number(movilidad);
+    if (furca !== '') out.furca = Number(furca);
+    onSave(Object.keys(out).length ? out : null);
+  };
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="font-heading font-extrabold text-[17px] text-ink">Pieza {num}</div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <div className="text-[11px] text-sub mb-1">Movilidad (0–3)</div>
+          <select value={movilidad} onChange={(e) => setMovilidad(e.target.value)} className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+            <option value="">—</option>{[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div className="flex-1">
+          <div className="text-[11px] text-sub mb-1">Furca (0–3)</div>
+          <select value={furca} onChange={(e) => setFurca(e.target.value)} className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+            <option value="">—</option>{[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="text-[12px] font-semibold text-ink mt-1">Sitios · PS / Recesión (mm) · sangrado</div>
+      <div className="flex flex-col gap-1.5">
+        {PERIO_SITIOS.map((s) => (
+          <div key={s} className="flex items-center gap-2">
+            <div className="w-9 text-[11.5px] font-semibold text-teal-dark">{SITIO_LABEL[s]}</div>
+            <input inputMode="numeric" value={sitios[s]?.ps ?? ''} onChange={(e) => setSitio(s, 'ps', e.target.value)} placeholder="PS"
+              className="w-14 rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-1.5 text-[13px] text-ink text-center outline-none focus:border-teal" />
+            <input inputMode="numeric" value={sitios[s]?.rec ?? ''} onChange={(e) => setSitio(s, 'rec', e.target.value)} placeholder="Rec"
+              className="w-14 rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-1.5 text-[13px] text-ink text-center outline-none focus:border-teal" />
+            <button onClick={() => toggleSangrado(s)} className={`ml-auto rounded-full px-3 py-1.5 text-[11px] font-semibold border ${sitios[s]?.sangrado ? 'bg-danger text-white border-danger' : 'bg-white text-sub border-border'}`}>
+              Sangrado
+            </button>
+          </div>
+        ))}
+      </div>
+      <Button onClick={guardar} className="w-full">Aplicar pieza {num}</Button>
+    </BottomSheet>
   );
 }
 

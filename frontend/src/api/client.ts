@@ -17,6 +17,8 @@ import type {
   EncuestaResumen,
   PacienteLista,
   Periodontograma,
+  PerioDatos,
+  PerioCatalogo,
   TimelineEvento,
   SugerenciaIA,
   RecordatorioIA,
@@ -288,7 +290,8 @@ export const api = {
     eliminarPlantillaDoc: (id: string) => del(`/medico/plantillas-documento/${id}`),
     timeline: (patientId: string) => get<TimelineEvento[]>(`/medico/pacientes/${patientId}/timeline`),
     periodontograma: (patientId: string) => get<Periodontograma | null>(`/medico/pacientes/${patientId}/periodontograma`),
-    guardarPeriodontograma: (patientId: string, datos: Record<string, { ps?: number; sangrado?: boolean }>, notas?: string) =>
+    periodontogramaCatalogo: () => get<PerioCatalogo>('/medico/periodontograma/catalogo'),
+    guardarPeriodontograma: (patientId: string, datos: PerioDatos, notas?: string) =>
       post<Periodontograma>(`/medico/pacientes/${patientId}/periodontograma`, { datos, notas }),
   },
   empresa: {

@@ -1272,12 +1272,33 @@ export interface DocumentoPaciente {
   firmado_at: string | null;
   fecha: string;
 }
+export interface PerioSitio {
+  ps?: number;
+  rec?: number;
+  sangrado?: boolean;
+  placa?: boolean;
+  supuracion?: boolean;
+}
+export interface PerioPieza {
+  ps?: number;            // legacy simple
+  sangrado?: boolean;     // legacy simple
+  movilidad?: number;
+  furca?: number;
+  sitios?: Record<string, PerioSitio>;
+}
+export type PerioDatos = Record<string, PerioPieza>;
 export interface Periodontograma {
   id: string;
-  datos: Record<string, { ps?: number; sangrado?: boolean }>;
+  datos: PerioDatos;
   notas: string | null;
   fecha: string;
   tomas_anteriores: number;
+}
+export interface PerioCatalogo {
+  sitios: MarcaCatalogo[];
+  ps_max: number;
+  movilidad_max: number;
+  furca_max: number;
 }
 
 // ---- Tanda 6: gestión CRM ----

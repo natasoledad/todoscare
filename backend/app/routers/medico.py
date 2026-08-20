@@ -40,6 +40,7 @@ from app.schemas.medico import (
     PlantillaDocOut,
     PlantillaDocUpdate,
     EnmiendaInput,
+    PerioCatalogoOut,
     PeriodontogramaIn,
     PeriodontogramaOut,
     ExamenFichaOut,
@@ -1209,7 +1210,62 @@ async def quitar_diagnostico(
     await db.commit()
 
 
-# ═══════════════════════ Tanda 5: periodontograma ═══════════════════════
+# ═══════════════════════ Periodontograma completo (70.5) ═══════════════════════
+# 6 sitios por pieza: mesio/centro/disto por vestibular (mv/v/dv) y por
+# palatino/lingual (mp/p/dp).
+PERIO_SITIOS = {
+    "mv": "Mesio-vestibular", "v": "Vestibular", "dv": "Disto-vestibular",
+    "mp": "Mesio-palatino/lingual", "p": "Palatino/Lingual", "dp": "Disto-palatino/lingual",
+}
+PERIO_PS_MAX = 15
+PERIO_MOV_MAX = 3
+PERIO_FURCA_MAX = 3
+_FDI_PERIO = {f"{q}.{p}" for q in (1, 2, 3, 4) for p in range(1, 9)}
+
+
+@router.get("/periodontograma/catalogo", response_model=PerioCatalogoOut)
+async def periodontograma_catalogo(
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> PerioCatalogoOut:
+    return PerioCatalogoOut(
+        sitios=[{"codigo": k, "label": v} for k, v in PERIO_SITIOS.items()],
+        ps_max=PERIO_PS_MAX, movilidad_max=PERIO_MOV_MAX, furca_max=PERIO_FURCA_MAX,
+    )
+
+
+def _validar_perio(datos) -> dict:
+    """Valida y normaliza los datos del periodontograma (70.5)."""
+    def _rango(v, lo, hi, etiqueta):
+        if v is not None and not (lo <= v <= hi):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{etiqueta} fuera de rango ({lo}–{hi}): {v}")
+
+    out: dict[str, dict] = {}
+    for pieza, p in datos.items():
+        if pieza not in _FDI_PERIO:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Pieza FDI inválida: {pieza}")
+        _rango(p.movilidad, 0, PERIO_MOV_MAX, "Movilidad")
+        _rango(p.furca, 0, PERIO_FURCA_MAX, "Furca")
+        _rango(p.ps, 0, PERIO_PS_MAX, "Profundidad")
+        entrada: dict = {}
+        for campo, val in (("ps", p.ps), ("sangrado", p.sangrado), ("movilidad", p.movilidad), ("furca", p.furca)):
+            if val is not None:
+                entrada[campo] = val
+        sitios: dict[str, dict] = {}
+        for sitio, s in (p.sitios or {}).items():
+            if sitio not in PERIO_SITIOS:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Sitio inválido: {sitio}")
+            _rango(s.ps, 0, PERIO_PS_MAX, "Profundidad")
+            _rango(s.rec, -5, PERIO_PS_MAX, "Recesión")
+            marca = {k: v for k, v in (("ps", s.ps), ("rec", s.rec), ("sangrado", s.sangrado), ("placa", s.placa), ("supuracion", s.supuracion)) if v is not None}
+            if marca:
+                sitios[sitio] = marca
+        if sitios:
+            entrada["sitios"] = sitios
+        if entrada:
+            out[pieza] = entrada
+    return out
+
+
 @router.get("/pacientes/{patient_id}/periodontograma", response_model=PeriodontogramaOut | None)
 async def ultimo_periodontograma(
     patient_id: uuid.UUID,
@@ -1238,7 +1294,8 @@ async def guardar_periodontograma(
     ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
 ) -> PeriodontogramaOut:
     patient = await get_treated_patient(db, ctx, patient_id)
-    p = Periodontogram(clinic_id=patient.clinic_id, patient_id=patient_id, professional_id=ctx.user_id, datos=payload.datos, notas=payload.notas)
+    datos = _validar_perio(payload.datos)
+    p = Periodontogram(clinic_id=patient.clinic_id, patient_id=patient_id, professional_id=ctx.user_id, datos=datos, notas=payload.notas)
     db.add(p)
     audit(db, ctx, clinic_id=patient.clinic_id, accion="guardar_periodontograma", recurso=f"patient:{patient_id}")
     await db.commit()
