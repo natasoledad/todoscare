@@ -174,6 +174,20 @@ class TreatmentPlanItem(Base, AuditMixin, TenantMixin):
     estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="pendiente")  # pendiente | realizado
 
 
+class PlanInstallment(Base, AuditMixin, TenantMixin):
+    """Cuota de financiamiento del plan de tratamiento (69.19). Divide el total
+    neto del presupuesto en cuotas con vencimiento; cada una se marca pagada."""
+
+    __tablename__ = "plan_installments"
+
+    plan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("treatment_plans.id"), nullable=False, index=True)
+    numero: Mapped[int] = mapped_column(Integer, nullable=False)
+    monto: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    vencimiento: Mapped[date] = mapped_column(Date, nullable=False)
+    pagado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    pagado_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ClinicalDocument(Base, AuditMixin, TenantMixin):
     """Documentos clínicos (Tanda 5): consentimiento informado, licencia médica,
     interconsulta, etc. Contenido libre + estado (emitido/anulado). Solo el

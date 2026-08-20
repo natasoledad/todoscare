@@ -116,6 +116,9 @@ import type {
   OnboardingInput,
   Orden,
   PlanTratamiento,
+  Cuota,
+  CuotasResumen,
+  Presupuesto,
   SignosVitales,
   PatientMe,
   PromocionPaciente,
@@ -274,6 +277,13 @@ export const api = {
     editarPlan: (planId: string, body: { titulo?: string; notas?: string; descuento_pct?: number }) => patch<PlanTratamiento>(`/medico/planes/${planId}`, body),
     cambiarEstadoPlan: (planId: string, estado: string) => patch<PlanTratamiento>(`/medico/planes/${planId}/estado`, { estado }),
     cambiarEstadoItem: (planId: string, itemId: string, estado: string) => patch<PlanTratamiento>(`/medico/planes/${planId}/items/${itemId}/estado`, { estado }),
+    // Financiamiento en cuotas + presupuesto (69.19 · 69.11)
+    cuotas: (planId: string) => get<CuotasResumen>(`/medico/planes/${planId}/cuotas`),
+    generarCuotas: (planId: string, body: { n_cuotas: number; primer_vencimiento: string; periodicidad_dias?: number; monto_total?: number }) =>
+      post<CuotasResumen>(`/medico/planes/${planId}/cuotas`, body),
+    marcarCuota: (cuotaId: string, pagado: boolean) => patch<Cuota>(`/medico/cuotas/${cuotaId}`, { pagado }),
+    eliminarCuotas: (planId: string) => del(`/medico/planes/${planId}/cuotas`),
+    presupuesto: (planId: string) => get<Presupuesto>(`/medico/planes/${planId}/presupuesto`),
     miFirma: () => get<MiFirma>('/medico/mi-firma'),
     guardarMiFirma: (firma: string | null) => put<MiFirma>('/medico/mi-firma', { firma }),
     // Diagnóstico CIE-10 (71.20)

@@ -218,6 +218,44 @@ class PlanUpdate(BaseModel):
     descuento_pct: float | None = Field(default=None, ge=0, le=1)
 
 
+# ---- financiamiento en cuotas (69.19) ----
+class PlanCuotasIn(BaseModel):
+    n_cuotas: int = Field(ge=1, le=60)
+    primer_vencimiento: date
+    periodicidad_dias: int = Field(default=30, ge=1, le=365)
+    monto_total: float | None = None   # por defecto: total neto del plan
+
+
+class CuotaOut(BaseModel):
+    id: uuid.UUID
+    numero: int
+    monto: float
+    vencimiento: date
+    pagado: bool
+    pagado_at: datetime | None = None
+
+
+class CuotaUpdate(BaseModel):
+    pagado: bool
+
+
+class CuotasResumenOut(BaseModel):
+    cuotas: list[CuotaOut]
+    total: float
+    pagado: float
+    pendiente: float
+
+
+# ---- presupuesto imprimible (69.11) ----
+class PresupuestoOut(BaseModel):
+    plan: PlanOut
+    paciente_nombre: str
+    paciente_rut: str | None = None
+    profesional_nombre: str
+    clinica_nombre: str | None = None
+    cuotas: list[CuotaOut]
+
+
 class PlanEstadoIn(BaseModel):
     estado: str
 

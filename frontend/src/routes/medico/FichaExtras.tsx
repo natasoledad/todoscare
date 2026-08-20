@@ -4,7 +4,7 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
 import { money } from '../../lib/citas';
-import type { BloqueDoc, Cie10Item, Diagnostico, DocumentoClinico, OdontogramaCatalogo, OdontogramaPieza, OdontogramaPiezas, PerioDatos, PerioPieza, PerioSitio, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
+import type { BloqueDoc, Cie10Item, Cuota, CuotasResumen, Diagnostico, DocumentoClinico, OdontogramaCatalogo, OdontogramaPieza, OdontogramaPiezas, PerioDatos, PerioPieza, PerioSitio, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
 
@@ -220,6 +220,7 @@ function PlanCard({ plan, onChanged }: { plan: PlanTratamiento; onChanged: () =>
   const [editDesc, setEditDesc] = useState(false);
   const [descPct, setDescPct] = useState(String(Math.round((plan.descuento_pct || 0) * 100)));
   const [busy, setBusy] = useState(false);
+  const [cuotasOpen, setCuotasOpen] = useState(false);
   const meta = PLAN_ESTADOS[plan.estado] ?? { label: plan.estado, tone: 'warn' as const };
   const realizados = plan.items.filter((i) => i.estado === 'realizado').length;
   const r = plan.resumen;
@@ -281,14 +282,104 @@ function PlanCard({ plan, onChanged }: { plan: PlanTratamiento; onChanged: () =>
         </div>
       </div>
 
-      {SIGUIENTE[plan.estado] && (
-        <div className="mt-2.5 flex gap-2">
-          {SIGUIENTE[plan.estado].map((a) => (
-            <Button key={a.estado} onClick={() => cambiarPlan(a.estado)} disabled={busy} variant="outline" className="text-[12px] py-1.5 px-3">{a.label}</Button>
+      <div className="mt-2.5 flex gap-2 flex-wrap">
+        {SIGUIENTE[plan.estado]?.map((a) => (
+          <Button key={a.estado} onClick={() => cambiarPlan(a.estado)} disabled={busy} variant="outline" className="text-[12px] py-1.5 px-3">{a.label}</Button>
+        ))}
+        <button onClick={() => setCuotasOpen(true)} className="text-[12px] font-semibold text-teal-dark py-1.5 px-1">Presupuesto y cuotas ›</button>
+      </div>
+
+      {cuotasOpen && <CuotasSheet plan={plan} onClose={() => setCuotasOpen(false)} />}
+    </div>
+  );
+}
+
+function CuotasSheet({ plan, onClose }: { plan: PlanTratamiento; onClose: () => void }) {
+  const [res, setRes] = useState<CuotasResumen | null>(null);
+  const [n, setN] = useState('3');
+  const [venc, setVenc] = useState(new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10));
+  const [periodo, setPeriodo] = useState('30');
+  const [busy, setBusy] = useState(false);
+
+  const load = () => api.medico.cuotas(plan.id).then(setRes).catch(() => setRes(null));
+  useEffect(() => { load(); }, [plan.id]);
+
+  const generar = async () => {
+    setBusy(true);
+    try { const r = await api.medico.generarCuotas(plan.id, { n_cuotas: Math.max(1, Number(n) || 1), primer_vencimiento: venc, periodicidad_dias: Math.max(1, Number(periodo) || 30) }); setRes(r); }
+    finally { setBusy(false); }
+  };
+  const togglePago = async (c: Cuota) => { await api.medico.marcarCuota(c.id, !c.pagado); await load(); };
+  const limpiar = async () => { setBusy(true); try { await api.medico.eliminarCuotas(plan.id); await load(); } finally { setBusy(false); } };
+
+  const imprimir = async () => {
+    const p = await api.medico.presupuesto(plan.id);
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const fmt = (v: number) => '$' + Math.round(v).toLocaleString('es-CL');
+    const filasItems = p.plan.items.map((it) => `<tr><td>${it.descripcion}${it.pieza ? ' · ' + it.pieza : ''}</td><td style="text-align:center">${it.cantidad}</td><td style="text-align:right">${fmt(it.subtotal)}</td></tr>`).join('');
+    const filasCuotas = p.cuotas.map((c) => `<tr><td>Cuota ${c.numero}</td><td>${c.vencimiento}</td><td style="text-align:right">${fmt(c.monto)}</td><td>${c.pagado ? 'Pagada' : 'Pendiente'}</td></tr>`).join('');
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Presupuesto</title>
+      <style>body{font-family:system-ui,Arial,sans-serif;color:#1a2b28;padding:28px;max-width:720px;margin:auto}
+      h1{font-size:20px;margin:0 0 2px} .sub{color:#5b6b67;font-size:13px} table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
+      th,td{border-bottom:1px solid #e3e8e6;padding:7px 6px;text-align:left} th{color:#5b6b67;font-weight:600}
+      .tot{display:flex;justify-content:space-between;padding:4px 0;font-size:14px} .tot.big{font-weight:700;border-top:2px solid #1a2b28;margin-top:6px;padding-top:8px}
+      .muted{color:#5b6b67}</style></head><body>
+      <h1>${p.clinica_nombre ?? 'Presupuesto de tratamiento'}</h1>
+      <div class="sub">Presupuesto de tratamiento · ${new Date().toLocaleDateString('es-CL')}</div>
+      <div class="sub" style="margin-top:8px"><b>Paciente:</b> ${p.paciente_nombre}${p.paciente_rut ? ' · RUT ' + p.paciente_rut : ''}</div>
+      <div class="sub"><b>Profesional:</b> ${p.profesional_nombre}</div>
+      <div class="sub"><b>Plan:</b> ${p.plan.titulo}</div>
+      <table><thead><tr><th>Prestación</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>${filasItems}</tbody></table>
+      <div style="margin-top:14px">
+        <div class="tot muted"><span>Total bruto</span><span>${fmt(p.plan.resumen.total_bruto)}</span></div>
+        <div class="tot muted"><span>Descuento ${Math.round(p.plan.descuento_pct * 100)}%</span><span>−${fmt(p.plan.resumen.descuento)}</span></div>
+        <div class="tot big"><span>Total a pagar</span><span>${fmt(p.plan.resumen.total_neto)}</span></div>
+        <div class="tot muted"><span>Abonado</span><span>${fmt(p.plan.resumen.abonado)}</span></div>
+        <div class="tot"><span>Saldo</span><span>${fmt(p.plan.resumen.saldo)}</span></div>
+      </div>
+      ${p.cuotas.length ? `<h3 style="margin-top:18px;font-size:14px">Financiamiento en cuotas</h3><table><thead><tr><th>Cuota</th><th>Vencimiento</th><th style="text-align:right">Monto</th><th>Estado</th></tr></thead><tbody>${filasCuotas}</tbody></table>` : ''}
+      ${p.plan.notas ? `<p class="sub" style="margin-top:16px"><b>Comentarios:</b> ${p.plan.notas}</p>` : ''}
+      <p class="sub" style="margin-top:28px">Firma paciente: ____________________________</p>
+      <script>window.onload=function(){window.print()}</script>
+      </body></html>`);
+    win.document.close();
+  };
+
+  const money = (v: number) => '$' + Math.round(v).toLocaleString('es-CL');
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="font-heading font-extrabold text-[17px] text-ink">Presupuesto y cuotas</div>
+      <div className="text-[12px] text-sub">Total a financiar (neto): <b className="text-ink">{money(plan.resumen.total_neto)}</b></div>
+
+      <div className="rounded-xl border border-border p-3 flex flex-col gap-2">
+        <div className="text-[12px] font-semibold text-ink">Generar cuotas</div>
+        <div className="flex gap-2">
+          <div className="flex-1"><div className="text-[11px] text-sub mb-0.5">N.º cuotas</div>
+            <input value={n} onChange={(e) => setN(e.target.value)} inputMode="numeric" className="w-full rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-sm text-ink outline-none focus:border-teal" /></div>
+          <div className="flex-1"><div className="text-[11px] text-sub mb-0.5">Cada (días)</div>
+            <input value={periodo} onChange={(e) => setPeriodo(e.target.value)} inputMode="numeric" className="w-full rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-sm text-ink outline-none focus:border-teal" /></div>
+        </div>
+        <div><div className="text-[11px] text-sub mb-0.5">Primer vencimiento</div>
+          <input type="date" value={venc} onChange={(e) => setVenc(e.target.value)} className="w-full rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-sm text-ink outline-none focus:border-teal" /></div>
+        <Button onClick={generar} disabled={busy} className="w-full">Generar {n} cuotas</Button>
+      </div>
+
+      {res && res.cuotas.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex justify-between text-[12px] text-sub"><span>Pagado {money(res.pagado)}</span><span>Pendiente {money(res.pendiente)}</span></div>
+          {res.cuotas.map((c) => (
+            <button key={c.id} onClick={() => togglePago(c)} className="flex items-center justify-between rounded-xl bg-[#F6FBF9] px-3 py-2 text-left">
+              <span className="text-[12.5px] text-ink">{c.pagado ? '✓ ' : '○ '}Cuota {c.numero} · {c.vencimiento}</span>
+              <span className={`text-[12.5px] font-semibold tabular-nums ${c.pagado ? 'text-teal-dark' : 'text-ink'}`}>{money(c.monto)}</span>
+            </button>
           ))}
+          <button onClick={limpiar} disabled={busy} className="text-[11.5px] font-semibold text-danger py-1">Eliminar cuotas</button>
         </div>
       )}
-    </div>
+
+      <Button onClick={imprimir} variant="outline" className="w-full">Imprimir presupuesto</Button>
+    </BottomSheet>
   );
 }
 

@@ -1120,6 +1120,28 @@ export interface PlanTratamiento {
   resumen: PlanResumen;
   fecha: string;
 }
+export interface Cuota {
+  id: string;
+  numero: number;
+  monto: number;
+  vencimiento: string;
+  pagado: boolean;
+  pagado_at: string | null;
+}
+export interface CuotasResumen {
+  cuotas: Cuota[];
+  total: number;
+  pagado: number;
+  pendiente: number;
+}
+export interface Presupuesto {
+  plan: PlanTratamiento;
+  paciente_nombre: string;
+  paciente_rut: string | null;
+  profesional_nombre: string;
+  clinica_nombre: string | null;
+  cuotas: Cuota[];
+}
 
 // ---- diferenciadores IA (72) ----
 export interface SugerenciaIA {

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_, select
@@ -18,6 +18,7 @@ from app.models.clinical import (
     MedicalRecord,
     Odontogram,
     Periodontogram,
+    PlanInstallment,
     Prescription,
     TreatmentPlan,
     TreatmentPlanItem,
@@ -25,6 +26,7 @@ from app.models.clinical import (
 )
 from app.models.identity import User
 from app.models.patient import Patient
+from app.models.tenant import Clinic
 from app.models.professional import ProfessionalProfile
 from app.models.scheduling import Appointment
 from app.rbac.deps import require
@@ -60,6 +62,11 @@ from app.schemas.medico import (
     PlanResumen,
     PlanUpdate,
     PlanIn,
+    PlanCuotasIn,
+    CuotaOut,
+    CuotaUpdate,
+    CuotasResumenOut,
+    PresupuestoOut,
     PlanItemEstadoIn,
     PlanItemOut,
     PlanOut,
@@ -868,6 +875,126 @@ async def cambiar_estado_item(
     await db.commit()
     await db.refresh(plan)
     return await _plan_out(db, plan)
+
+
+# ═══════════════════════ Financiamiento en cuotas + presupuesto (69.19 · 69.11) ═══════════════════════
+def _cuota_out(c: PlanInstallment) -> CuotaOut:
+    return CuotaOut(id=c.id, numero=c.numero, monto=float(c.monto), vencimiento=c.vencimiento, pagado=c.pagado, pagado_at=c.pagado_at)
+
+
+async def _cuotas_de(db: AsyncSession, plan_id: uuid.UUID) -> list[PlanInstallment]:
+    return list(
+        (
+            await db.execute(
+                select(PlanInstallment).where(PlanInstallment.plan_id == plan_id, PlanInstallment.deleted_at.is_(None)).order_by(PlanInstallment.numero)
+            )
+        ).scalars().all()
+    )
+
+
+def _cuotas_resumen(cuotas: list[PlanInstallment]) -> CuotasResumenOut:
+    total = round(sum(float(c.monto) for c in cuotas), 2)
+    pagado = round(sum(float(c.monto) for c in cuotas if c.pagado), 2)
+    return CuotasResumenOut(cuotas=[_cuota_out(c) for c in cuotas], total=total, pagado=pagado, pendiente=round(total - pagado, 2))
+
+
+@router.get("/planes/{plan_id}/cuotas", response_model=CuotasResumenOut)
+async def listar_cuotas(
+    plan_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> CuotasResumenOut:
+    await _own_plan(db, ctx, plan_id)
+    return _cuotas_resumen(await _cuotas_de(db, plan_id))
+
+
+@router.post("/planes/{plan_id}/cuotas", response_model=CuotasResumenOut, status_code=status.HTTP_201_CREATED)
+async def generar_cuotas(
+    plan_id: uuid.UUID,
+    payload: PlanCuotasIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> CuotasResumenOut:
+    """Genera (reemplazando) el plan de cuotas: divide el total neto (o un monto
+    dado) en N cuotas espaciadas por `periodicidad_dias`."""
+    plan = await _own_plan(db, ctx, plan_id)
+    plan_out = await _plan_out(db, plan)
+    total = round(payload.monto_total if payload.monto_total is not None else plan_out.resumen.total_neto, 2)
+    if total <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El total a financiar debe ser mayor que cero")
+
+    for vieja in await _cuotas_de(db, plan_id):  # reemplaza el plan de cuotas anterior
+        await db.delete(vieja)
+
+    base = round(total / payload.n_cuotas, 2)
+    acumulado = 0.0
+    for i in range(1, payload.n_cuotas + 1):
+        monto = round(total - acumulado, 2) if i == payload.n_cuotas else base  # la última absorbe el redondeo
+        acumulado = round(acumulado + monto, 2)
+        db.add(PlanInstallment(
+            clinic_id=plan.clinic_id, plan_id=plan_id, numero=i, monto=monto,
+            vencimiento=payload.primer_vencimiento + timedelta(days=payload.periodicidad_dias * (i - 1)),
+        ))
+    audit(db, ctx, clinic_id=plan.clinic_id, accion="generar_cuotas_plan", recurso=f"treatment_plan:{plan_id}", despues={"n": payload.n_cuotas, "total": total})
+    await db.commit()
+    return _cuotas_resumen(await _cuotas_de(db, plan_id))
+
+
+@router.patch("/cuotas/{cuota_id}", response_model=CuotaOut)
+async def marcar_cuota(
+    cuota_id: uuid.UUID,
+    payload: CuotaUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> CuotaOut:
+    cuota = await db.get(PlanInstallment, cuota_id)
+    if cuota is None or cuota.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cuota no encontrada")
+    await _own_plan(db, ctx, cuota.plan_id)  # valida tratamiento + clínica
+    cuota.pagado = payload.pagado
+    cuota.pagado_at = datetime.now(timezone.utc) if payload.pagado else None
+    audit(db, ctx, clinic_id=cuota.clinic_id, accion="marcar_cuota", recurso=f"plan_installment:{cuota.id}", despues={"pagado": payload.pagado})
+    await db.commit()
+    await db.refresh(cuota)
+    return _cuota_out(cuota)
+
+
+@router.delete("/planes/{plan_id}/cuotas", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_cuotas(
+    plan_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> None:
+    plan = await _own_plan(db, ctx, plan_id)
+    for c in await _cuotas_de(db, plan_id):
+        await db.delete(c)
+    audit(db, ctx, clinic_id=plan.clinic_id, accion="eliminar_cuotas_plan", recurso=f"treatment_plan:{plan_id}")
+    await db.commit()
+
+
+@router.get("/planes/{plan_id}/presupuesto", response_model=PresupuestoOut)
+async def presupuesto(
+    plan_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> PresupuestoOut:
+    """Presupuesto imprimible del plan (69.11): datos del paciente, profesional,
+    clínica, ítems, totales y cuotas — todo lo necesario para imprimir/entregar."""
+    plan = await _own_plan(db, ctx, plan_id)
+    plan_out = await _plan_out(db, plan)
+    patient = await db.get(Patient, plan.patient_id)
+    paciente_user = await db.get(User, patient.user_id) if patient else None
+    prof = await db.get(User, plan.professional_id)
+    clinic = await db.get(Clinic, plan.clinic_id)
+    cuotas = await _cuotas_de(db, plan_id)
+    return PresupuestoOut(
+        plan=plan_out,
+        paciente_nombre=paciente_user.nombre if paciente_user else "",
+        paciente_rut=patient.rut if patient else None,
+        profesional_nombre=prof.nombre if prof else "",
+        clinica_nombre=clinic.razon_social if clinic else None,
+        cuotas=[_cuota_out(c) for c in cuotas],
+    )
 
 
 # ═══════════════════════ Tanda 5 / punto 64: documentos clínicos ═══════════════════════
