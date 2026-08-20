@@ -272,6 +272,87 @@ async def seed_permission_profiles(db, clinic_id) -> None:
     await db.flush()
 
 
+# ── Catálogo CIE-10 (71.20) ────────────────────────────────────────────────
+# Subconjunto curado de códigos frecuentes (odontológicos K00–K14 + atención
+# general). El catálogo es ampliable desde la BD; esto cubre el uso diario.
+_DENTAL = "K00–K14 · Cavidad bucal y maxilares"
+_RESP = "J00–J99 · Sistema respiratorio"
+_CRONICO = "E/I · Crónicas y metabólicas"
+_DIG = "K20–K93 · Sistema digestivo"
+_MUSC = "M00–M99 · Sistema osteomuscular"
+_GEN = "R/Z · Síntomas y exámenes"
+_INFEC = "A/B · Infecciosas"
+_PIEL = "L00–L99 · Piel"
+_SM = "F00–F99 · Salud mental"
+_GU = "N00–N99 · Genitourinario"
+
+CIE10_SEED: list[tuple[str, str, str]] = [
+    ("K00.6", "Alteraciones en la erupción dentaria", _DENTAL),
+    ("K01.1", "Diente impactado", _DENTAL),
+    ("K02.1", "Caries de la dentina", _DENTAL),
+    ("K02.5", "Caries dental con exposición pulpar", _DENTAL),
+    ("K02.9", "Caries dental, no especificada", _DENTAL),
+    ("K03.1", "Abrasión de los dientes", _DENTAL),
+    ("K03.6", "Depósitos (sarro/cálculo) en los dientes", _DENTAL),
+    ("K04.0", "Pulpitis", _DENTAL),
+    ("K04.1", "Necrosis de la pulpa", _DENTAL),
+    ("K04.5", "Periodontitis apical crónica", _DENTAL),
+    ("K04.7", "Absceso periapical sin fístula", _DENTAL),
+    ("K05.0", "Gingivitis aguda", _DENTAL),
+    ("K05.1", "Gingivitis crónica", _DENTAL),
+    ("K05.3", "Periodontitis crónica", _DENTAL),
+    ("K06.0", "Retracción gingival", _DENTAL),
+    ("K07.3", "Anomalías de la posición de los dientes (maloclusión)", _DENTAL),
+    ("K08.1", "Pérdida de dientes por accidente, extracción o enf. periodontal", _DENTAL),
+    ("K08.9", "Trastorno de los dientes y sus estructuras, no especificado", _DENTAL),
+    ("K12.0", "Aftas bucales recidivantes", _DENTAL),
+    ("K13.0", "Enfermedades de los labios", _DENTAL),
+    ("J00", "Rinofaringitis aguda (resfriado común)", _RESP),
+    ("J02.9", "Faringitis aguda, no especificada", _RESP),
+    ("J03.9", "Amigdalitis aguda, no especificada", _RESP),
+    ("J06.9", "Infección aguda de las vías respiratorias superiores", _RESP),
+    ("J45.9", "Asma, no especificada", _RESP),
+    ("I10", "Hipertensión esencial (primaria)", _CRONICO),
+    ("E11.9", "Diabetes mellitus tipo 2 sin complicaciones", _CRONICO),
+    ("E78.5", "Hiperlipidemia, no especificada", _CRONICO),
+    ("E66.9", "Obesidad, no especificada", _CRONICO),
+    ("K21.9", "Enfermedad por reflujo gastroesofágico sin esofagitis", _DIG),
+    ("K29.7", "Gastritis, no especificada", _DIG),
+    ("K59.0", "Estreñimiento", _DIG),
+    ("M54.5", "Lumbago no especificado", _MUSC),
+    ("M54.2", "Cervicalgia", _MUSC),
+    ("M79.1", "Mialgia", _MUSC),
+    ("R51", "Cefalea", _GEN),
+    ("R50.9", "Fiebre, no especificada", _GEN),
+    ("R10.4", "Dolor abdominal, otro y no especificado", _GEN),
+    ("N39.0", "Infección de vías urinarias, sitio no especificado", _GU),
+    ("A09", "Diarrea y gastroenteritis de presunto origen infeccioso", _INFEC),
+    ("B34.9", "Infección viral, no especificada", _INFEC),
+    ("L20.9", "Dermatitis atópica, no especificada", _PIEL),
+    ("L23.9", "Dermatitis alérgica de contacto, de causa no especificada", _PIEL),
+    ("F41.1", "Trastorno de ansiedad generalizada", _SM),
+    ("F32.9", "Episodio depresivo, no especificado", _SM),
+    ("Z00.0", "Examen médico general", _GEN),
+    ("Z01.2", "Examen odontológico", _GEN),
+]
+
+
+async def seed_cie10(db) -> int:
+    """Carga (idempotente) el catálogo CIE-10 base. Devuelve cuántos códigos
+    nuevos insertó. Global (no tenant): existe una sola vez en la BD."""
+    from app.models.clinical import Cie10Code
+
+    nuevos = 0
+    for codigo, descripcion, categoria in CIE10_SEED:
+        existe = (await db.execute(select(Cie10Code).where(Cie10Code.codigo == codigo))).scalar_one_or_none()
+        if existe is not None:
+            continue
+        db.add(Cie10Code(codigo=codigo, descripcion=descripcion, categoria=categoria))
+        nuevos += 1
+    await db.flush()
+    return nuevos
+
+
 async def assign_role(db, user_id, role_id, clinic_id=None, branch_id=None, insurer_id=None) -> None:
     existing = (
         await db.execute(
@@ -303,6 +384,9 @@ async def main() -> None:
         # Perfiles de acceso reutilizables (48): los 12 perfiles base por clínica.
         await seed_permission_profiles(db, clinic_a.id)
         await seed_permission_profiles(db, clinic_b.id)
+
+        # Catálogo CIE-10 (71.20): referencia global.
+        await seed_cie10(db)
 
         # Entidad aseguradora (global, no tenant) — el rol se vincula a ella.
         insurer_x = (await db.execute(select(Insurer).where(Insurer.nombre == "Seguros Bienestar MX"))).scalar_one_or_none()

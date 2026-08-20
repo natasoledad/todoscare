@@ -86,9 +86,13 @@ async def main() -> None:
             "inicio": base.isoformat(), "fin": (base + timedelta(hours=4)).isoformat(),
         })
         service = next(s for s in (await client.get("/agenda/servicios", headers=pac)).json())
+        antes = datetime.now(timezone.utc)
         ag = await client.post("/ia/agendar", headers=pac, json={"service_id": service["id"]})
         check("El bot agenda -> 201 con cita", ag.status_code == 201 and ag.json()["agendada"] and ag.json()["appointment_id"])
-        check("La cita agendada es futura", ag.json()["inicio"] >= datetime.now(timezone.utc).isoformat())
+        # Comparar como datetime (no string): el bot reserva el primer slot libre,
+        # que puede empezar en el 'ahora' del servidor con microsegundos; `antes`
+        # se toma antes del POST, así el slot reservado nunca es anterior.
+        check("La cita agendada es futura", datetime.fromisoformat(ag.json()["inicio"]) >= antes)
 
         # tras agendar, el recordatorio de cita aparece
         recs2 = (await client.get("/ia/recordatorios", headers=pac)).json()

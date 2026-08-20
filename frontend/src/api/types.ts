@@ -1210,6 +1210,21 @@ export interface MiFirma {
   firma: string | null;
   especialidad: string | null;
 }
+export interface Cie10Item {
+  id: string;
+  codigo: string;
+  descripcion: string;
+  categoria: string | null;
+}
+export interface Diagnostico {
+  id: string;
+  codigo: string;
+  descripcion: string;
+  categoria: string | null;
+  tipo: string;          // principal | secundario
+  observacion: string | null;
+  fecha: string;
+}
 export interface BloqueDoc {
   tipo: string;         // parrafo | campo
   texto?: string | null;
