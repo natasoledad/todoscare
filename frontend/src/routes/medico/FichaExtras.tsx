@@ -4,7 +4,7 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
 import { money } from '../../lib/citas';
-import type { BloqueDoc, Cie10Item, Diagnostico, DocumentoClinico, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
+import type { BloqueDoc, Cie10Item, Diagnostico, DocumentoClinico, OdontogramaCatalogo, OdontogramaPieza, OdontogramaPiezas, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
 
@@ -657,5 +657,145 @@ export function DiagnosticosSection({ patientId }: { patientId: string }) {
         </BottomSheet>
       )}
     </div>
+  );
+}
+
+// ─────────────────────── Odontograma con caras y dx/tx (70.11) ───────────────────────
+const CARAS_ORDEN = ['V', 'O', 'L', 'M', 'D'];
+// Dentición permanente FDI, en dos filas visuales (superior / inferior).
+const FILA_SUP = ['18', '17', '16', '15', '14', '13', '12', '11', '21', '22', '23', '24', '25', '26', '27', '28'];
+const FILA_INF = ['48', '47', '46', '45', '44', '43', '42', '41', '31', '32', '33', '34', '35', '36', '37', '38'];
+
+function piezaMarcada(p?: OdontogramaPieza): { dx: boolean; tx: boolean; ausente: boolean } {
+  const caras = p?.caras ?? {};
+  const dx = Object.values(caras).some((c) => c.dx) || (!!p?.pieza && ['ausente', 'extraccion_indicada', 'resto_radicular'].includes(p.pieza));
+  const tx = Object.values(caras).some((c) => c.tx) || (!!p?.pieza && ['corona', 'implante', 'endodoncia'].includes(p.pieza));
+  return { dx, tx, ausente: p?.pieza === 'ausente' };
+}
+
+export function OdontogramaSection({ patientId, initial }: { patientId: string; initial: OdontogramaPiezas }) {
+  const [piezas, setPiezas] = useState<OdontogramaPiezas>(initial || {});
+  const [cat, setCat] = useState<OdontogramaCatalogo | null>(null);
+  const [sel, setSel] = useState<string | null>(null);
+
+  useEffect(() => { api.medico.odontogramaCatalogo().then(setCat).catch(() => setCat(null)); }, []);
+
+  const guardar = async (next: OdontogramaPiezas) => {
+    setPiezas(next);
+    try { const r = await api.medico.odontograma(patientId, next); setPiezas(r.piezas); } catch { /* se mantiene el optimista */ }
+  };
+
+  const Diente = ({ num }: { num: string }) => {
+    const m = piezaMarcada(piezas[num]);
+    return (
+      <button onClick={() => setSel(num)} className={`relative aspect-square rounded-md border text-[9px] font-semibold tabular-nums grid place-items-center
+        ${m.ausente ? 'bg-[#F2F6F5] text-sub border-border line-through' : m.tx ? 'bg-teal-soft border-teal text-teal-dark' : m.dx ? 'bg-[#FBE4DC] border-[#E0A292] text-[#9C3B22]' : 'bg-white border-border-strong text-sub'}`}>
+        {num}
+        {(m.dx || m.tx) && !m.ausente && (
+          <span className="absolute bottom-0.5 flex gap-0.5">
+            {m.dx && <span className="w-1 h-1 rounded-full bg-[#C0392B]" />}
+            {m.tx && <span className="w-1 h-1 rounded-full bg-teal" />}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  return (
+    <div>
+      <div className="font-heading font-bold text-[13px] text-ink mb-1">Odontograma</div>
+      <div className="text-[11.5px] text-sub mb-2">Toca una pieza para marcar caras, diagnósticos y tratamientos.</div>
+      <div className="bg-white border border-border rounded-2xl p-3 flex flex-col gap-1.5">
+        <div className="grid grid-cols-8 gap-1">{FILA_SUP.map((n) => <Diente key={n} num={n} />)}</div>
+        <div className="grid grid-cols-8 gap-1">{FILA_INF.map((n) => <Diente key={n} num={n} />)}</div>
+        <div className="flex items-center gap-3 pt-1.5 text-[10px] text-sub">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#C0392B]" /> Diagnóstico</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal" /> Tratamiento</span>
+        </div>
+      </div>
+
+      {sel && cat && (
+        <PiezaEditor
+          num={sel} cat={cat} pieza={piezas[sel]}
+          onClose={() => setSel(null)}
+          onSave={(p) => { const next = { ...piezas }; if (p) next[sel] = p; else delete next[sel]; guardar(next); setSel(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PiezaEditor({ num, cat, pieza, onClose, onSave }: {
+  num: string; cat: OdontogramaCatalogo; pieza?: OdontogramaPieza;
+  onClose: () => void; onSave: (p: OdontogramaPieza | null) => void;
+}) {
+  const [piezaEstado, setPiezaEstado] = useState(pieza?.pieza ?? '');
+  const [caras, setCaras] = useState<Record<string, { dx: string; tx: string; tx_estado: string }>>(() => {
+    const base: Record<string, { dx: string; tx: string; tx_estado: string }> = {};
+    for (const c of CARAS_ORDEN) {
+      const m = pieza?.caras?.[c];
+      base[c] = { dx: m?.dx ?? '', tx: m?.tx ?? '', tx_estado: m?.tx_estado ?? '' };
+    }
+    return base;
+  });
+  const caraLabel = (c: string) => cat.caras.find((x) => x.codigo === c)?.label ?? c;
+
+  const guardar = () => {
+    const outCaras: Record<string, { dx?: string; tx?: string; tx_estado?: string }> = {};
+    for (const c of CARAS_ORDEN) {
+      const m = caras[c];
+      const e: { dx?: string; tx?: string; tx_estado?: string } = {};
+      if (m.dx) e.dx = m.dx;
+      if (m.tx) { e.tx = m.tx; if (m.tx_estado) e.tx_estado = m.tx_estado; }
+      if (Object.keys(e).length) outCaras[c] = e;
+    }
+    const out: OdontogramaPieza = {};
+    if (piezaEstado) out.pieza = piezaEstado;
+    if (Object.keys(outCaras).length) out.caras = outCaras;
+    onSave(Object.keys(out).length ? out : null);
+  };
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="font-heading font-extrabold text-[17px] text-ink">Pieza {num}</div>
+
+      <div>
+        <div className="text-[12px] font-semibold text-ink mb-1">Estado de la pieza</div>
+        <select value={piezaEstado} onChange={(e) => setPiezaEstado(e.target.value)}
+          className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+          <option value="">— sin marca —</option>
+          {cat.pieza_estados.map((m) => <option key={m.codigo} value={m.codigo}>{m.label}</option>)}
+        </select>
+      </div>
+
+      <div className="text-[12px] font-semibold text-ink mt-1">Caras</div>
+      <div className="flex flex-col gap-2 max-h-[45vh] overflow-y-auto scrollhide">
+        {CARAS_ORDEN.map((c) => (
+          <div key={c} className="rounded-xl border border-border p-2.5">
+            <div className="text-[11.5px] font-semibold text-teal-dark mb-1.5">{caraLabel(c)}</div>
+            <div className="flex gap-1.5">
+              <select value={caras[c].dx} onChange={(e) => setCaras((p) => ({ ...p, [c]: { ...p[c], dx: e.target.value } }))}
+                className="flex-1 min-w-0 rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-[12px] text-ink outline-none focus:border-teal">
+                <option value="">Diagnóstico…</option>
+                {cat.diagnosticos.map((m) => <option key={m.codigo} value={m.codigo}>{m.label}</option>)}
+              </select>
+              <select value={caras[c].tx} onChange={(e) => setCaras((p) => ({ ...p, [c]: { ...p[c], tx: e.target.value, tx_estado: e.target.value ? (p[c].tx_estado || 'planificado') : '' } }))}
+                className="flex-1 min-w-0 rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-[12px] text-ink outline-none focus:border-teal">
+                <option value="">Tratamiento…</option>
+                {cat.tratamientos.map((m) => <option key={m.codigo} value={m.codigo}>{m.label}</option>)}
+              </select>
+              {caras[c].tx && (
+                <select value={caras[c].tx_estado} onChange={(e) => setCaras((p) => ({ ...p, [c]: { ...p[c], tx_estado: e.target.value } }))}
+                  className="w-24 shrink-0 rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-[12px] text-ink outline-none focus:border-teal">
+                  {cat.tx_estados.map((m) => <option key={m.codigo} value={m.codigo}>{m.label}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button onClick={guardar} className="w-full">Guardar pieza {num}</Button>
+    </BottomSheet>
   );
 }

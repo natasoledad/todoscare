@@ -1210,6 +1210,28 @@ export interface MiFirma {
   firma: string | null;
   especialidad: string | null;
 }
+export interface OdontogramaCara {
+  dx?: string | null;
+  tx?: string | null;
+  tx_estado?: string | null;
+}
+export interface OdontogramaPieza {
+  pieza?: string | null;
+  estado?: string | null;      // legacy: pendiente | tratada
+  caras?: Record<string, OdontogramaCara>;
+}
+export type OdontogramaPiezas = Record<string, OdontogramaPieza>;
+export interface MarcaCatalogo {
+  codigo: string;
+  label: string;
+}
+export interface OdontogramaCatalogo {
+  caras: MarcaCatalogo[];
+  diagnosticos: MarcaCatalogo[];
+  tratamientos: MarcaCatalogo[];
+  pieza_estados: MarcaCatalogo[];
+  tx_estados: MarcaCatalogo[];
+}
 export interface Cie10Item {
   id: string;
   codigo: string;

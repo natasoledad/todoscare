@@ -51,6 +51,8 @@ from app.schemas.medico import (
     LiquidacionOut,
     MiFirmaIn,
     MiFirmaOut,
+    OdontogramaCatalogoOut,
+    OdontogramaUpdateInput,
     OrdenInput,
     OrdenOut,
     PlanEstadoIn,
@@ -406,18 +408,83 @@ async def cancelar_orden(
     return OrdenOut(id=order.id, tipo=order.tipo, estado=order.estado, creada=order.created_at)
 
 
-# ─────────────────────────── odontograma ───────────────────────────
+# ─────────────────────────── odontograma (70.11) ───────────────────────────
+# Catálogo de marcas del odontograma: caras de la pieza, diagnósticos y
+# tratamientos por cara, estado de la pieza completa y estado del tratamiento.
+ODO_CARAS = {"V": "Vestibular", "L": "Lingual / Palatino", "M": "Mesial", "D": "Distal", "O": "Oclusal / Incisal"}
+ODO_DX = {
+    "caries": "Caries", "fractura": "Fractura", "desgaste": "Desgaste",
+    "rest_deficiente": "Restauración deficiente", "mancha": "Mancha / pigmentación",
+}
+ODO_TX = {
+    "obturacion": "Obturación", "sellante": "Sellante", "corona": "Corona",
+    "endodoncia": "Endodoncia", "extraccion": "Extracción", "implante": "Implante",
+    "protesis": "Prótesis", "carilla": "Carilla",
+}
+ODO_PIEZA = {
+    "sano": "Sano", "ausente": "Ausente", "extraccion_indicada": "Extracción indicada",
+    "corona": "Corona", "implante": "Implante", "endodoncia": "Endodoncia",
+    "resto_radicular": "Resto radicular",
+}
+ODO_TX_ESTADO = {"planificado": "Planificado", "realizado": "Realizado"}
+# Dentición permanente FDI: cuadrantes 1–4, posiciones 1–8 (11–18, 21–28, 31–38, 41–48).
+ODO_PIEZAS_VALIDAS = {f"{cuad}{pos}" for cuad in (1, 2, 3, 4) for pos in range(1, 9)}
+
+
+def _marcas(catalogo: dict[str, str]) -> list[dict]:
+    return [{"codigo": k, "label": v} for k, v in catalogo.items()]
+
+
+@router.get("/odontograma/catalogo", response_model=OdontogramaCatalogoOut)
+async def odontograma_catalogo(
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> OdontogramaCatalogoOut:
+    return OdontogramaCatalogoOut(
+        caras=_marcas(ODO_CARAS), diagnosticos=_marcas(ODO_DX), tratamientos=_marcas(ODO_TX),
+        pieza_estados=_marcas(ODO_PIEZA), tx_estados=_marcas(ODO_TX_ESTADO),
+    )
+
+
 @router.put("/pacientes/{patient_id}/odontograma", response_model=dict)
 async def actualizar_odontograma(
     patient_id: uuid.UUID,
-    payload: dict,
+    payload: OdontogramaUpdateInput,
     db: AsyncSession = Depends(get_db),
     ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
 ) -> dict:
     patient = await get_treated_patient(db, ctx, patient_id)
-    piezas = payload.get("piezas")
-    if not isinstance(piezas, dict):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Se espera { piezas: {...} }")
+
+    piezas: dict[str, dict] = {}
+    for num, p in payload.piezas.items():
+        if num not in ODO_PIEZAS_VALIDAS:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Pieza FDI inválida: {num}")
+        if p.pieza is not None and p.pieza not in ODO_PIEZA:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Estado de pieza inválido: {p.pieza}")
+        if p.estado is not None and p.estado not in ("pendiente", "tratada"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Estado (legacy) inválido: {p.estado}")
+        entrada: dict = {}
+        if p.pieza is not None:
+            entrada["pieza"] = p.pieza
+        if p.estado is not None:
+            entrada["estado"] = p.estado
+        caras: dict[str, dict] = {}
+        for cara, m in (p.caras or {}).items():
+            if cara not in ODO_CARAS:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Cara inválida: {cara}")
+            if m.dx is not None and m.dx not in ODO_DX:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Diagnóstico inválido: {m.dx}")
+            if m.tx is not None and m.tx not in ODO_TX:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tratamiento inválido: {m.tx}")
+            if m.tx_estado is not None and m.tx_estado not in ODO_TX_ESTADO:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Estado de tratamiento inválido: {m.tx_estado}")
+            marca = {k: v for k, v in (("dx", m.dx), ("tx", m.tx), ("tx_estado", m.tx_estado)) if v is not None}
+            if marca:
+                caras[cara] = marca
+        if caras:
+            entrada["caras"] = caras
+        if entrada:  # no persistimos piezas vacías
+            piezas[num] = entrada
+
     odo = (await db.execute(select(Odontogram).where(Odontogram.patient_id == patient_id))).scalar_one_or_none()
     if odo is None:
         odo = Odontogram(clinic_id=patient.clinic_id, patient_id=patient_id, piezas=piezas)
