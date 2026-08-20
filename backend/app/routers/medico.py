@@ -11,6 +11,7 @@ from app.models.clinical import (
     Cie10Code,
     ClinicalDiagnosis,
     ClinicalDocument,
+    ClinicalEvolution,
     DocumentTemplate,
     ExamOrder,
     ExamResult,
@@ -51,6 +52,9 @@ from app.schemas.medico import (
     Cie10Out,
     DiagnosticoIn,
     DiagnosticoOut,
+    AnularEvolucionIn,
+    EvolucionIn,
+    EvolucionOut,
     LiquidacionOut,
     MiFirmaIn,
     MiFirmaOut,
@@ -1335,6 +1339,116 @@ async def quitar_diagnostico(
     await db.delete(dx)  # baja lógica vía listener global
     audit(db, ctx, clinic_id=dx.clinic_id, accion="quitar_diagnostico_cie10", recurso=f"clinical_diagnosis:{dx.id}")
     await db.commit()
+
+
+# ═══════════════════════ Evoluciones con doble firma + anulación (70.6) ═══════════════════════
+async def _nombre(db: AsyncSession, user_id: uuid.UUID | None) -> str | None:
+    if user_id is None:
+        return None
+    u = await db.get(User, user_id)
+    return u.nombre if u else None
+
+
+async def _evolucion_out(db: AsyncSession, e: ClinicalEvolution) -> EvolucionOut:
+    return EvolucionOut(
+        id=e.id, texto=e.texto, fecha=e.created_at, autor_id=e.autor_id,
+        autor_nombre=await _nombre(db, e.autor_id) or "",
+        firmado_at=e.firmado_at, firma_tratante=e.firma_tratante,
+        cofirmado_por_nombre=await _nombre(db, e.cofirmado_por), cofirmado_at=e.cofirmado_at, firma_cofirmante=e.firma_cofirmante,
+        estado=e.estado, motivo_anulacion=e.motivo_anulacion, anulado_at=e.anulado_at,
+        anulado_por_nombre=await _nombre(db, e.anulado_por),
+    )
+
+
+@router.get("/pacientes/{patient_id}/evoluciones", response_model=list[EvolucionOut])
+async def listar_evoluciones(
+    patient_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> list[EvolucionOut]:
+    await get_treated_patient(db, ctx, patient_id)
+    rows = (
+        await db.execute(
+            select(ClinicalEvolution).where(ClinicalEvolution.patient_id == patient_id, ClinicalEvolution.deleted_at.is_(None)).order_by(ClinicalEvolution.created_at.desc())
+        )
+    ).scalars().all()
+    return [await _evolucion_out(db, e) for e in rows]
+
+
+@router.post("/pacientes/{patient_id}/evoluciones", response_model=EvolucionOut, status_code=status.HTTP_201_CREATED)
+async def crear_evolucion(
+    patient_id: uuid.UUID,
+    payload: EvolucionIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
+) -> EvolucionOut:
+    """El profesional tratante escribe y firma la evolución (primera firma)."""
+    patient = await get_treated_patient(db, ctx, patient_id)
+    if payload.record_id is not None:
+        rec = await db.get(MedicalRecord, payload.record_id)
+        if rec is None or rec.patient_id != patient_id or rec.deleted_at is not None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Atención inválida")
+    e = ClinicalEvolution(
+        clinic_id=patient.clinic_id, patient_id=patient_id, autor_id=ctx.user_id, record_id=payload.record_id,
+        texto=payload.texto, firmado_at=datetime.now(timezone.utc), firma_tratante=await _mi_firma(db, ctx),
+    )
+    db.add(e)
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="crear_evolucion", recurso=f"patient:{patient_id}")
+    await db.commit()
+    await db.refresh(e)
+    return await _evolucion_out(db, e)
+
+
+@router.post("/evoluciones/{evo_id}/cofirmar", response_model=EvolucionOut)
+async def cofirmar_evolucion(
+    evo_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> EvolucionOut:
+    """Segunda firma: otro profesional de la clínica valida la evolución."""
+    e = await db.get(ClinicalEvolution, evo_id)
+    if e is None or e.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Evolución no encontrada")
+    if not ctx.has_access_to_clinic(e.clinic_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Sin acceso a esta clínica")
+    if e.estado != "vigente":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La evolución no está vigente")
+    if e.autor_id == ctx.user_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La co-firma debe ser de otro profesional")
+    if e.cofirmado_por is not None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La evolución ya está co-firmada")
+    e.cofirmado_por = ctx.user_id
+    e.cofirmado_at = datetime.now(timezone.utc)
+    e.firma_cofirmante = await _mi_firma(db, ctx)
+    audit(db, ctx, clinic_id=e.clinic_id, accion="cofirmar_evolucion", recurso=f"clinical_evolution:{e.id}")
+    await db.commit()
+    await db.refresh(e)
+    return await _evolucion_out(db, e)
+
+
+@router.patch("/evoluciones/{evo_id}/anular", response_model=EvolucionOut)
+async def anular_evolucion(
+    evo_id: uuid.UUID,
+    payload: AnularEvolucionIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> EvolucionOut:
+    """Anulación auditada: no se borra; se marca anulada con motivo, quién y
+    cuándo. Se corrige escribiendo una evolución nueva."""
+    e = await db.get(ClinicalEvolution, evo_id)
+    if e is None or e.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Evolución no encontrada")
+    await get_treated_patient(db, ctx, e.patient_id)  # valida tratamiento + clínica
+    if e.estado == "anulada":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La evolución ya está anulada")
+    e.estado = "anulada"
+    e.anulado_por = ctx.user_id
+    e.anulado_at = datetime.now(timezone.utc)
+    e.motivo_anulacion = payload.motivo
+    audit(db, ctx, clinic_id=e.clinic_id, accion="anular_evolucion", recurso=f"clinical_evolution:{e.id}", despues={"motivo": payload.motivo})
+    await db.commit()
+    await db.refresh(e)
+    return await _evolucion_out(db, e)
 
 
 # ═══════════════════════ Periodontograma completo (70.5) ═══════════════════════

@@ -50,6 +50,35 @@ class ClinicalDiagnosis(Base, AuditMixin, TenantMixin):
     observacion: Mapped[str | None] = mapped_column(String(500))
 
 
+class ClinicalEvolution(Base, AuditMixin, TenantMixin):
+    """Evolución clínica con doble firma y anulación auditada (70.6).
+
+    La escribe y firma el profesional tratante (autor); un segundo profesional
+    puede co-firmarla (validación / doble firma). Nunca se borra ni edita: si
+    hay un error se anula (estado=anulada) dejando motivo, quién y cuándo, y se
+    escribe una evolución nueva. `firma_*` son instantáneas de la firma
+    manuscrita (PR-AA) al momento de firmar."""
+
+    __tablename__ = "clinical_evolutions"
+
+    patient_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("patients.id"), nullable=False, index=True)
+    autor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    record_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("medical_records.id"), index=True)
+    texto: Mapped[str] = mapped_column(Text, nullable=False)
+    # Firma del tratante (autor): se firma al crear.
+    firmado_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    firma_tratante: Mapped[str | None] = mapped_column(Text)
+    # Segunda firma (co-firma / validación) por otro profesional.
+    cofirmado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    cofirmado_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    firma_cofirmante: Mapped[str | None] = mapped_column(Text)
+    # Anulación auditada.
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, server_default="vigente")  # vigente | anulada
+    anulado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    anulado_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    motivo_anulacion: Mapped[str | None] = mapped_column(String(500))
+
+
 class Prescription(Base, AuditMixin, TenantMixin):
     """Immutable once signed — corrections are a new row referencing the one
     being replaced (anula + reemite), never an edit (Spec Médico §5.2)."""

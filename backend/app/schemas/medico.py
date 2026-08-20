@@ -315,6 +315,33 @@ class DiagnosticoOut(BaseModel):
     fecha: datetime
 
 
+# ---- evoluciones con doble firma + anulación (70.6) ----
+class EvolucionIn(BaseModel):
+    texto: str = Field(min_length=1)
+    record_id: uuid.UUID | None = None
+
+
+class AnularEvolucionIn(BaseModel):
+    motivo: str = Field(min_length=3, max_length=500)
+
+
+class EvolucionOut(BaseModel):
+    id: uuid.UUID
+    texto: str
+    fecha: datetime
+    autor_id: uuid.UUID
+    autor_nombre: str
+    firmado_at: datetime
+    firma_tratante: str | None = None
+    cofirmado_por_nombre: str | None = None
+    cofirmado_at: datetime | None = None
+    firma_cofirmante: str | None = None
+    estado: str
+    motivo_anulacion: str | None = None
+    anulado_at: datetime | None = None
+    anulado_por_nombre: str | None = None
+
+
 # ---- firma manuscrita del profesional (48) ----
 class MiFirmaOut(BaseModel):
     firma: str | None = None

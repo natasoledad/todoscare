@@ -4,7 +4,8 @@ import { BackHeader } from '../../components/BackHeader';
 import { StatusTag } from '../../components/ListRow';
 import { api } from '../../api/client';
 import type { FichaPaciente } from '../../api/types';
-import { DiagnosticosSection, DocumentosSection, OdontogramaSection, PeriodontogramaSection, PlanesSection, SignosVitalesSection, TimelineSection } from './FichaExtras';
+import { useAuth } from '../../context/AuthContext';
+import { DiagnosticosSection, DocumentosSection, EvolucionesSection, OdontogramaSection, PeriodontogramaSection, PlanesSection, SignosVitalesSection, TimelineSection } from './FichaExtras';
 
 const FICHA_LABELS: Record<string, string> = {
   fecha_nacimiento: 'Fecha de nacimiento',
@@ -20,6 +21,7 @@ const FICHA_LABELS: Record<string, string> = {
 export function Ficha() {
   const { patientId = '' } = useParams();
   const navigate = useNavigate();
+  const { me } = useAuth();
   const [ficha, setFicha] = useState<FichaPaciente | null>(null);
 
   useEffect(() => {
@@ -81,6 +83,8 @@ export function Ficha() {
         <SignosVitalesSection patientId={patientId} />
 
         <DiagnosticosSection patientId={patientId} />
+
+        <EvolucionesSection patientId={patientId} miUserId={me?.user_id} />
 
         <PlanesSection patientId={patientId} />
 

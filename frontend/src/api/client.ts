@@ -6,6 +6,7 @@ import type {
   Desempeno,
   DocumentoClinico,
   MiFirma,
+  Evolucion,
   Cie10Item,
   Diagnostico,
   OdontogramaPiezas,
@@ -284,6 +285,11 @@ export const api = {
     marcarCuota: (cuotaId: string, pagado: boolean) => patch<Cuota>(`/medico/cuotas/${cuotaId}`, { pagado }),
     eliminarCuotas: (planId: string) => del(`/medico/planes/${planId}/cuotas`),
     presupuesto: (planId: string) => get<Presupuesto>(`/medico/planes/${planId}/presupuesto`),
+    evoluciones: (patientId: string) => get<Evolucion[]>(`/medico/pacientes/${patientId}/evoluciones`),
+    crearEvolucion: (patientId: string, texto: string, recordId?: string) =>
+      post<Evolucion>(`/medico/pacientes/${patientId}/evoluciones`, { texto, record_id: recordId }),
+    cofirmarEvolucion: (evoId: string) => post<Evolucion>(`/medico/evoluciones/${evoId}/cofirmar`),
+    anularEvolucion: (evoId: string, motivo: string) => patch<Evolucion>(`/medico/evoluciones/${evoId}/anular`, { motivo }),
     miFirma: () => get<MiFirma>('/medico/mi-firma'),
     guardarMiFirma: (firma: string | null) => put<MiFirma>('/medico/mi-firma', { firma }),
     // Diagnóstico CIE-10 (71.20)

@@ -1232,6 +1232,22 @@ export interface MiFirma {
   firma: string | null;
   especialidad: string | null;
 }
+export interface Evolucion {
+  id: string;
+  texto: string;
+  fecha: string;
+  autor_id: string;
+  autor_nombre: string;
+  firmado_at: string;
+  firma_tratante: string | null;
+  cofirmado_por_nombre: string | null;
+  cofirmado_at: string | null;
+  firma_cofirmante: string | null;
+  estado: string;
+  motivo_anulacion: string | null;
+  anulado_at: string | null;
+  anulado_por_nombre: string | null;
+}
 export interface OdontogramaCara {
   dx?: string | null;
   tx?: string | null;

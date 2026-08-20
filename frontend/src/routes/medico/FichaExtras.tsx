@@ -4,7 +4,7 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
 import { money } from '../../lib/citas';
-import type { BloqueDoc, Cie10Item, Cuota, CuotasResumen, Diagnostico, DocumentoClinico, OdontogramaCatalogo, OdontogramaPieza, OdontogramaPiezas, PerioDatos, PerioPieza, PerioSitio, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
+import type { BloqueDoc, Cie10Item, Cuota, CuotasResumen, Diagnostico, DocumentoClinico, Evolucion, OdontogramaCatalogo, OdontogramaPieza, OdontogramaPiezas, PerioDatos, PerioPieza, PerioSitio, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
 
@@ -960,5 +960,80 @@ function PiezaEditor({ num, cat, pieza, onClose, onSave }: {
 
       <Button onClick={guardar} className="w-full">Guardar pieza {num}</Button>
     </BottomSheet>
+  );
+}
+
+// ─────────────────────── Evoluciones con doble firma + anulación (70.6) ───────────────────────
+export function EvolucionesSection({ patientId, miUserId }: { patientId: string; miUserId?: string }) {
+  const [lista, setLista] = useState<Evolucion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [texto, setTexto] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => api.medico.evoluciones(patientId).then(setLista).catch(() => setLista([]));
+  useEffect(() => { load(); }, [patientId]);
+
+  const crear = async () => {
+    if (!texto.trim()) return;
+    setBusy(true); setError(null);
+    try { await api.medico.crearEvolucion(patientId, texto.trim()); setTexto(''); setOpen(false); await load(); }
+    catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo guardar.'); }
+    finally { setBusy(false); }
+  };
+  const cofirmar = async (id: string) => { try { await api.medico.cofirmarEvolucion(id); await load(); } catch { /* noop */ } };
+  const anular = async (id: string) => {
+    const motivo = window.prompt('Motivo de la anulación:');
+    if (!motivo || motivo.trim().length < 3) return;
+    await api.medico.anularEvolucion(id, motivo.trim()); await load();
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-heading font-bold text-[13px] text-ink">Evoluciones</div>
+        <button onClick={() => { setOpen(true); setError(null); }} className="text-[12.5px] font-semibold text-teal-dark">+ Nueva</button>
+      </div>
+      {lista.length === 0 ? (
+        <div className="text-sm text-sub">Sin evoluciones registradas.</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {lista.map((e) => {
+            const anulada = e.estado === 'anulada';
+            return (
+              <div key={e.id} className={`rounded-2xl border px-3.5 py-3 ${anulada ? 'border-border bg-[#FAFAFA]' : 'border-border bg-white'}`}>
+                <div className={`text-[13px] whitespace-pre-line ${anulada ? 'text-sub line-through' : 'text-ink'}`}>{e.texto}</div>
+                <div className="mt-1.5 text-[10.5px] text-sub">
+                  ✍ {e.autor_nombre} · {fecha(e.firmado_at)}
+                  {e.cofirmado_por_nombre && <> · ✓✓ co-firma: {e.cofirmado_por_nombre}</>}
+                </div>
+                {anulada && (
+                  <div className="mt-1 text-[10.5px] text-danger">Anulada por {e.anulado_por_nombre}{e.motivo_anulacion ? ` · ${e.motivo_anulacion}` : ''}</div>
+                )}
+                {!anulada && (
+                  <div className="mt-1.5 flex gap-3">
+                    {!e.cofirmado_por_nombre && e.autor_id !== miUserId && (
+                      <button onClick={() => cofirmar(e.id)} className="text-[11.5px] font-semibold text-teal-dark">Co-firmar</button>
+                    )}
+                    <button onClick={() => anular(e.id)} className="text-[11.5px] font-semibold text-danger">Anular</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {open && (
+        <BottomSheet onClose={() => setOpen(false)}>
+          <div className="font-heading font-extrabold text-[17px] text-ink">Nueva evolución</div>
+          <div className="text-[11.5px] text-sub">Se firma con tu firma al guardar. Para corregir, se anula y se escribe una nueva.</div>
+          <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={5} placeholder="Evolución clínica…"
+            className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal resize-none" />
+          {error && <div className="text-xs text-danger">{error}</div>}
+          <Button onClick={crear} disabled={busy || !texto.trim()} className="w-full">{busy ? 'Guardando…' : 'Firmar y guardar'}</Button>
+        </BottomSheet>
+      )}
+    </div>
   );
 }
