@@ -29,12 +29,34 @@ class HospitalizacionFichaOut(BaseModel):
     ingreso: date | None
 
 
+# ---- datos demográficos chilenos + GES (69.14 · 69.17) ----
+class DatosClOut(BaseModel):
+    prevision: str | None = None
+    prevision_nombre: str | None = None
+    tramo_fonasa: str | None = None
+    nacionalidad: str | None = None
+    comuna: str | None = None
+    ges: bool = False
+    ges_detalle: str | None = None
+
+
+class DatosClIn(BaseModel):
+    prevision: str | None = None          # fonasa | isapre | particular
+    prevision_nombre: str | None = Field(default=None, max_length=120)
+    tramo_fonasa: str | None = None       # A | B | C | D
+    nacionalidad: str | None = Field(default=None, max_length=60)
+    comuna: str | None = Field(default=None, max_length=120)
+    ges: bool | None = None
+    ges_detalle: str | None = Field(default=None, max_length=255)
+
+
 class FichaPacienteOut(BaseModel):
     patient_id: uuid.UUID
     nombre: str
     rut: str
     nivel: str
     ficha: dict
+    datos_cl: DatosClOut
     examenes: list[ExamenFichaOut]
     hospitalizaciones: list[HospitalizacionFichaOut]
     odontograma: dict

@@ -39,6 +39,14 @@ class Patient(Base, AuditMixin, TenantMixin):
     onboarding_completado: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     # Habilitar/deshabilitar paciente (Tanda 4): bloquea al paciente sin borrarlo.
     activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    # Datos demográficos chilenos (69.14) + GES (69.17).
+    prevision: Mapped[str | None] = mapped_column(String(20))          # fonasa | isapre | particular
+    prevision_nombre: Mapped[str | None] = mapped_column(String(120))  # nombre de la Isapre / seguro
+    tramo_fonasa: Mapped[str | None] = mapped_column(String(2))        # A | B | C | D
+    nacionalidad: Mapped[str | None] = mapped_column(String(60))
+    comuna: Mapped[str | None] = mapped_column(String(120))
+    ges: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")  # garantía GES activa
+    ges_detalle: Mapped[str | None] = mapped_column(String(255))       # patología / problema de salud GES
     # Atribución de marketing: la campaña que trajo a este paciente (UTM/ref al
     # registrarse). Permite medir conversiones e ingresos reales por campaña.
     origen_campana_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("marketing_campaigns.id"), index=True)

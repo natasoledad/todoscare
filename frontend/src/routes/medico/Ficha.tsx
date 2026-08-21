@@ -5,7 +5,7 @@ import { StatusTag } from '../../components/ListRow';
 import { api } from '../../api/client';
 import type { FichaPaciente } from '../../api/types';
 import { useAuth } from '../../context/AuthContext';
-import { DiagnosticosSection, DocumentosSection, EvolucionesSection, OdontogramaSection, PeriodontogramaSection, PlanesSection, SignosVitalesSection, TimelineSection } from './FichaExtras';
+import { DatosClSection, DiagnosticosSection, DocumentosSection, EvolucionesSection, OdontogramaSection, PeriodontogramaSection, PlanesSection, SignosVitalesSection, TimelineSection } from './FichaExtras';
 
 const FICHA_LABELS: Record<string, string> = {
   fecha_nacimiento: 'Fecha de nacimiento',
@@ -77,6 +77,8 @@ export function Ficha() {
             </div>
           </div>
         )}
+
+        <DatosClSection patientId={patientId} initial={ficha.datos_cl} />
 
         <TimelineSection patientId={patientId} />
 
