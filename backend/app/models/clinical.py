@@ -243,6 +243,20 @@ class ClinicalDocument(Base, AuditMixin, TenantMixin):
     firma_profesional: Mapped[str | None] = mapped_column(Text)
 
 
+class SpecialtyFormTemplate(Base, AuditMixin, TenantMixin):
+    """Ficha clínica configurable por especialidad (71.7): define los campos que
+    el profesional completa en la atención según su especialidad. `campos` es
+    una lista de {clave, label, tipo, opciones?}; lo que se registra se guarda
+    en `contenido_extra` del prontuario."""
+
+    __tablename__ = "specialty_form_templates"
+
+    specialty_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("specialties.id"), index=True)
+    nombre: Mapped[str] = mapped_column(String(255), nullable=False)
+    campos: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
 class DocumentTemplate(Base, AuditMixin, TenantMixin):
     """Plantilla de documento por bloques (64.3): consentimientos por
     procedimiento (64.6), certificados (64.7), etc. `bloques` es una lista de

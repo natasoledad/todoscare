@@ -4,7 +4,7 @@ import { BackHeader } from '../../components/BackHeader';
 import { Button } from '../../components/Button';
 import { api, ApiError } from '../../api/client';
 import { estadoCita, money } from '../../lib/citas';
-import type { AlertaClinica, CitaMedico, Prontuario } from '../../api/types';
+import type { AlertaClinica, CitaMedico, FichaEsp, Prontuario } from '../../api/types';
 
 export function Cita() {
   const { citaId = '' } = useParams();
@@ -42,15 +42,27 @@ export function Cita() {
   }, [citaId]);
 
   const [atencionError, setAtencionError] = useState<string | null>(null);
+  const [fichas, setFichas] = useState<FichaEsp[]>([]);
+  const [fichaId, setFichaId] = useState('');
+  const [extra, setExtra] = useState<Record<string, string>>({});
+
+  useEffect(() => { api.medico.fichasEspecialidad().then((fs) => setFichas(fs.filter((f) => f.activo))).catch(() => setFichas([])); }, []);
+  const ficha = fichas.find((f) => f.id === fichaId);
 
   const registrarAtencion = async () => {
     setSavingAtencion(true);
     setAtencionError(null);
     try {
-      await api.medico.registrarAtencion(citaId, { motivo, evolucion, diagnostico });
+      const contenido_extra: Record<string, unknown> = {};
+      for (const c of ficha?.campos ?? []) {
+        const v = extra[c.clave];
+        if (v !== undefined && v !== '') contenido_extra[c.clave] = c.tipo === 'numero' ? Number(v) : c.tipo === 'checkbox' ? v === 'true' : v;
+      }
+      await api.medico.registrarAtencion(citaId, { motivo, evolucion, diagnostico, contenido_extra: Object.keys(contenido_extra).length ? contenido_extra : undefined });
       setMotivo('');
       setEvolucion('');
       setDiagnostico('');
+      setExtra({});
       await load();
     } catch (e) {
       setAtencionError(e instanceof ApiError ? String(e.detail) : 'No se pudo guardar en el prontuario');
@@ -156,6 +168,33 @@ export function Cita() {
                 className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal resize-none" />
               <input value={diagnostico} onChange={(e) => setDiagnostico(e.target.value)} placeholder="Diagnóstico"
                 className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+
+              {fichas.length > 0 && (
+                <select value={fichaId} onChange={(e) => { setFichaId(e.target.value); setExtra({}); }}
+                  className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+                  <option value="">Ficha por especialidad (opcional)…</option>
+                  {fichas.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+                </select>
+              )}
+              {ficha?.campos.map((c) => (
+                <div key={c.clave}>
+                  <div className="text-[11px] text-sub mb-0.5">{c.label}</div>
+                  {c.tipo === 'area' ? (
+                    <textarea value={extra[c.clave] ?? ''} onChange={(e) => setExtra((p) => ({ ...p, [c.clave]: e.target.value }))} rows={2}
+                      className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-2.5 text-sm text-ink outline-none focus:border-teal resize-none" />
+                  ) : c.tipo === 'opcion' ? (
+                    <select value={extra[c.clave] ?? ''} onChange={(e) => setExtra((p) => ({ ...p, [c.clave]: e.target.value }))}
+                      className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+                      <option value="">—</option>{(c.opciones ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : c.tipo === 'checkbox' ? (
+                    <label className="flex items-center gap-2"><input type="checkbox" checked={extra[c.clave] === 'true'} onChange={(e) => setExtra((p) => ({ ...p, [c.clave]: String(e.target.checked) }))} className="w-4 h-4 accent-teal" /><span className="text-[13px] text-ink">Sí</span></label>
+                  ) : (
+                    <input value={extra[c.clave] ?? ''} onChange={(e) => setExtra((p) => ({ ...p, [c.clave]: e.target.value }))} inputMode={c.tipo === 'numero' ? 'decimal' : 'text'}
+                      className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-2.5 text-sm text-ink outline-none focus:border-teal" />
+                  )}
+                </div>
+              ))}
               {atencionError && <div className="text-xs text-danger">{atencionError}</div>}
               <Button onClick={registrarAtencion} disabled={!motivo || savingAtencion} className="w-full">
                 {savingAtencion ? 'Guardando…' : 'Guardar en prontuario'}

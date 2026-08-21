@@ -7,6 +7,8 @@ import type {
   DocumentoClinico,
   MiFirma,
   Evolucion,
+  FichaEsp,
+  CampoFicha,
   Cie10Item,
   Diagnostico,
   OdontogramaPiezas,
@@ -257,7 +259,11 @@ export const api = {
     agenda: (fecha?: string) => get<CitaMedico[]>(`/medico/agenda${fecha ? `?fecha=${fecha}` : ''}`),
     ficha: (patientId: string) => get<FichaPaciente>(`/medico/pacientes/${patientId}/ficha`),
     prontuario: (citaId: string) => get<Prontuario[]>(`/medico/citas/${citaId}/prontuario`),
-    registrarAtencion: (citaId: string, body: { motivo: string; evolucion?: string; diagnostico?: string }) =>
+    fichasEspecialidad: (specialtyId?: string) => get<FichaEsp[]>(`/medico/fichas-especialidad${specialtyId ? `?specialty_id=${specialtyId}` : ''}`),
+    crearFichaEsp: (body: { nombre: string; specialty_id?: string; campos: CampoFicha[] }) => post<FichaEsp>('/medico/fichas-especialidad', body),
+    editarFichaEsp: (id: string, body: Partial<{ nombre: string; campos: CampoFicha[]; activo: boolean }>) => patch<FichaEsp>(`/medico/fichas-especialidad/${id}`, body),
+    eliminarFichaEsp: (id: string) => del(`/medico/fichas-especialidad/${id}`),
+    registrarAtencion: (citaId: string, body: { motivo: string; evolucion?: string; diagnostico?: string; contenido_extra?: Record<string, unknown> }) =>
       post<Prontuario>(`/medico/citas/${citaId}/atencion`, body),
     enmendar: (recordId: string, nota: string) => patch<Prontuario>(`/medico/prontuario/${recordId}/enmienda`, { nota }),
     prescribir: (citaId: string, items: { medicamento: string; cantidad?: string; indicaciones?: string }[], confirmarAlertas: boolean) =>

@@ -1232,6 +1232,19 @@ export interface MiFirma {
   firma: string | null;
   especialidad: string | null;
 }
+export interface CampoFicha {
+  clave: string;
+  label: string;
+  tipo: string;             // texto | area | numero | opcion | checkbox
+  opciones?: string[] | null;
+}
+export interface FichaEsp {
+  id: string;
+  nombre: string;
+  specialty_id: string | null;
+  campos: CampoFicha[];
+  activo: boolean;
+}
 export interface Evolucion {
   id: string;
   texto: string;
