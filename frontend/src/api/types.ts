@@ -411,6 +411,7 @@ export interface InfoEmpresa {
   razon_social: string;
   responsable_sanitario: string | null;
   pais: string;
+  logo: string | null;
   sucursales: Branch[];
 }
 
@@ -1140,6 +1141,7 @@ export interface Presupuesto {
   paciente_rut: string | null;
   profesional_nombre: string;
   clinica_nombre: string | null;
+  clinica_logo?: string | null;
   cuotas: Cuota[];
 }
 

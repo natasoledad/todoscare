@@ -10,21 +10,33 @@ export function Info() {
   const [info, setInfo] = useState<InfoEmpresa | null>(null);
   const [razon, setRazon] = useState('');
   const [responsable, setResponsable] = useState('');
+  const [logo, setLogo] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
 
   useEffect(() => {
     api.empresa.info().then((i) => {
       setInfo(i);
       setRazon(i.razon_social);
       setResponsable(i.responsable_sanitario ?? '');
+      setLogo(i.logo);
     });
   }, []);
 
+  const onLogoFile = (file: File) => {
+    setLogoError(null);
+    if (file.size > 1_400_000) { setLogoError('Imagen muy pesada (máx ~1,4 MB).'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setLogo(String(reader.result));
+    reader.readAsDataURL(file);
+  };
+
   const guardar = async () => {
     setSaving(true);
-    const updated = await api.empresa.editarInfo({ razon_social: razon, responsable_sanitario: responsable });
+    const updated = await api.empresa.editarInfo({ razon_social: razon, responsable_sanitario: responsable, logo: logo ?? '' });
     setInfo(updated);
+    setLogo(updated.logo);
     setSaved(true);
     setSaving(false);
     setTimeout(() => setSaved(false), 2500);
@@ -49,6 +61,26 @@ export function Info() {
         <div>
           <div className="mb-1.5 font-heading font-semibold text-xs text-sub">País</div>
           <div className="rounded-xl border border-border bg-[#F2F6F5] px-3.5 py-3 text-sm text-sub">{info.pais}</div>
+        </div>
+
+        <div>
+          <div className="mb-1.5 font-heading font-semibold text-xs text-sub">Logo de la clínica</div>
+          <div className="rounded-2xl border border-border bg-white p-4 flex items-center gap-4">
+            {logo ? (
+              <img src={logo} alt="Logo" className="max-h-16 max-w-[120px] object-contain" />
+            ) : (
+              <div className="w-16 h-16 rounded-xl bg-[#F2F6F5] grid place-items-center text-2xl">🏥</div>
+            )}
+            <div className="flex-1 flex flex-col gap-2 items-start">
+              <label className="text-[12.5px] font-semibold text-teal-dark cursor-pointer">
+                {logo ? 'Cambiar logo' : 'Subir logo'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onLogoFile(f); }} />
+              </label>
+              {logo && <button onClick={() => setLogo(null)} className="text-[11.5px] font-semibold text-danger">Quitar</button>}
+              <div className="text-[10.5px] text-sub">Se estampa en presupuestos y documentos.</div>
+            </div>
+          </div>
+          {logoError && <div className="text-xs text-danger mt-1">{logoError}</div>}
         </div>
 
         <div className="pt-1 font-heading font-bold text-[13px] text-ink">Sucursales / ubicaciones</div>

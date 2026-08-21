@@ -1008,6 +1008,7 @@ async def presupuesto(
         paciente_rut=patient.rut if patient else None,
         profesional_nombre=prof.nombre if prof else "",
         clinica_nombre=clinic.razon_social if clinic else None,
+        clinica_logo=clinic.logo if clinic else None,
         cuotas=[_cuota_out(c) for c in cuotas],
     )
 

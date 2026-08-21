@@ -1691,6 +1691,7 @@ async def get_info(
         razon_social=clinic.razon_social,
         responsable_sanitario=clinic.responsable_sanitario,
         pais=clinic.pais,
+        logo=clinic.logo,
         sucursales=[BranchOut(id=b.id, nombre=b.nombre) for b in branches],
     )
 
@@ -1703,7 +1704,11 @@ async def editar_info(
 ) -> InfoEmpresaOut:
     clinic_id = empresa_clinic_id(ctx)
     clinic = await db.get(Clinic, clinic_id)
-    for k, v in payload.model_dump(exclude_none=True).items():
+    if payload.logo is not None:
+        if len(payload.logo) > 2_000_000:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "El logo es demasiado grande")
+        clinic.logo = payload.logo or None   # "" limpia el logo
+    for k, v in payload.model_dump(exclude_none=True, exclude={"logo"}).items():
         setattr(clinic, k, v)
     await db.commit()
     return await get_info(db, ctx)

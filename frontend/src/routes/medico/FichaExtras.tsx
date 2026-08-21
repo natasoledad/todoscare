@@ -325,6 +325,7 @@ function CuotasSheet({ plan, onClose }: { plan: PlanTratamiento; onClose: () => 
       th,td{border-bottom:1px solid #e3e8e6;padding:7px 6px;text-align:left} th{color:#5b6b67;font-weight:600}
       .tot{display:flex;justify-content:space-between;padding:4px 0;font-size:14px} .tot.big{font-weight:700;border-top:2px solid #1a2b28;margin-top:6px;padding-top:8px}
       .muted{color:#5b6b67}</style></head><body>
+      ${p.clinica_logo ? `<img src="${p.clinica_logo}" alt="logo" style="max-height:56px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
       <h1>${p.clinica_nombre ?? 'Presupuesto de tratamiento'}</h1>
       <div class="sub">Presupuesto de tratamiento · ${new Date().toLocaleDateString('es-CL')}</div>
       <div class="sub" style="margin-top:8px"><b>Paciente:</b> ${p.paciente_nombre}${p.paciente_rut ? ' · RUT ' + p.paciente_rut : ''}</div>
