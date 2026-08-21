@@ -416,6 +416,7 @@ export const api = {
     eliminarCategoria: (cid: string) => del(`/empresa/aranceles/categorias/${cid}`),
     arancelItems: (id: string) => get<ArancelItem[]>(`/empresa/aranceles/${id}/items`),
     crearArancelItem: (id: string, body: Record<string, unknown>) => post<ArancelItem>(`/empresa/aranceles/${id}/items`, body),
+    importarArancel: (id: string, contenido: string) => post<{ creados: number; actualizados: number; total_filas: number; errores: { fila: number; motivo: string }[] }>(`/empresa/aranceles/${id}/importar`, { contenido }),
     editarArancelItem: (iid: string, body: Record<string, unknown>) => patch<ArancelItem>(`/empresa/aranceles/items/${iid}`, body),
     eliminarArancelItem: (iid: string) => del(`/empresa/aranceles/items/${iid}`),
     incrementarArancel: (id: string, pct: number) => post<{ afectados: number }>(`/empresa/aranceles/${id}/incrementar`, { pct }),
