@@ -253,6 +253,7 @@ class PresupuestoOut(BaseModel):
     paciente_rut: str | None = None
     profesional_nombre: str
     clinica_nombre: str | None = None
+    clinica_logo: str | None = None
     cuotas: list[CuotaOut]
 
 

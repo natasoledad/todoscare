@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +24,9 @@ class Clinic(Base, AuditMixin):
     #   {habilitada, anticipacion_horas, ventana_dias, mensaje}
     slug: Mapped[str | None] = mapped_column(String(80), unique=True)
     agenda_online: Mapped[dict | None] = mapped_column(JSONB)
+    # Logo de la clínica (65.1): imagen (data URL) que se estampa en documentos
+    # y presupuestos imprimibles.
+    logo: Mapped[str | None] = mapped_column(Text)
 
 
 class Branch(Base, AuditMixin, TenantMixin):

@@ -153,6 +153,7 @@ class PromocionOut(BaseModel):
 class InfoEmpresaUpdate(BaseModel):
     razon_social: str | None = Field(default=None, min_length=1)
     responsable_sanitario: str | None = None
+    logo: str | None = None   # data URL (o "" para quitarlo)
 
 
 class InfoEmpresaOut(BaseModel):
@@ -160,6 +161,7 @@ class InfoEmpresaOut(BaseModel):
     razon_social: str
     responsable_sanitario: str | None
     pais: str
+    logo: str | None = None
     sucursales: list[BranchOut]
 
 
