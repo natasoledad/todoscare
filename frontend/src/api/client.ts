@@ -96,6 +96,7 @@ import type {
   Examen,
   FichaAfiliado,
   FichaPaciente,
+  DatosCl,
   FichaUpdateInput,
   IntegracionesEstado,
   LiquidacionAseg,
@@ -261,6 +262,7 @@ export const api = {
   medico: {
     agenda: (fecha?: string) => get<CitaMedico[]>(`/medico/agenda${fecha ? `?fecha=${fecha}` : ''}`),
     ficha: (patientId: string) => get<FichaPaciente>(`/medico/pacientes/${patientId}/ficha`),
+    guardarDatosCl: (patientId: string, body: Partial<DatosCl>) => patch<DatosCl>(`/medico/pacientes/${patientId}/datos-cl`, body),
     prontuario: (citaId: string) => get<Prontuario[]>(`/medico/citas/${citaId}/prontuario`),
     vademecum: (q: string) => get<Vademecum[]>(`/medico/vademecum?q=${encodeURIComponent(q)}`),
     recetasPlantilla: () => get<RecetaPlantilla[]>('/medico/recetas-plantilla'),

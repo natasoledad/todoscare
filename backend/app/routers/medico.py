@@ -58,6 +58,8 @@ from app.schemas.medico import (
     EvolucionIn,
     EvolucionOut,
     CampoFicha,
+    DatosClIn,
+    DatosClOut,
     FichaEspIn,
     FichaEspOut,
     FichaEspUpdate,
@@ -191,10 +193,46 @@ async def ver_ficha(
         rut=patient.rut,
         nivel=patient.nivel,
         ficha=patient.ficha or {},
+        datos_cl=_datos_cl_out(patient),
         examenes=examenes,
         hospitalizaciones=[HospitalizacionFichaOut(motivo=h.motivo, centro=h.centro, ingreso=h.ingreso) for h in hosp],
         odontograma=(odo.piezas if odo else {}),
     )
+
+
+def _datos_cl_out(p) -> DatosClOut:
+    return DatosClOut(
+        prevision=p.prevision, prevision_nombre=p.prevision_nombre, tramo_fonasa=p.tramo_fonasa,
+        nacionalidad=p.nacionalidad, comuna=p.comuna, ges=p.ges, ges_detalle=p.ges_detalle,
+    )
+
+
+_PREVISIONES = {"fonasa", "isapre", "particular"}
+_TRAMOS = {"A", "B", "C", "D"}
+
+
+@router.patch("/pacientes/{patient_id}/datos-cl", response_model=DatosClOut)
+async def actualizar_datos_cl(
+    patient_id: uuid.UUID,
+    payload: DatosClIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> DatosClOut:
+    """Datos demográficos chilenos + GES del paciente (69.14 · 69.17)."""
+    patient = await get_treated_patient(db, ctx, patient_id)
+    if payload.prevision is not None and payload.prevision and payload.prevision not in _PREVISIONES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Previsión inválida (fonasa | isapre | particular)")
+    if payload.tramo_fonasa is not None and payload.tramo_fonasa and payload.tramo_fonasa.upper() not in _TRAMOS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Tramo Fonasa inválido (A | B | C | D)")
+    data = payload.model_dump(exclude_unset=True)
+    if "tramo_fonasa" in data and data["tramo_fonasa"]:
+        data["tramo_fonasa"] = data["tramo_fonasa"].upper()
+    for k, v in data.items():
+        setattr(patient, k, (v or None) if k != "ges" else bool(v))
+    audit(db, ctx, clinic_id=patient.clinic_id, accion="actualizar_datos_cl", recurso=f"patient:{patient_id}")
+    await db.commit()
+    await db.refresh(patient)
+    return _datos_cl_out(patient)
 
 
 # ─────────────────────────── atención / prontuario ───────────────────────────

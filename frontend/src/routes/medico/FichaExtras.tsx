@@ -4,7 +4,7 @@ import { Button } from '../../components/Button';
 import { StatusTag } from '../../components/ListRow';
 import { api, ApiError } from '../../api/client';
 import { money } from '../../lib/citas';
-import type { BloqueDoc, Cie10Item, Cuota, CuotasResumen, Diagnostico, DocumentoClinico, Evolucion, OdontogramaCatalogo, OdontogramaPieza, OdontogramaPiezas, PerioDatos, PerioPieza, PerioSitio, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
+import type { BloqueDoc, Cie10Item, Cuota, CuotasResumen, DatosCl, Diagnostico, DocumentoClinico, Evolucion, OdontogramaCatalogo, OdontogramaPieza, OdontogramaPiezas, PerioDatos, PerioPieza, PerioSitio, PlantillaDoc, PlanItem, PlanTratamiento, SignosVitales, TimelineEvento } from '../../api/types';
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: '2-digit' });
 
@@ -1035,6 +1035,89 @@ export function EvolucionesSection({ patientId, miUserId }: { patientId: string;
           <Button onClick={crear} disabled={busy || !texto.trim()} className="w-full">{busy ? 'Guardando…' : 'Firmar y guardar'}</Button>
         </BottomSheet>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────── GES + campos chilenos (69.14 · 69.17) ───────────────────────
+const PREV_LABEL: Record<string, string> = { fonasa: 'Fonasa', isapre: 'Isapre', particular: 'Particular' };
+
+export function DatosClSection({ patientId, initial }: { patientId: string; initial: DatosCl }) {
+  const [d, setD] = useState<DatosCl>(initial);
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState<DatosCl>(initial);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const abrir = () => { setF(d); setError(null); setOpen(true); };
+  const guardar = async () => {
+    setSaving(true); setError(null);
+    try { const r = await api.medico.guardarDatosCl(patientId, f); setD(r); setOpen(false); }
+    catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo guardar.'); }
+    finally { setSaving(false); }
+  };
+  const set = (patch: Partial<DatosCl>) => setF((p) => ({ ...p, ...patch }));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-heading font-bold text-[13px] text-ink">Previsión y GES</div>
+        <button onClick={abrir} className="text-[12.5px] font-semibold text-teal-dark">Editar</button>
+      </div>
+      <div className="rounded-2xl border border-border bg-white px-4 py-3 grid grid-cols-2 gap-y-2 gap-x-3 text-[12.5px]">
+        <Campo label="Previsión" valor={d.prevision ? `${PREV_LABEL[d.prevision] ?? d.prevision}${d.prevision_nombre ? ' · ' + d.prevision_nombre : ''}${d.tramo_fonasa ? ' (' + d.tramo_fonasa + ')' : ''}` : '—'} />
+        <Campo label="Comuna" valor={d.comuna || '—'} />
+        <Campo label="Nacionalidad" valor={d.nacionalidad || '—'} />
+        <Campo label="GES" valor={d.ges ? (d.ges_detalle || 'Sí') : 'No'} destacado={d.ges} />
+      </div>
+
+      {open && (
+        <BottomSheet onClose={() => setOpen(false)}>
+          <div className="font-heading font-extrabold text-[17px] text-ink">Previsión y GES</div>
+          <div className="flex gap-2">
+            <select value={f.prevision ?? ''} onChange={(e) => set({ prevision: e.target.value || null })}
+              className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+              <option value="">Previsión…</option>
+              {Object.entries(PREV_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            {f.prevision === 'fonasa' && (
+              <select value={f.tramo_fonasa ?? ''} onChange={(e) => set({ tramo_fonasa: e.target.value || null })}
+                className="w-28 rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+                <option value="">Tramo…</option>{['A', 'B', 'C', 'D'].map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            )}
+          </div>
+          {f.prevision === 'isapre' && (
+            <input value={f.prevision_nombre ?? ''} onChange={(e) => set({ prevision_nombre: e.target.value })} placeholder="Nombre de la Isapre"
+              className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+          )}
+          <div className="flex gap-2">
+            <input value={f.comuna ?? ''} onChange={(e) => set({ comuna: e.target.value })} placeholder="Comuna"
+              className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+            <input value={f.nacionalidad ?? ''} onChange={(e) => set({ nacionalidad: e.target.value })} placeholder="Nacionalidad"
+              className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+          </div>
+          <label className="flex items-center gap-2.5 py-1">
+            <input type="checkbox" checked={f.ges} onChange={(e) => set({ ges: e.target.checked })} className="w-4 h-4 accent-teal" />
+            <span className="text-[13px] text-ink">Tiene garantía GES</span>
+          </label>
+          {f.ges && (
+            <input value={f.ges_detalle ?? ''} onChange={(e) => set({ ges_detalle: e.target.value })} placeholder="Problema de salud GES (p. ej. Diabetes tipo 2)"
+              className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+          )}
+          {error && <div className="text-xs text-danger">{error}</div>}
+          <Button onClick={guardar} disabled={saving} className="w-full">{saving ? 'Guardando…' : 'Guardar'}</Button>
+        </BottomSheet>
+      )}
+    </div>
+  );
+}
+
+function Campo({ label, valor, destacado }: { label: string; valor: string; destacado?: boolean }) {
+  return (
+    <div>
+      <div className="text-[10.5px] text-sub">{label}</div>
+      <div className={`text-[13px] ${destacado ? 'font-semibold text-teal-dark' : 'text-ink'}`}>{valor}</div>
     </div>
   );
 }

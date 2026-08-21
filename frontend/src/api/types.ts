@@ -36,12 +36,22 @@ export interface HospitalizacionFicha {
   ingreso: string | null;
 }
 
+export interface DatosCl {
+  prevision: string | null;
+  prevision_nombre: string | null;
+  tramo_fonasa: string | null;
+  nacionalidad: string | null;
+  comuna: string | null;
+  ges: boolean;
+  ges_detalle: string | null;
+}
 export interface FichaPaciente {
   patient_id: string;
   nombre: string;
   rut: string;
   nivel: string;
   ficha: Record<string, unknown>;
+  datos_cl: DatosCl;
   examenes: ExamenFicha[];
   hospitalizaciones: HospitalizacionFicha[];
   odontograma: Record<string, { estado: string }>;
