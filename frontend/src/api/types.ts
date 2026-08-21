@@ -1232,6 +1232,24 @@ export interface MiFirma {
   firma: string | null;
   especialidad: string | null;
 }
+export interface Vademecum {
+  id: string;
+  nombre: string;
+  principio_activo: string | null;
+  presentacion: string | null;
+  forma: string | null;
+}
+export interface RecetaItem {
+  medicamento: string;
+  cantidad?: string | null;
+  indicaciones?: string | null;
+}
+export interface RecetaPlantilla {
+  id: string;
+  nombre: string;
+  items: RecetaItem[];
+  activo: boolean;
+}
 export interface CampoFicha {
   clave: string;
   label: string;

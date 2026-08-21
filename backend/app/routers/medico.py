@@ -6,7 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.catalog import CatalogItem, Specialty
+from app.models.catalog import CatalogItem, Medication, Specialty
 from app.models.clinical import (
     Cie10Code,
     ClinicalDiagnosis,
@@ -20,6 +20,7 @@ from app.models.clinical import (
     Odontogram,
     Periodontogram,
     PlanInstallment,
+    PrescriptionTemplate,
     SpecialtyFormTemplate,
     Prescription,
     TreatmentPlan,
@@ -60,6 +61,11 @@ from app.schemas.medico import (
     FichaEspIn,
     FichaEspOut,
     FichaEspUpdate,
+    VademecumOut,
+    RecetaItem,
+    RecetaPlantillaIn,
+    RecetaPlantillaOut,
+    RecetaPlantillaUpdate,
     LiquidacionOut,
     MiFirmaIn,
     MiFirmaOut,
@@ -1543,6 +1549,92 @@ async def eliminar_ficha_esp(
 ) -> None:
     cid = _medico_clinic_id(ctx)
     t = await _own_ficha_esp(db, cid, tid)
+    await db.delete(t)
+    await db.commit()
+
+
+# ═══════════════════════ Vademécum + plantillas de receta (71.21) ═══════════════════════
+@router.get("/vademecum", response_model=list[VademecumOut])
+async def buscar_vademecum(
+    q: str = "",
+    limit: int = 30,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRESCRIPCIONES, Action.VER)),
+) -> list[VademecumOut]:
+    """Busca en el vademécum por nombre o principio activo (71.21)."""
+    limit = max(1, min(limit, 100))
+    stmt = select(Medication).where(Medication.activo.is_(True), Medication.deleted_at.is_(None))
+    q = q.strip()
+    if q:
+        patron = f"%{q}%"
+        stmt = stmt.where(or_(Medication.nombre.ilike(patron), Medication.principio_activo.ilike(patron)))
+    rows = (await db.execute(stmt.order_by(Medication.nombre).limit(limit))).scalars().all()
+    return [VademecumOut(id=m.id, nombre=m.nombre, principio_activo=m.principio_activo, presentacion=m.presentacion, forma=m.forma) for m in rows]
+
+
+def _receta_out(t: PrescriptionTemplate) -> RecetaPlantillaOut:
+    return RecetaPlantillaOut(id=t.id, nombre=t.nombre, activo=t.activo, items=[RecetaItem(**i) if isinstance(i, dict) else i for i in (t.items or [])])
+
+
+@router.get("/recetas-plantilla", response_model=list[RecetaPlantillaOut])
+async def listar_recetas_plantilla(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRESCRIPCIONES, Action.VER)),
+) -> list[RecetaPlantillaOut]:
+    cid = _medico_clinic_id(ctx)
+    rows = (await db.execute(select(PrescriptionTemplate).where(PrescriptionTemplate.clinic_id == cid, PrescriptionTemplate.deleted_at.is_(None)).order_by(PrescriptionTemplate.nombre))).scalars().all()
+    return [_receta_out(t) for t in rows]
+
+
+@router.post("/recetas-plantilla", response_model=RecetaPlantillaOut, status_code=status.HTTP_201_CREATED)
+async def crear_receta_plantilla(
+    payload: RecetaPlantillaIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRESCRIPCIONES, Action.CREAR)),
+) -> RecetaPlantillaOut:
+    cid = _medico_clinic_id(ctx)
+    t = PrescriptionTemplate(clinic_id=cid, nombre=payload.nombre, items=[i.model_dump(exclude_none=True) for i in payload.items])
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return _receta_out(t)
+
+
+async def _own_receta(db: AsyncSession, cid: uuid.UUID, tid: uuid.UUID) -> PrescriptionTemplate:
+    t = await db.get(PrescriptionTemplate, tid)
+    if t is None or t.clinic_id != cid or t.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Plantilla no encontrada")
+    return t
+
+
+@router.patch("/recetas-plantilla/{tid}", response_model=RecetaPlantillaOut)
+async def editar_receta_plantilla(
+    tid: uuid.UUID,
+    payload: RecetaPlantillaUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRESCRIPCIONES, Action.EDITAR)),
+) -> RecetaPlantillaOut:
+    cid = _medico_clinic_id(ctx)
+    t = await _own_receta(db, cid, tid)
+    if payload.nombre is not None:
+        t.nombre = payload.nombre
+    if payload.items is not None:
+        t.items = [i.model_dump(exclude_none=True) for i in payload.items]
+    if payload.activo is not None:
+        t.activo = payload.activo
+    await db.commit()
+    await db.refresh(t)
+    return _receta_out(t)
+
+
+@router.delete("/recetas-plantilla/{tid}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_receta_plantilla(
+    tid: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRESCRIPCIONES, Action.EDITAR)),
+) -> None:
+    cid = _medico_clinic_id(ctx)
+    t = await _own_receta(db, cid, tid)
     await db.delete(t)
     await db.commit()
 

@@ -5,7 +5,7 @@ import { Button } from '../../components/Button';
 import { BottomSheet } from '../../components/BottomSheet';
 import { useAuth } from '../../context/AuthContext';
 import { api, ApiError } from '../../api/client';
-import type { CampoFicha, FichaEsp } from '../../api/types';
+import type { CampoFicha, FichaEsp, RecetaItem, RecetaPlantilla } from '../../api/types';
 
 export function Perfil() {
   const navigate = useNavigate();
@@ -28,6 +28,8 @@ export function Perfil() {
       <FirmaCard />
 
       <FichasEspCard />
+
+      <RecetasCard />
 
       <div className="px-5 pt-5 font-heading font-bold text-[13px] text-ink">Responsabilidad sanitaria</div>
       <div className="mx-5 mt-2.5 rounded-2xl border border-border bg-white p-4 text-[13px] leading-relaxed text-sub">
@@ -241,6 +243,87 @@ function FichaEspEditor({ ficha, onClose, onSaved }: { ficha: FichaEsp | null; o
       {error && <div className="text-xs text-danger">{error}</div>}
       <Button onClick={guardar} disabled={saving || !nombre} className="w-full">{saving ? 'Guardando…' : nuevo ? 'Crear ficha' : 'Guardar'}</Button>
       {!nuevo && <button onClick={eliminar} disabled={saving} className="w-full text-[12.5px] font-semibold text-danger py-1">Eliminar ficha</button>}
+    </BottomSheet>
+  );
+}
+
+// ─────────────────────── Plantillas de receta (71.21) ───────────────────────
+function RecetasCard() {
+  const [lista, setLista] = useState<RecetaPlantilla[]>([]);
+  const [edit, setEdit] = useState<RecetaPlantilla | 'nuevo' | null>(null);
+
+  const load = () => api.medico.recetasPlantilla().then(setLista).catch(() => setLista([]));
+  useEffect(() => { load(); }, []);
+
+  return (
+    <>
+      <div className="px-5 pt-5 flex items-center justify-between">
+        <div className="font-heading font-bold text-[13px] text-ink">Plantillas de receta</div>
+        <button onClick={() => setEdit('nuevo')} className="text-[12.5px] font-semibold text-teal-dark">+ Nueva</button>
+      </div>
+      <div className="mx-5 mt-2.5 flex flex-col gap-2">
+        {lista.length === 0 && <div className="text-[12.5px] text-sub">Guardá recetas frecuentes para aplicarlas de una vez al prescribir.</div>}
+        {lista.map((r) => (
+          <button key={r.id} onClick={() => setEdit(r)} className="text-left rounded-2xl border border-border bg-white px-4 py-3">
+            <div className="font-semibold text-[14px] text-ink">{r.nombre}</div>
+            <div className="text-[11.5px] text-sub mt-0.5">{r.items.length} medicamento(s)</div>
+          </button>
+        ))}
+      </div>
+      {edit && <RecetaEditor receta={edit === 'nuevo' ? null : edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
+    </>
+  );
+}
+
+function RecetaEditor({ receta, onClose, onSaved }: { receta: RecetaPlantilla | null; onClose: () => void; onSaved: () => void }) {
+  const nuevo = receta === null;
+  const [nombre, setNombre] = useState(receta?.nombre ?? '');
+  const [items, setItems] = useState<RecetaItem[]>(receta?.items ?? []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const add = () => setItems((p) => [...p, { medicamento: '', cantidad: '', indicaciones: '' }]);
+  const setItem = (i: number, patch: Partial<RecetaItem>) => setItems((p) => p.map((it, j) => (j === i ? { ...it, ...patch } : it)));
+  const del = (i: number) => setItems((p) => p.filter((_, j) => j !== i));
+
+  const guardar = async () => {
+    setSaving(true); setError(null);
+    const limpio = items.filter((i) => (i.medicamento ?? '').trim());
+    try {
+      if (nuevo) await api.medico.crearRecetaPlantilla({ nombre, items: limpio });
+      else await api.medico.editarRecetaPlantilla(receta!.id, { nombre, items: limpio });
+      onSaved();
+    } catch (e) { setError(e instanceof ApiError ? String(e.detail) : 'No se pudo guardar.'); setSaving(false); }
+  };
+  const eliminar = async () => { if (!receta) return; setSaving(true); try { await api.medico.eliminarRecetaPlantilla(receta.id); onSaved(); } catch { setSaving(false); } };
+
+  return (
+    <BottomSheet onClose={onClose}>
+      <div className="font-heading font-extrabold text-[17px] text-ink">{nuevo ? 'Nueva plantilla' : 'Editar plantilla'}</div>
+      <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre (p. ej. Post-extracción)"
+        className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+      <div className="text-[12px] font-semibold text-ink">Medicamentos</div>
+      <div className="flex flex-col gap-2 max-h-[42vh] overflow-y-auto scrollhide">
+        {items.map((it, i) => (
+          <div key={i} className="rounded-xl border border-border p-2.5 flex flex-col gap-1.5">
+            <div className="flex gap-1.5">
+              <input value={it.medicamento} onChange={(e) => setItem(i, { medicamento: e.target.value })} placeholder="Medicamento"
+                className="flex-1 min-w-0 rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-[13px] text-ink outline-none focus:border-teal" />
+              <button onClick={() => del(i)} className="text-[11px] font-semibold text-danger px-1">✕</button>
+            </div>
+            <div className="flex gap-1.5">
+              <input value={it.cantidad ?? ''} onChange={(e) => setItem(i, { cantidad: e.target.value })} placeholder="Cantidad"
+                className="flex-1 min-w-0 rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-[12.5px] text-ink outline-none focus:border-teal" />
+              <input value={it.indicaciones ?? ''} onChange={(e) => setItem(i, { indicaciones: e.target.value })} placeholder="Indicaciones"
+                className="flex-[2] min-w-0 rounded-lg border-[1.5px] border-border-strong bg-white px-2 py-2 text-[12.5px] text-ink outline-none focus:border-teal" />
+            </div>
+          </div>
+        ))}
+        <button onClick={add} className="text-[12.5px] font-semibold text-teal-dark py-1 text-left">+ Agregar medicamento</button>
+      </div>
+      {error && <div className="text-xs text-danger">{error}</div>}
+      <Button onClick={guardar} disabled={saving || !nombre} className="w-full">{saving ? 'Guardando…' : nuevo ? 'Crear plantilla' : 'Guardar'}</Button>
+      {!nuevo && <button onClick={eliminar} disabled={saving} className="w-full text-[12.5px] font-semibold text-danger py-1">Eliminar plantilla</button>}
     </BottomSheet>
   );
 }
