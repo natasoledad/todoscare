@@ -20,6 +20,7 @@ from app.models.clinical import (
     Odontogram,
     Periodontogram,
     PlanInstallment,
+    SpecialtyFormTemplate,
     Prescription,
     TreatmentPlan,
     TreatmentPlanItem,
@@ -55,6 +56,10 @@ from app.schemas.medico import (
     AnularEvolucionIn,
     EvolucionIn,
     EvolucionOut,
+    CampoFicha,
+    FichaEspIn,
+    FichaEspOut,
+    FichaEspUpdate,
     LiquidacionOut,
     MiFirmaIn,
     MiFirmaOut,
@@ -1449,6 +1454,97 @@ async def anular_evolucion(
     await db.commit()
     await db.refresh(e)
     return await _evolucion_out(db, e)
+
+
+# ═══════════════════════ Fichas clínicas por especialidad (71.7) ═══════════════════════
+_CAMPO_TIPOS = {"texto", "area", "numero", "opcion", "checkbox"}
+
+
+def _ficha_esp_out(t: SpecialtyFormTemplate) -> FichaEspOut:
+    return FichaEspOut(
+        id=t.id, nombre=t.nombre, specialty_id=t.specialty_id, activo=t.activo,
+        campos=[CampoFicha(**c) if isinstance(c, dict) else c for c in (t.campos or [])],
+    )
+
+
+def _validar_campos(campos: list[CampoFicha]) -> list[dict]:
+    claves: set[str] = set()
+    out: list[dict] = []
+    for c in campos:
+        if c.tipo not in _CAMPO_TIPOS:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tipo de campo inválido: {c.tipo}")
+        if c.clave in claves:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Clave de campo duplicada: {c.clave}")
+        claves.add(c.clave)
+        out.append(c.model_dump(exclude_none=True))
+    return out
+
+
+@router.get("/fichas-especialidad", response_model=list[FichaEspOut])
+async def listar_fichas_esp(
+    specialty_id: uuid.UUID | None = None,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.VER)),
+) -> list[FichaEspOut]:
+    cid = _medico_clinic_id(ctx)
+    q = select(SpecialtyFormTemplate).where(SpecialtyFormTemplate.clinic_id == cid, SpecialtyFormTemplate.deleted_at.is_(None))
+    if specialty_id is not None:
+        q = q.where(SpecialtyFormTemplate.specialty_id == specialty_id)
+    rows = (await db.execute(q.order_by(SpecialtyFormTemplate.nombre))).scalars().all()
+    return [_ficha_esp_out(t) for t in rows]
+
+
+@router.post("/fichas-especialidad", response_model=FichaEspOut, status_code=status.HTTP_201_CREATED)
+async def crear_ficha_esp(
+    payload: FichaEspIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.CREAR)),
+) -> FichaEspOut:
+    cid = _medico_clinic_id(ctx)
+    t = SpecialtyFormTemplate(clinic_id=cid, specialty_id=payload.specialty_id, nombre=payload.nombre, campos=_validar_campos(payload.campos))
+    db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return _ficha_esp_out(t)
+
+
+async def _own_ficha_esp(db: AsyncSession, cid: uuid.UUID, tid: uuid.UUID) -> SpecialtyFormTemplate:
+    t = await db.get(SpecialtyFormTemplate, tid)
+    if t is None or t.clinic_id != cid or t.deleted_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ficha no encontrada")
+    return t
+
+
+@router.patch("/fichas-especialidad/{tid}", response_model=FichaEspOut)
+async def editar_ficha_esp(
+    tid: uuid.UUID,
+    payload: FichaEspUpdate,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> FichaEspOut:
+    cid = _medico_clinic_id(ctx)
+    t = await _own_ficha_esp(db, cid, tid)
+    if payload.nombre is not None:
+        t.nombre = payload.nombre
+    if payload.campos is not None:
+        t.campos = _validar_campos(payload.campos)
+    if payload.activo is not None:
+        t.activo = payload.activo
+    await db.commit()
+    await db.refresh(t)
+    return _ficha_esp_out(t)
+
+
+@router.delete("/fichas-especialidad/{tid}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_ficha_esp(
+    tid: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.PRONTUARIO_ATENDIDOS, Action.EDITAR)),
+) -> None:
+    cid = _medico_clinic_id(ctx)
+    t = await _own_ficha_esp(db, cid, tid)
+    await db.delete(t)
+    await db.commit()
 
 
 # ═══════════════════════ Periodontograma completo (70.5) ═══════════════════════

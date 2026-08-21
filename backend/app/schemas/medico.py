@@ -290,6 +290,34 @@ class DocumentoOut(BaseModel):
     firma_profesional: str | None = None  # firma manuscrita estampada (data URL PNG)
 
 
+# ---- fichas clínicas por especialidad (71.7) ----
+class CampoFicha(BaseModel):
+    clave: str = Field(min_length=1, max_length=60)
+    label: str = Field(min_length=1, max_length=120)
+    tipo: str = "texto"                 # texto | area | numero | opcion | checkbox
+    opciones: list[str] | None = None   # para tipo=opcion
+
+
+class FichaEspIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=255)
+    specialty_id: uuid.UUID | None = None
+    campos: list[CampoFicha] = Field(default_factory=list)
+
+
+class FichaEspUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=255)
+    campos: list[CampoFicha] | None = None
+    activo: bool | None = None
+
+
+class FichaEspOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    specialty_id: uuid.UUID | None
+    campos: list[CampoFicha]
+    activo: bool
+
+
 # ---- diagnóstico CIE-10 (71.20) ----
 class Cie10Out(BaseModel):
     id: uuid.UUID
