@@ -337,6 +337,59 @@ CIE10_SEED: list[tuple[str, str, str]] = [
 ]
 
 
+# ── Vademécum (71.21) ───────────────────────────────────────────────────────
+# Subconjunto curado de medicamentos frecuentes (uso general + odontológico).
+VADEMECUM_SEED: list[tuple[str, str, str, str]] = [
+    ("Paracetamol", "Paracetamol", "Comp. 500 mg", "comprimido"),
+    ("Paracetamol", "Paracetamol", "Jarabe 120 mg/5 ml", "jarabe"),
+    ("Ibuprofeno", "Ibuprofeno", "Comp. 400 mg", "comprimido"),
+    ("Ibuprofeno", "Ibuprofeno", "Susp. 100 mg/5 ml", "jarabe"),
+    ("Ketoprofeno", "Ketoprofeno", "Comp. 100 mg", "comprimido"),
+    ("Diclofenaco", "Diclofenaco sódico", "Comp. 50 mg", "comprimido"),
+    ("Amoxicilina", "Amoxicilina", "Cáps. 500 mg", "cápsula"),
+    ("Amoxicilina/Ác. clavulánico", "Amoxicilina + ácido clavulánico", "Comp. 875/125 mg", "comprimido"),
+    ("Azitromicina", "Azitromicina", "Comp. 500 mg", "comprimido"),
+    ("Cefalexina", "Cefalexina", "Cáps. 500 mg", "cápsula"),
+    ("Ciprofloxacino", "Ciprofloxacino", "Comp. 500 mg", "comprimido"),
+    ("Metronidazol", "Metronidazol", "Comp. 500 mg", "comprimido"),
+    ("Clindamicina", "Clindamicina", "Cáps. 300 mg", "cápsula"),
+    ("Nistatina", "Nistatina", "Susp. 100.000 UI/ml", "suspensión"),
+    ("Clorhexidina", "Clorhexidina gluconato", "Enjuague 0,12%", "enjuague"),
+    ("Lidocaína", "Lidocaína", "Sol. iny. 2%", "inyectable"),
+    ("Omeprazol", "Omeprazol", "Cáps. 20 mg", "cápsula"),
+    ("Losartán", "Losartán potásico", "Comp. 50 mg", "comprimido"),
+    ("Enalapril", "Enalapril", "Comp. 10 mg", "comprimido"),
+    ("Metformina", "Metformina", "Comp. 850 mg", "comprimido"),
+    ("Atorvastatina", "Atorvastatina", "Comp. 20 mg", "comprimido"),
+    ("Aspirina", "Ácido acetilsalicílico", "Comp. 100 mg", "comprimido"),
+    ("Loratadina", "Loratadina", "Comp. 10 mg", "comprimido"),
+    ("Clorfenamina", "Clorfenamina maleato", "Comp. 4 mg", "comprimido"),
+    ("Salbutamol", "Salbutamol", "Inhalador 100 mcg/dosis", "inhalador"),
+    ("Prednisona", "Prednisona", "Comp. 20 mg", "comprimido"),
+    ("Dexametasona", "Dexametasona", "Comp. 4 mg", "comprimido"),
+    ("Levotiroxina", "Levotiroxina sódica", "Comp. 100 mcg", "comprimido"),
+    ("Sertralina", "Sertralina", "Comp. 50 mg", "comprimido"),
+    ("Clonazepam", "Clonazepam", "Comp. 0,5 mg", "comprimido"),
+]
+
+
+async def seed_vademecum(db) -> int:
+    """Carga (idempotente) el vademécum base. Devuelve cuántos insertó."""
+    from app.models.catalog import Medication
+
+    nuevos = 0
+    for nombre, principio, presentacion, forma in VADEMECUM_SEED:
+        existe = (
+            await db.execute(select(Medication).where(Medication.nombre == nombre, Medication.presentacion == presentacion))
+        ).scalar_one_or_none()
+        if existe is not None:
+            continue
+        db.add(Medication(nombre=nombre, principio_activo=principio, presentacion=presentacion, forma=forma))
+        nuevos += 1
+    await db.flush()
+    return nuevos
+
+
 async def seed_cie10(db) -> int:
     """Carga (idempotente) el catálogo CIE-10 base. Devuelve cuántos códigos
     nuevos insertó. Global (no tenant): existe una sola vez en la BD."""
@@ -387,6 +440,9 @@ async def main() -> None:
 
         # Catálogo CIE-10 (71.20): referencia global.
         await seed_cie10(db)
+
+        # Vademécum (71.21): catálogo de medicamentos, referencia global.
+        await seed_vademecum(db)
 
         # Entidad aseguradora (global, no tenant) — el rol se vincula a ella.
         insurer_x = (await db.execute(select(Insurer).where(Insurer.nombre == "Seguros Bienestar MX"))).scalar_one_or_none()

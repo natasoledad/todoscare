@@ -290,6 +290,39 @@ class DocumentoOut(BaseModel):
     firma_profesional: str | None = None  # firma manuscrita estampada (data URL PNG)
 
 
+# ---- vademécum + plantillas de receta (71.21) ----
+class VademecumOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    principio_activo: str | None = None
+    presentacion: str | None = None
+    forma: str | None = None
+
+
+class RecetaItem(BaseModel):
+    medicamento: str = Field(min_length=1)
+    cantidad: str | None = None
+    indicaciones: str | None = None
+
+
+class RecetaPlantillaIn(BaseModel):
+    nombre: str = Field(min_length=1, max_length=160)
+    items: list[RecetaItem] = Field(default_factory=list)
+
+
+class RecetaPlantillaUpdate(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=160)
+    items: list[RecetaItem] | None = None
+    activo: bool | None = None
+
+
+class RecetaPlantillaOut(BaseModel):
+    id: uuid.UUID
+    nombre: str
+    items: list[RecetaItem]
+    activo: bool
+
+
 # ---- fichas clínicas por especialidad (71.7) ----
 class CampoFicha(BaseModel):
     clave: str = Field(min_length=1, max_length=60)

@@ -4,7 +4,7 @@ import { BackHeader } from '../../components/BackHeader';
 import { Button } from '../../components/Button';
 import { api, ApiError } from '../../api/client';
 import { estadoCita, money } from '../../lib/citas';
-import type { AlertaClinica, CitaMedico, FichaEsp, Prontuario } from '../../api/types';
+import type { AlertaClinica, CitaMedico, FichaEsp, Prontuario, RecetaItem, RecetaPlantilla, Vademecum } from '../../api/types';
 
 export function Cita() {
   const { citaId = '' } = useParams();
@@ -25,6 +25,17 @@ export function Cita() {
   const [alertas, setAlertas] = useState<AlertaClinica[]>([]);
   const [prescribiendo, setPrescribiendo] = useState(false);
   const [prescripcionMsg, setPrescripcionMsg] = useState<string | null>(null);
+  const [vademecum, setVademecum] = useState<Vademecum[]>([]);
+  const [recetas, setRecetas] = useState<RecetaPlantilla[]>([]);
+
+  useEffect(() => { api.medico.recetasPlantilla().then((r) => setRecetas(r.filter((x) => x.activo))).catch(() => setRecetas([])); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (medicamento.trim().length < 2) { setVademecum([]); return; }
+      api.medico.vademecum(medicamento.trim()).then(setVademecum).catch(() => setVademecum([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [medicamento]);
 
   const [ordenMsg, setOrdenMsg] = useState<string | null>(null);
   const [cierreMsg, setCierreMsg] = useState<string | null>(null);
@@ -71,11 +82,11 @@ export function Cita() {
     }
   };
 
-  const prescribir = async (confirmar: boolean) => {
+  const prescribirItems = async (items: RecetaItem[], confirmar: boolean) => {
     setPrescribiendo(true);
     setPrescripcionMsg(null);
     try {
-      const res = await api.medico.prescribir(citaId, [{ medicamento, cantidad, indicaciones }], confirmar);
+      const res = await api.medico.prescribir(citaId, items.map((i) => ({ medicamento: i.medicamento, cantidad: i.cantidad ?? undefined, indicaciones: i.indicaciones ?? undefined })), confirmar);
       if (!res.prescripcion) {
         setAlertas(res.alertas);
       } else {
@@ -209,8 +220,18 @@ export function Cita() {
                   ⚠️ Alerta clínica: {alertas.map((a) => a.detalle).join('; ')}
                 </div>
               )}
-              <input value={medicamento} onChange={(e) => setMedicamento(e.target.value)} placeholder="Medicamento"
+              {recetas.length > 0 && (
+                <select value="" onChange={(e) => { const r = recetas.find((x) => x.id === e.target.value); if (r) prescribirItems(r.items, false); }}
+                  className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-sm text-ink outline-none focus:border-teal">
+                  <option value="">Aplicar receta guardada…</option>
+                  {recetas.map((r) => <option key={r.id} value={r.id}>{r.nombre} ({r.items.length})</option>)}
+                </select>
+              )}
+              <input value={medicamento} onChange={(e) => setMedicamento(e.target.value)} placeholder="Medicamento (busca en el vademécum)" list="vademecum-list"
                 className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
+              <datalist id="vademecum-list">
+                {vademecum.map((m) => <option key={m.id} value={`${m.nombre}${m.presentacion ? ' ' + m.presentacion : ''}`} />)}
+              </datalist>
               <div className="flex gap-2">
                 <input value={cantidad} onChange={(e) => setCantidad(e.target.value)} placeholder="Cantidad"
                   className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
@@ -218,11 +239,11 @@ export function Cita() {
                   className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
               </div>
               {alertas.length > 0 ? (
-                <Button onClick={() => prescribir(true)} disabled={prescribiendo} variant="outline" className="w-full">
+                <Button onClick={() => prescribirItems([{ medicamento, cantidad, indicaciones }], true)} disabled={prescribiendo} variant="outline" className="w-full">
                   Firmar de todas formas
                 </Button>
               ) : (
-                <Button onClick={() => prescribir(false)} disabled={!medicamento || prescribiendo} className="w-full">
+                <Button onClick={() => prescribirItems([{ medicamento, cantidad, indicaciones }], false)} disabled={!medicamento || prescribiendo} className="w-full">
                   {prescribiendo ? 'Firmando…' : 'Emitir y firmar'}
                 </Button>
               )}

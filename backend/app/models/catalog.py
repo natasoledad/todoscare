@@ -1,11 +1,25 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import Boolean, ForeignKey, Numeric, String
+from sqlalchemy import Boolean, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import AuditMixin, Base, TenantMixin
 from sqlalchemy.dialects.postgresql import UUID
+
+
+class Medication(Base, AuditMixin):
+    """Vademécum (71.21): catálogo global de medicamentos de referencia para
+    prescribir. No tenant (compartido). Buscable por nombre o principio activo."""
+
+    __tablename__ = "medications"
+    __table_args__ = (UniqueConstraint("nombre", "presentacion", name="uq_medication_nombre_pres"),)
+
+    nombre: Mapped[str] = mapped_column(String(160), nullable=False, index=True)          # comercial o genérico
+    principio_activo: Mapped[str | None] = mapped_column(String(160), index=True)
+    presentacion: Mapped[str | None] = mapped_column(String(120))                          # p. ej. "Comp. 500 mg"
+    forma: Mapped[str | None] = mapped_column(String(60))                                  # comprimido | jarabe | ...
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
 
 
 class Specialty(Base, AuditMixin):

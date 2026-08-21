@@ -243,6 +243,18 @@ class ClinicalDocument(Base, AuditMixin, TenantMixin):
     firma_profesional: Mapped[str | None] = mapped_column(Text)
 
 
+class PrescriptionTemplate(Base, AuditMixin, TenantMixin):
+    """Plantilla de receta reutilizable (71.21): un conjunto nombrado de ítems
+    ({medicamento, cantidad, indicaciones}) que el profesional aplica de una vez
+    al prescribir. Clinic-scoped."""
+
+    __tablename__ = "prescription_templates"
+
+    nombre: Mapped[str] = mapped_column(String(160), nullable=False)
+    items: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+
 class SpecialtyFormTemplate(Base, AuditMixin, TenantMixin):
     """Ficha clínica configurable por especialidad (71.7): define los campos que
     el profesional completa en la atención según su especialidad. `campos` es
