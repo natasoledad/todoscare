@@ -2,6 +2,8 @@
 prestaciones. Coexiste con el catálogo de servicios; el arancel es la lista de
 precios para cotizar/cobrar (base, particular, por empresa/convenio)."""
 
+import csv
+import io
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,6 +23,9 @@ from app.schemas.aranceles import (
     CategoriaOut,
     CategoriaUpdate,
     CopiarBaseOut,
+    ImportarArancelIn,
+    ImportarArancelOut,
+    ImportErrorItem,
     IncrementarIn,
     IncrementarOut,
     ItemIn,
@@ -257,6 +262,119 @@ async def eliminar_item(
     i = await _own_item(db, clinic_id, item_id)
     await db.delete(i)
     await db.commit()
+
+
+# ─────────────────────────── carga masiva (62.8) ───────────────────────────
+_HEADER_ALIAS = {
+    "codigo": "codigo", "código": "codigo", "code": "codigo",
+    "nombre": "nombre", "prestacion": "nombre", "prestación": "nombre", "descripcion": "nombre", "descripción": "nombre",
+    "precio": "precio", "valor": "precio", "precio_final": "precio",
+    "categoria": "categoria", "categoría": "categoria", "grupo": "categoria",
+    "precio_referencia": "precio_referencia", "referencia": "precio_referencia", "fonasa": "precio_referencia",
+}
+_ORDEN_SIN_ENCABEZADO = ["codigo", "nombre", "precio", "categoria", "precio_referencia"]
+
+
+def _parse_precio(texto: str) -> float:
+    """Interpreta precios en formato chileno o inglés ('12.345', '12.345,50',
+    '$ 12.345', '12345.50')."""
+    s = "".join(ch for ch in str(texto) if ch.isdigit() or ch in ".,-").strip()
+    if not s:
+        raise ValueError("precio vacío")
+    if "," in s and "." in s:          # 12.345,50 -> el último separador es el decimal
+        s = s.replace(".", "").replace(",", ".") if s.rfind(",") > s.rfind(".") else s.replace(",", "")
+    elif "," in s:                     # 12345,50 -> coma decimal
+        s = s.replace(",", ".")
+    elif s.count(".") > 1:             # 1.234.567 -> puntos de miles
+        s = s.replace(".", "")
+    elif "." in s and len(s.rsplit(".", 1)[1]) == 3:  # 25.000 -> punto de miles (formato CL)
+        s = s.replace(".", "")
+    return round(float(s), 2)
+
+
+@router.post("/{arancel_id}/importar", response_model=ImportarArancelOut)
+async def importar_items(
+    arancel_id: uuid.UUID,
+    payload: ImportarArancelIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.CATALOGO_PRECIOS, Action.CREAR)),
+) -> ImportarArancelOut:
+    """Carga masiva de prestaciones desde CSV/Excel (62.8). Columnas: código,
+    nombre, precio, categoría, precio de referencia. Autocrea categorías por
+    nombre; si el código ya existe en el arancel, actualiza (upsert)."""
+    clinic_id = empresa_clinic_id(ctx)
+    await _own_arancel(db, clinic_id, arancel_id)
+
+    texto = payload.contenido.strip()
+    sep = payload.separador or (";" if texto.splitlines()[0].count(";") > texto.splitlines()[0].count(",") else ",")
+    filas = list(csv.reader(io.StringIO(texto), delimiter=sep))
+    if not filas:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Archivo vacío")
+
+    if payload.tiene_encabezado:
+        cabecera = [_HEADER_ALIAS.get(c.strip().lower(), c.strip().lower()) for c in filas[0]]
+        datos = filas[1:]
+    else:
+        cabecera = _ORDEN_SIN_ENCABEZADO
+        datos = filas
+    idx = {campo: cabecera.index(campo) for campo in set(cabecera) if campo in ("codigo", "nombre", "precio", "categoria", "precio_referencia")}
+    if "nombre" not in idx or "precio" not in idx:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Faltan columnas obligatorias: nombre y precio")
+
+    # cache de categorías del arancel por nombre (crea las que falten)
+    cats = (await db.execute(select(ArancelCategoria).where(ArancelCategoria.arancel_id == arancel_id, ArancelCategoria.deleted_at.is_(None)))).scalars().all()
+    cat_by_nombre = {c.nombre.strip().lower(): c for c in cats}
+    items = (await db.execute(select(ArancelItem).where(ArancelItem.arancel_id == arancel_id, ArancelItem.deleted_at.is_(None)))).scalars().all()
+    item_by_codigo = {i.codigo: i for i in items if i.codigo}
+
+    creados = actualizados = 0
+    errores: list[ImportErrorItem] = []
+    base_fila = 2 if payload.tiene_encabezado else 1
+    for n, fila in enumerate(datos, start=base_fila):
+        if not any(c.strip() for c in fila):
+            continue
+        try:
+            nombre = fila[idx["nombre"]].strip()
+            if not nombre:
+                raise ValueError("nombre vacío")
+            precio = _parse_precio(fila[idx["precio"]])
+            codigo = fila[idx["codigo"]].strip() if "codigo" in idx and idx["codigo"] < len(fila) else None
+            codigo = codigo or None
+            categoria_id = None
+            if "categoria" in idx and idx["categoria"] < len(fila) and fila[idx["categoria"]].strip():
+                nom_cat = fila[idx["categoria"]].strip()
+                cat = cat_by_nombre.get(nom_cat.lower())
+                if cat is None:
+                    cat = ArancelCategoria(clinic_id=clinic_id, arancel_id=arancel_id, nombre=nom_cat)
+                    db.add(cat)
+                    await db.flush()
+                    cat_by_nombre[nom_cat.lower()] = cat
+                categoria_id = cat.id
+            pref = None
+            if "precio_referencia" in idx and idx["precio_referencia"] < len(fila) and fila[idx["precio_referencia"]].strip():
+                pref = _parse_precio(fila[idx["precio_referencia"]])
+
+            existente = item_by_codigo.get(codigo) if codigo else None
+            if existente is not None:
+                existente.nombre = nombre
+                existente.precio = precio
+                if categoria_id is not None:
+                    existente.categoria_id = categoria_id
+                if pref is not None:
+                    existente.precio_referencia = pref
+                actualizados += 1
+            else:
+                nuevo = ArancelItem(clinic_id=clinic_id, arancel_id=arancel_id, categoria_id=categoria_id, codigo=codigo, nombre=nombre, precio=precio, precio_referencia=pref)
+                db.add(nuevo)
+                if codigo:
+                    await db.flush()
+                    item_by_codigo[codigo] = nuevo
+                creados += 1
+        except (ValueError, IndexError) as exc:
+            errores.append(ImportErrorItem(fila=n, motivo=str(exc)))
+
+    await db.commit()
+    return ImportarArancelOut(creados=creados, actualizados=actualizados, total_filas=len(datos), errores=errores)
 
 
 # ─────────────────────────── acciones (62.9 / 62.15) ───────────────────────────

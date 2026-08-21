@@ -30,7 +30,18 @@ export function Aranceles() {
   };
 
   // ── sheets ──
-  const [sheet, setSheet] = useState<null | 'arancel' | 'item' | 'cat' | 'inc'>(null);
+  const [sheet, setSheet] = useState<null | 'arancel' | 'item' | 'cat' | 'inc' | 'import'>(null);
+  const [importTxt, setImportTxt] = useState('');
+  const [importRes, setImportRes] = useState<{ creados: number; actualizados: number; total_filas: number; errores: { fila: number; motivo: string }[] } | null>(null);
+
+  const importar = async () => {
+    if (!sel || !importTxt.trim()) return;
+    setSaving(true); setErr(null);
+    try { const r = await api.empresa.importarArancel(sel.id, importTxt); setImportRes(r); await recargar(); }
+    catch (e) { setErr(e instanceof ApiError ? String(e.detail) : 'No se pudo importar.'); }
+    finally { setSaving(false); }
+  };
+  const onCsvFile = (file: File) => { const r = new FileReader(); r.onload = () => setImportTxt(String(r.result)); r.readAsText(file); };
   const [aNombre, setANombre] = useState(''); const [aTipo, setATipo] = useState('particular'); const [aBase, setABase] = useState(false);
   const [cNombre, setCNombre] = useState('');
   const [pct, setPct] = useState('10');
@@ -138,6 +149,7 @@ export function Aranceles() {
         <button onClick={() => { setErr(null); setSheet('item'); }} className="rounded-full bg-teal text-white px-3 py-1.5 text-[12px] font-semibold">+ Prestación</button>
         <button onClick={() => setSheet('cat')} className="rounded-full border border-border bg-white px-3 py-1.5 text-[12px] font-semibold text-ink">+ Categoría</button>
         <button onClick={() => setSheet('inc')} className="rounded-full border border-border bg-white px-3 py-1.5 text-[12px] font-semibold text-ink">Incrementar %</button>
+        <button onClick={() => { setImportTxt(''); setImportRes(null); setSheet('import'); }} className="rounded-full border border-border bg-white px-3 py-1.5 text-[12px] font-semibold text-ink">Importar CSV</button>
         {!sel.es_base && <button onClick={copiarBase} className="rounded-full border border-border bg-white px-3 py-1.5 text-[12px] font-semibold text-ink">Copiar del base</button>}
         <button onClick={() => eliminarArancel(sel.id)} className="rounded-full border border-border bg-white px-3 py-1.5 text-[12px] font-semibold text-danger">Eliminar arancel</button>
       </div>
@@ -201,6 +213,28 @@ export function Aranceles() {
           <div className="text-[12.5px] text-sub">Ajusta todas las prestaciones de este arancel por un porcentaje. Usa negativo para bajar.</div>
           <input value={pct} onChange={(e) => setPct(e.target.value)} inputMode="numeric" placeholder="% (ej. 10 o -5)" className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
           <Button onClick={incrementar} disabled={saving} className="w-full">Aplicar {pct}%</Button>
+        </BottomSheet>
+      )}
+      {sheet === 'import' && (
+        <BottomSheet onClose={() => setSheet(null)}>
+          <div className="font-heading font-extrabold text-[17px] text-ink">Importar prestaciones (CSV)</div>
+          <div className="text-[12px] text-sub">Columnas: <b>código, nombre, precio, categoría, precio_referencia</b>. La primera fila son los títulos. Autocrea categorías; si el código ya existe, actualiza.</div>
+          <label className="text-[12.5px] font-semibold text-teal-dark cursor-pointer">
+            Elegir archivo .csv
+            <input type="file" accept=".csv,text/csv,text/plain" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onCsvFile(f); }} />
+          </label>
+          <textarea value={importTxt} onChange={(e) => setImportTxt(e.target.value)} rows={6} placeholder={'codigo,nombre,precio,categoria\nCB01,Consulta,25000,Consultas'}
+            className="w-full rounded-xl border-[1.5px] border-border-strong bg-white px-3 py-2.5 text-[12.5px] font-mono text-ink outline-none focus:border-teal resize-none" />
+          {err && <div className="text-xs text-danger">{err}</div>}
+          {importRes && (
+            <div className="rounded-xl bg-[#F6FBF9] px-3 py-2.5 text-[12.5px] text-ink">
+              ✅ {importRes.creados} creadas · {importRes.actualizados} actualizadas (de {importRes.total_filas} filas).
+              {importRes.errores.length > 0 && (
+                <div className="mt-1 text-danger text-[11.5px]">{importRes.errores.length} con error: {importRes.errores.slice(0, 3).map((e) => `fila ${e.fila}`).join(', ')}{importRes.errores.length > 3 ? '…' : ''}</div>
+              )}
+            </div>
+          )}
+          <Button onClick={importar} disabled={saving || !importTxt.trim()} className="w-full">{saving ? 'Importando…' : 'Importar'}</Button>
         </BottomSheet>
       )}
     </div>

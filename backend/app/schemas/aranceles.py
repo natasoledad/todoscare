@@ -91,3 +91,22 @@ class IncrementarOut(BaseModel):
 
 class CopiarBaseOut(BaseModel):
     copiados: int
+
+
+# ---- carga masiva (62.8) ----
+class ImportarArancelIn(BaseModel):
+    contenido: str = Field(min_length=1)          # texto CSV pegado o de archivo
+    separador: str | None = None                  # None = autodetecta (, o ;)
+    tiene_encabezado: bool = True
+
+
+class ImportErrorItem(BaseModel):
+    fila: int
+    motivo: str
+
+
+class ImportarArancelOut(BaseModel):
+    creados: int
+    actualizados: int
+    total_filas: int
+    errores: list[ImportErrorItem]
