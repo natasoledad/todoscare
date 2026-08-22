@@ -16,6 +16,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3",
     "python-multipart>=0.0.12",
     "gunicorn>=23.0",  # servidor de producción (workers uvicorn)
+    "pypdf>=5.0",  # extracción de texto de PDFs para la base de conocimiento (72)
 ]
 
 [project.optional-dependencies]

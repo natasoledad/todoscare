@@ -107,6 +107,8 @@ import type {
   Funcionario,
   Hospitalizacion,
   InfoEmpresa,
+  FuenteConocimiento,
+  FragmentoConocimiento,
   LedgerEntryAdmin,
   Liquidacion,
   Me,
@@ -440,6 +442,17 @@ export const api = {
     crearPromo: (body: { nombre: string; descuento?: string; segmento?: string; estado?: string }) => post<Promocion>('/empresa/promociones', body),
     editarPromo: (id: string, body: { estado?: string; nombre?: string; descuento?: string }) => patch<Promocion>(`/empresa/promociones/${id}`, body),
     eliminarPromo: (id: string) => del(`/empresa/promociones/${id}`),
+    // Base de conocimiento IA (72)
+    conocimiento: () => get<FuenteConocimiento[]>('/empresa/conocimiento'),
+    subirTextoConocimiento: (body: { nombre: string; texto: string }) => post<FuenteConocimiento>('/empresa/conocimiento/texto', body),
+    subirPdfConocimiento: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return request<FuenteConocimiento>('/empresa/conocimiento/pdf', { method: 'POST', body: form });
+    },
+    editarFuenteConocimiento: (id: string, body: { nombre?: string; activo?: boolean }) => patch<FuenteConocimiento>(`/empresa/conocimiento/${id}`, body),
+    eliminarFuenteConocimiento: (id: string) => del(`/empresa/conocimiento/${id}`),
+    buscarConocimiento: (consulta: string, k = 4) => post<{ resultados: FragmentoConocimiento[] }>('/empresa/conocimiento/buscar', { consulta, k }),
     info: () => get<InfoEmpresa>('/empresa/info'),
     editarInfo: (body: { razon_social?: string; responsable_sanitario?: string; logo?: string }) => patch<InfoEmpresa>('/empresa/info', body),
     funcionarios: () => get<Funcionario[]>('/empresa/funcionarios'),
