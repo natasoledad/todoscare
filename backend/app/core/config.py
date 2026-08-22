@@ -12,6 +12,12 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    # IA clínica (72.4): si hay API key, el conector lee el contenido real del
+    # documento con un modelo Claude; si está vacío, usa el heurístico.
+    anthropic_api_key: str = ""
+    ia_model: str = "claude-haiku-4-5-20251001"
+    ia_base_url: str = "https://api.anthropic.com"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
