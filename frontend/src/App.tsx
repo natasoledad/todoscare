@@ -64,6 +64,7 @@ const EmpresaAranceles = lazyNamed(() => import('./routes/empresa/Aranceles'), '
 const EmpresaPromociones = lazyNamed(() => import('./routes/empresa/Promociones'), 'Promociones');
 const EmpresaAgendas = lazyNamed(() => import('./routes/empresa/Agendas'), 'Agendas');
 const EmpresaInfo = lazyNamed(() => import('./routes/empresa/Info'), 'Info');
+const EmpresaConocimiento = lazyNamed(() => import('./routes/empresa/Conocimiento'), 'Conocimiento');
 const EmpresaFuncionarios = lazyNamed(() => import('./routes/empresa/Funcionarios'), 'Funcionarios');
 const EmpresaCrm = lazyNamed(() => import('./routes/empresa/Crm'), 'Crm');
 const CampanasEmpresa = lazyNamed(() => import('./routes/empresa/CampanasEmpresa'), 'CampanasEmpresa');
@@ -179,6 +180,7 @@ function App() {
                 <Route path="/empresa/aranceles" element={<EmpresaAranceles />} />
                 <Route path="/empresa/promociones" element={<EmpresaPromociones />} />
                 <Route path="/empresa/info" element={<EmpresaInfo />} />
+                <Route path="/empresa/conocimiento" element={<EmpresaConocimiento />} />
                 <Route path="/empresa/funcionarios" element={<EmpresaFuncionarios />} />
                 <Route path="/empresa/crm" element={<EmpresaCrm />} />
                 <Route path="/empresa/campanas" element={<CampanasEmpresa />} />

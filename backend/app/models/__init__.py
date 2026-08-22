@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     insurance,
     integrations,
     inventory,
+    knowledge,
     laboratory,
     patient,
     professional,

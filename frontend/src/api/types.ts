@@ -416,6 +416,20 @@ export interface PromocionPaciente {
   segmento: string | null;
 }
 
+export interface FuenteConocimiento {
+  id: string;
+  nombre: string;
+  tipo: string;
+  estado: string;
+  n_chunks: number;
+  activo: boolean;
+  fecha: string;
+}
+export interface FragmentoConocimiento {
+  fuente: string;
+  texto: string;
+  score: number;
+}
 export interface InfoEmpresa {
   clinic_id: string;
   razon_social: string;

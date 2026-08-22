@@ -46,6 +46,7 @@ const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string;
       { id: 'entidades-financieras', icon: '🏦', t: 'Bancos e Isapres', d: 'Catálogo de bancos y previsión (Fonasa/Isapre)' },
       { id: 'promociones', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },
       { id: 'info', icon: 'ℹ️', t: 'Información de la empresa', d: 'Datos, responsable, ubicaciones' },
+      { id: 'conocimiento', icon: '📚', t: 'Base de conocimiento IA', d: 'Sube PDFs y textos que la IA usará como fuente' },
       { id: 'funcionarios', icon: '👥', t: 'Funcionarios (B2B)', d: 'Nómina cubierta y planes' },
     ],
   },
