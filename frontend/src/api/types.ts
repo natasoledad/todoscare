@@ -1206,6 +1206,11 @@ export interface ChatIA {
   reply: string;
   accion: string | null;
 }
+export interface ConsultaIA {
+  respuesta: string;
+  fuentes: string[];
+  uso_ia: boolean;
+}
 export interface AgendarIA {
   agendada: boolean;
   appointment_id: string | null;

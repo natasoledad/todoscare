@@ -73,7 +73,7 @@ async def ingerir(
 
 
 async def buscar(
-    db: AsyncSession, clinic_id: uuid.UUID, consulta: str, k: int = 4, umbral: float = 0.04,
+    db: AsyncSession, clinic_id: uuid.UUID, consulta: str, k: int = 4, umbral: float = 0.10,
 ) -> list[tuple[float, KnowledgeChunk, KnowledgeSource]]:
     """Devuelve los k fragmentos más relevantes (score, chunk, fuente) de las
     fuentes activas de la clínica, por encima de un umbral mínimo."""

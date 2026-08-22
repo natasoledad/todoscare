@@ -16,10 +16,21 @@ import unicodedata
 DIM = 512
 
 
+# Palabras muy frecuentes en español que no aportan a la similitud (evitan
+# falsos positivos por coincidencia de conectores).
+_STOP = {
+    "de", "la", "el", "los", "las", "un", "una", "unos", "unas", "y", "o", "u", "que", "cual", "cuales",
+    "cuanto", "cuanta", "como", "para", "por", "con", "sin", "del", "al", "en", "es", "son", "ser", "esta",
+    "este", "esto", "esa", "ese", "eso", "se", "su", "sus", "mi", "tu", "lo", "le", "les", "me", "te", "nos",
+    "hay", "ha", "he", "si", "no", "mas", "pero", "porque", "cuando", "donde", "quien", "sobre", "entre",
+    "tambien", "muy", "ya", "fue", "han", "hasta", "desde", "cada", "todo", "toda", "todos", "todas",
+}
+
+
 def _tokens(texto: str) -> list[str]:
     t = unicodedata.normalize("NFD", (texto or "").lower())
     t = "".join(c for c in t if unicodedata.category(c) != "Mn")  # quita acentos
-    palabras = re.findall(r"[a-z0-9]{2,}", t)
+    palabras = [p for p in re.findall(r"[a-z0-9]{2,}", t) if p not in _STOP]
     # unigramas + bigramas (algo de contexto local)
     bigramas = [f"{palabras[i]}_{palabras[i + 1]}" for i in range(len(palabras) - 1)]
     return palabras + bigramas

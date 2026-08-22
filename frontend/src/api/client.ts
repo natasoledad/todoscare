@@ -29,6 +29,7 @@ import type {
   SugerenciaIA,
   RecordatorioIA,
   ChatIA,
+  ConsultaIA,
   AgendarIA,
   Proveedor,
   CentroCosto,
@@ -453,6 +454,7 @@ export const api = {
     editarFuenteConocimiento: (id: string, body: { nombre?: string; activo?: boolean }) => patch<FuenteConocimiento>(`/empresa/conocimiento/${id}`, body),
     eliminarFuenteConocimiento: (id: string) => del(`/empresa/conocimiento/${id}`),
     buscarConocimiento: (consulta: string, k = 4) => post<{ resultados: FragmentoConocimiento[] }>('/empresa/conocimiento/buscar', { consulta, k }),
+    consultarConocimiento: (pregunta: string) => post<ConsultaIA>('/empresa/conocimiento/consultar', { pregunta }),
     info: () => get<InfoEmpresa>('/empresa/info'),
     editarInfo: (body: { razon_social?: string; responsable_sanitario?: string; logo?: string }) => patch<InfoEmpresa>('/empresa/info', body),
     funcionarios: () => get<Funcionario[]>('/empresa/funcionarios'),
@@ -648,6 +650,7 @@ export const api = {
     descartar: (id: string) => post<SugerenciaIA>(`/ia/sugerencias/${id}/descartar`),
     recordatorios: () => get<RecordatorioIA[]>('/ia/recordatorios'),
     chat: (texto: string) => post<ChatIA>('/ia/chat', { texto }),
+    consultar: (pregunta: string) => post<ConsultaIA>('/ia/consultar', { pregunta }),
     agendar: (serviceId: string) => post<AgendarIA>('/ia/agendar', { service_id: serviceId }),
   },
 };

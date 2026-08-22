@@ -12,7 +12,9 @@ from app.models.knowledge import KnowledgeChunk, KnowledgeSource
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource
 from app.routers.empresa import empresa_clinic_id
+from app.integrations import asistente
 from app.schemas.conocimiento import BuscarIn, BuscarOut, FragmentoOut, FuenteOut, FuenteUpdate, TextoIn
+from app.schemas.ia import ConsultaIn, ConsultaOut
 from app.services import conocimiento
 from app.tenancy.context import TenantContext
 
@@ -120,3 +122,15 @@ async def buscar(
     clinic_id = empresa_clinic_id(ctx)
     hits = await conocimiento.buscar(db, clinic_id, payload.consulta, k=payload.k)
     return BuscarOut(resultados=[FragmentoOut(fuente=src.nombre, texto=ch.texto, score=round(score, 4)) for score, ch, src in hits])
+
+
+@router.post("/consultar", response_model=ConsultaOut)
+async def consultar(
+    payload: ConsultaIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.INFO_EMPRESA, Action.VER)),
+) -> ConsultaOut:
+    """Previsualiza la respuesta del asistente (como la vería el paciente)."""
+    clinic_id = empresa_clinic_id(ctx)
+    r = await asistente.responder(db, clinic_id, payload.pregunta)
+    return ConsultaOut(**r)
