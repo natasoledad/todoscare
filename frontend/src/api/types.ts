@@ -1147,6 +1147,35 @@ export interface CajaDetalle extends Caja {
   transacciones: MovimientoCaja[];
 }
 
+// ---- Copago chileno: coberturas complementarias (seguros + CCAF) ----
+export interface CoberturaCopago {
+  id: string;
+  tipo: string;         // seguro_complementario | caja_compensacion
+  nombre: string;
+  modalidad: string;    // porcentaje | monto
+  valor: number;        // fracción 0..1 si porcentaje; CLP si monto
+  tope: number | null;
+  deducible: number | null;
+  permite_cuotas: boolean;
+  activo: boolean;
+}
+
+export interface AporteCopago {
+  tipo: string;
+  nombre: string;
+  aporte: number;
+}
+
+export interface CalculoCopago {
+  precio: number;
+  bono_prevision: number;
+  prevision_pct: number | null;
+  copago_inicial: number;
+  aportes: AporteCopago[];
+  copago_final: number;
+  permite_cuotas: boolean;
+}
+
 // ---- Tanda 3: signos vitales + planes de tratamiento ----
 export interface SignosVitales {
   id: string;

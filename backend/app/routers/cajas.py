@@ -257,6 +257,7 @@ async def registrar_movimiento(
         referencia=payload.referencia,
         boleta=payload.boleta,
         glosa=payload.glosa,
+        coberturas_aplicadas=payload.coberturas_aplicadas,
     )
     db.add(mov)
     await db.flush()

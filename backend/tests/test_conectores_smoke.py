@@ -50,8 +50,8 @@ async def main() -> None:
         r = await client.get("/admin/conectores", headers=admin, params={"clinic_id": clinic_a})
         cat = r.json()
         tipos = {c["tipo"] for c in cat}
-        esperados = {"sii", "imed", "klap", "pix", "whatsapp", "meta", "tiktok", "google_business", "agenda_terceros", "telefono_ip", "email"}
-        check("admin ve el catálogo completo de conectores (11)", r.status_code == 200 and esperados <= tipos)
+        esperados = {"sii", "imed", "seguro_complementario", "caja_compensacion", "klap", "pix", "whatsapp", "meta", "tiktok", "google_business", "agenda_terceros", "telefono_ip", "email"}
+        check("admin ve el catálogo completo de conectores (13)", r.status_code == 200 and esperados <= tipos)
         tk = next(c for c in cat if c["tipo"] == "tiktok")
         check("cada conector expone sus campos con marca de secreto", any(f["secreto"] for f in tk["campos"]) and any(not f["secreto"] for f in tk["campos"]))
         check("un conector nuevo viene inactivo y sin configurar", tk["activo"] is False and tk["configurado"] is False and tk["campos_configurados"] == [])
