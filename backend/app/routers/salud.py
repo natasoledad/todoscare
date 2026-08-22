@@ -97,7 +97,7 @@ async def subir_examen(
     # documento y deja una sugerencia (parche de ficha + próximo control) que
     # el paciente confirmará. No auto-aplica: queda trazable y reversible.
     if await ia_clinica.config_activa(db, patient.clinic_id):
-        analisis = ia_clinica.analizar_examen(file.filename or "")
+        analisis = await ia_clinica.analizar_examen(file.filename or "", contenido=contents, content_type=file.content_type)
         meses = analisis["proximo_control_meses"]
         proximo = (datetime.now(timezone.utc).date() + timedelta(days=30 * meses))
         db.add(AiFichaSuggestion(
