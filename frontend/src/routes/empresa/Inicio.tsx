@@ -44,6 +44,7 @@ const SECCIONES: { titulo: string; items: { id: string; icon: string; t: string;
       { id: 'laboratorios', icon: '🦷', t: 'Laboratorios', d: 'Labs dentales, prestaciones (costo/precio) y órdenes' },
       { id: 'medios-pago', icon: '💳', t: 'Medios de pago', d: 'Retención, facturable, devolución y cuotas' },
       { id: 'entidades-financieras', icon: '🏦', t: 'Bancos e Isapres', d: 'Catálogo de bancos y previsión (Fonasa/Isapre)' },
+      { id: 'copago', icon: '🧮', t: 'Coberturas de copago', d: 'Seguros complementarios y cajas de compensación (CCAF)' },
       { id: 'promociones', icon: '📣', t: 'Promociones', d: 'Ofertas para pacientes' },
       { id: 'info', icon: 'ℹ️', t: 'Información de la empresa', d: 'Datos, responsable, ubicaciones' },
       { id: 'conocimiento', icon: '📚', t: 'Base de conocimiento IA', d: 'Sube PDFs y textos que la IA usará como fuente' },

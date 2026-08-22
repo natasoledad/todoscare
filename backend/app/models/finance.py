@@ -160,3 +160,8 @@ class CashPayment(Base, AuditMixin, TenantMixin):
     anulado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     anulado_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     motivo_anulacion: Mapped[str | None] = mapped_column(String(255))
+    # Desglose del copago chileno (cascada de coberturas): lista de aportes
+    # {tipo, nombre, aporte} de previsión/seguro complementario/CCAF que
+    # llevaron del precio al copago final. `monto` es el copago que paga el
+    # paciente; esto es la traza de cómo se calculó.
+    coberturas_aplicadas: Mapped[list | None] = mapped_column(JSONB)

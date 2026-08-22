@@ -156,6 +156,8 @@ import type {
   Conector,
   ProbarConector,
   TrazaConector,
+  CoberturaCopago,
+  CalculoCopago,
 } from './types';
 
 const TOKEN_KEY = 'todoscare_token';
@@ -490,6 +492,17 @@ export const api = {
     gastos: (period?: string) => get<GastosResumen>(`/empresa/cajas/reportes/gastos${period ? `?period=${period}` : ''}`),
     // anulación auditada de pagos (67)
     anularPago: (paymentId: string, motivo?: string) => post<unknown>(`/empresa/cajas/pagos/${paymentId}/anular`, motivo ? { motivo } : {}),
+  },
+  // Copago chileno: coberturas complementarias (seguros + CCAF) + cascada
+  copago: {
+    coberturas: () => get<CoberturaCopago[]>('/empresa/copago/coberturas'),
+    crearCobertura: (body: { tipo: string; nombre: string; modalidad: string; valor: number; tope?: number | null; deducible?: number | null; permite_cuotas?: boolean }) =>
+      post<CoberturaCopago>('/empresa/copago/coberturas', body),
+    editarCobertura: (id: string, body: Partial<{ nombre: string; modalidad: string; valor: number; tope: number | null; deducible: number | null; permite_cuotas: boolean; activo: boolean }>) =>
+      patch<CoberturaCopago>(`/empresa/copago/coberturas/${id}`, body),
+    eliminarCobertura: (id: string) => del(`/empresa/copago/coberturas/${id}`),
+    calcular: (body: { precio: number; prevision_pct?: number; prevision_bono?: number | null; cobertura_ids: string[] }) =>
+      post<CalculoCopago>('/empresa/copago/calcular', body),
   },
   tributario: {
     tipos: () => get<TributarioTipos>('/tributario/tipos'),

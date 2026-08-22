@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.routers import admin, agenda, aranceles, aseguradora, auth, cajas, conocimiento, crm, crm_gestion, empresa, farmacia, ia, integraciones, inventario, labs, medico, patients, public, reportes, salud, tributario, wallet
+from app.routers import admin, agenda, aranceles, aseguradora, auth, cajas, conocimiento, copago, crm, crm_gestion, empresa, farmacia, ia, integraciones, inventario, labs, medico, patients, public, reportes, salud, tributario, wallet
 
 app = FastAPI(title="TODOSCARE API", version="0.1.0")
 
@@ -27,6 +27,7 @@ app.include_router(wallet.router)
 app.include_router(medico.router)
 app.include_router(empresa.router)
 app.include_router(cajas.router)
+app.include_router(copago.router)
 app.include_router(aranceles.router)
 app.include_router(conocimiento.router)
 app.include_router(inventario.router)

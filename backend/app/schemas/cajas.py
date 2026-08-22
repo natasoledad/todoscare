@@ -35,6 +35,10 @@ class MovimientoIn(BaseModel):
     exento: bool = False  # (Chile) el pago corresponde a una prestación exenta de IVA
     receptor_tax_id: str | None = None
     receptor_nombre: str | None = None
+    # Desglose del copago chileno: los aportes {tipo, nombre, aporte} de la
+    # cascada (previsión → seguro complementario → CCAF) que llevaron a `monto`.
+    # Opcional; se guarda como traza en el pago para conciliación.
+    coberturas_aplicadas: list[dict] | None = None
 
 
 class MovimientoOut(BaseModel):
