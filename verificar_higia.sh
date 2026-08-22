@@ -37,6 +37,28 @@ code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$API/empresa/report
 # 5) HTTPS/certificado válido
 curl -fsS --max-time 15 -o /dev/null "$BASE/" 2>/dev/null && check "Certificado HTTPS válido" 0 || check "Certificado HTTPS válido" 1 "curl no validó TLS"
 
+# 6) LOGIN vivo: con credenciales basura el endpoint debe responder 401/422
+#    (NO 000/502/404). Esto separa "backend caído / mal ruteado" de "clave mala".
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -X POST "$API/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"__probe__@higia.cl","password":"__no_existe__"}' 2>/dev/null || echo 000)
+case "$code" in
+  401|422) check "Login responde (POST /api/auth/login) -> $code (endpoint sano)" 0 ;;
+  200)     check "Login responde -> 200 (¡ojo! credenciales de prueba aceptadas?)" 1 "revisar" ;;
+  000)     check "Login responde" 1 "sin respuesta (backend caído o TLS)" ;;
+  *)       check "Login responde (POST /api/auth/login)" 1 "HTTP $code (se esperaba 401/422)" ;;
+esac
+
+# 7) Conectores Bloque D (PR-AP): endpoint con auth -> 401/403 sin token
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$API/admin/conectores?clinic_id=00000000-0000-0000-0000-000000000000" 2>/dev/null || echo 000)
+{ [ "$code" = "401" ] || [ "$code" = "403" ]; } && check "Conectores Bloque D desplegados (/api/admin/conectores) -> $code" 0 \
+  || check "Conectores Bloque D desplegados" 1 "HTTP $code (se esperaba 401/403; 404 = falta deploy)"
+
+# 8) Copago chileno (PR-AQ): endpoint con auth -> 401/403 sin token
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$API/empresa/copago/coberturas" 2>/dev/null || echo 000)
+{ [ "$code" = "401" ] || [ "$code" = "403" ]; } && check "Copago (seguros compl. + CCAF) desplegado (/api/empresa/copago) -> $code" 0 \
+  || check "Copago (seguros compl. + CCAF) desplegado" 1 "HTTP $code (se esperaba 401/403; 404 = falta deploy)"
+
 echo
 if [ "$fail" -eq 0 ]; then echo -e "${G}✅ Todo OK ($ok chequeos).${N}"
 else echo -e "${R}✖ $fail chequeo(s) con problema, $ok OK.${N}"; fi
