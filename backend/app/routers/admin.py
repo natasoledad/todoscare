@@ -1,3 +1,5 @@
+import base64
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -7,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import hash_password
+from app.integrations import catalogo
+from app.integrations.base import log_event
 from app.models.finance import LedgerEntry, PaymentSplit, Plan
 from app.models.identity import (
     PermissionOverride,
@@ -16,7 +20,7 @@ from app.models.identity import (
     User,
     UserPermissionProfile,
 )
-from app.models.integrations import AuditLog, IntegrationConfig
+from app.models.integrations import AuditLog, IntegrationConfig, IntegrationEvent
 from app.models.patient import Patient, TycVersion
 from app.models.scheduling import Appointment
 from app.models.tenant import Branch, Clinic
@@ -37,6 +41,12 @@ from app.schemas.admin import (
     IntegracionOut,
     IntegracionUpdate,
     LedgerEntryOut,
+    ConectorCampo,
+    ConectorConfigIn,
+    ConectorOut,
+    ProbarConectorIn,
+    ProbarConectorOut,
+    TrazaConectorOut,
     PerfilAccesoIn,
     PerfilAccesoOut,
     PerfilAccesoUpdate,
@@ -780,3 +790,178 @@ async def quitar_perfil(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "El usuario no tiene perfil asignado en esta clínica")
     await db.delete(upp)
     await db.commit()
+
+
+# ═══════════════════════ Conectores externos (Bloque D) ═══════════════════════
+# Catálogo de hookpoints (SII, I-Med, Klap, Pix, WhatsApp, Meta, TikTok, Google
+# Empresas, agenda de terceros, teléfono IP, correo). El admin activa el conector
+# y guarda sus credenciales por clínica; el transporte real se enchufa cuando
+# exista contrato/credenciales — hoy la prueba es simulada y queda en la traza.
+
+
+def _cred_encode(datos: dict) -> str:
+    """Cifrado de aplicación (placeholder reversible): base64 de JSON. La
+    columna solo almacena este texto, nunca el valor en claro directamente."""
+    return base64.b64encode(json.dumps(datos, ensure_ascii=False).encode("utf-8")).decode("ascii")
+
+
+def _cred_decode(texto: str | None) -> dict:
+    if not texto:
+        return {}
+    try:
+        return json.loads(base64.b64decode(texto.encode("ascii")).decode("utf-8"))
+    except Exception:
+        return {}
+
+
+def _campos_secretos(tipo: str) -> set[str]:
+    meta = catalogo.por_tipo(tipo)
+    return {c["clave"] for c in meta["campos"] if c.get("secreto")} if meta else set()
+
+
+def _conector_out(meta: dict, cfg: IntegrationConfig | None) -> ConectorOut:
+    creds = _cred_decode(cfg.credenciales if cfg else None)
+    claves = [c["clave"] for c in meta["campos"]]
+    configurados = [k for k in claves if creds.get(k)]
+    return ConectorOut(
+        tipo=meta["tipo"],
+        nombre=meta["nombre"],
+        categoria=meta["categoria"],
+        descripcion=meta["descripcion"],
+        direccion=meta["direccion"],
+        campos=[ConectorCampo(clave=c["clave"], label=c["label"], secreto=c.get("secreto", False)) for c in meta["campos"]],
+        activo=bool(cfg.activo) if cfg else False,
+        configurado=len(configurados) > 0,
+        campos_configurados=configurados,
+    )
+
+
+async def _cfg_por_tipo(db: AsyncSession, clinic_id: uuid.UUID, tipo: str) -> IntegrationConfig | None:
+    return (
+        await db.execute(
+            select(IntegrationConfig).where(
+                IntegrationConfig.clinic_id == clinic_id,
+                IntegrationConfig.tipo == tipo,
+                IntegrationConfig.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+
+
+@router.get("/conectores", response_model=list[ConectorOut])
+async def list_conectores(
+    clinic_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.INTEGRACIONES, Action.VER)),
+) -> list[ConectorOut]:
+    """Catálogo completo fusionado con el estado por clínica (activo, si tiene
+    credenciales y qué claves están cargadas — nunca el valor secreto)."""
+    assert_clinic_in_scope(ctx, clinic_id)
+    q = select(IntegrationConfig).where(
+        IntegrationConfig.clinic_id == clinic_id, IntegrationConfig.deleted_at.is_(None)
+    )
+    por_tipo = {c.tipo: c for c in (await db.execute(q)).scalars().all()}
+    return [_conector_out(meta, por_tipo.get(meta["tipo"])) for meta in catalogo.CONECTORES]
+
+
+@router.put("/conectores/{tipo}", response_model=ConectorOut)
+async def configurar_conector(
+    tipo: str,
+    payload: ConectorConfigIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.INTEGRACIONES, Action.EDITAR)),
+) -> ConectorOut:
+    """Activa/desactiva y guarda credenciales de un conector para la clínica.
+    Las credenciales se fusionan con las existentes (enviar solo lo que cambia)
+    y se almacenan cifradas; los campos vacíos se ignoran."""
+    meta = catalogo.por_tipo(tipo)
+    if meta is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Conector desconocido: {tipo}")
+    assert_clinic_in_scope(ctx, payload.clinic_id)
+    validas = {c["clave"] for c in meta["campos"]}
+    entrantes = payload.credenciales or {}
+    desconocidas = set(entrantes) - validas
+    if desconocidas:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Campos no válidos para '{tipo}': {', '.join(sorted(desconocidas))}")
+
+    cfg = await _cfg_por_tipo(db, payload.clinic_id, tipo)
+    if cfg is None:
+        cfg = IntegrationConfig(clinic_id=payload.clinic_id, tipo=tipo, activo=False)
+        db.add(cfg)
+    creds = _cred_decode(cfg.credenciales)
+    for k, v in entrantes.items():
+        if v is None or v == "":
+            creds.pop(k, None)
+        else:
+            creds[k] = v
+    cfg.credenciales = _cred_encode(creds) if creds else None
+    if payload.activo is not None:
+        cfg.activo = payload.activo
+    await db.commit()
+    await db.refresh(cfg)
+    return _conector_out(meta, cfg)
+
+
+@router.post("/conectores/{tipo}/probar", response_model=ProbarConectorOut)
+async def probar_conector(
+    tipo: str,
+    payload: ProbarConectorIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.INTEGRACIONES, Action.EDITAR)),
+) -> ProbarConectorOut:
+    """Prueba de conexión (simulada). Si faltan credenciales o el conector está
+    apagado, avisa; en caso contrario asienta un evento en la traza para dejar
+    constancia de que el hookpoint respondería (transporte real pendiente)."""
+    meta = catalogo.por_tipo(tipo)
+    if meta is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Conector desconocido: {tipo}")
+    assert_clinic_in_scope(ctx, payload.clinic_id)
+    cfg = await _cfg_por_tipo(db, payload.clinic_id, tipo)
+    creds = _cred_decode(cfg.credenciales if cfg else None)
+    faltan = [c["clave"] for c in meta["campos"] if not creds.get(c["clave"])]
+    if cfg is None or not cfg.activo:
+        return ProbarConectorOut(ok=False, simulado=True, mensaje="El conector está desactivado. Actívalo antes de probar.")
+    if faltan:
+        return ProbarConectorOut(ok=False, simulado=True, mensaje=f"Faltan credenciales: {', '.join(faltan)}")
+    direccion = "outbound" if meta["direccion"] == "saliente" else "inbound"
+    log_event(
+        db,
+        clinic_id=payload.clinic_id,
+        tipo=tipo,
+        direccion=direccion,
+        estado="procesado",
+        ref="prueba",
+        payload={"accion": "probar"},
+        resultado={"ok": True, "simulado": True},
+    )
+    await db.commit()
+    return ProbarConectorOut(ok=True, simulado=True, mensaje=f"Conexión simulada correcta con {meta['nombre']}. El transporte real se activará al enchufar el contrato.")
+
+
+@router.get("/conectores/{tipo}/traza", response_model=list[TrazaConectorOut])
+async def traza_conector(
+    tipo: str,
+    clinic_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.INTEGRACIONES, Action.VER)),
+) -> list[TrazaConectorOut]:
+    """Últimos eventos (entrada/salida) del conector para la clínica."""
+    if catalogo.por_tipo(tipo) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Conector desconocido: {tipo}")
+    assert_clinic_in_scope(ctx, clinic_id)
+    rows = (
+        await db.execute(
+            select(IntegrationEvent)
+            .where(
+                IntegrationEvent.clinic_id == clinic_id,
+                IntegrationEvent.tipo == tipo,
+                IntegrationEvent.deleted_at.is_(None),
+            )
+            .order_by(IntegrationEvent.created_at.desc())
+            .limit(50)
+        )
+    ).scalars().all()
+    return [
+        TrazaConectorOut(direccion=e.direccion, estado=e.estado, ref=e.ref, resultado=e.resultado, fecha=e.created_at)
+        for e in rows
+    ]

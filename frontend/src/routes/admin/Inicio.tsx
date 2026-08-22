@@ -15,6 +15,7 @@ const MODULES = [
   { id: 'finanzas', icon: '📊', t: 'Finanzas y reportes', d: 'Ledger inmutable y split' },
   { id: 'auditoria', icon: '🔒', t: 'Auditoría', d: 'Accesos y cambios (metadatos)' },
   { id: 'integraciones', icon: '🔌', t: 'Integraciones', d: 'Conectores externos y su traza' },
+  { id: 'conectores', icon: '🔗', t: 'Conectores (Bloque D)', d: 'SII, I-Med, Klap, Pix, WhatsApp, Meta, correo…' },
 ];
 
 function Kpi({ label, value }: { label: string; value: string }) {
