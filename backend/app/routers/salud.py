@@ -15,10 +15,14 @@ from app.models.identity import User
 from app.rbac.deps import require, require_any_medico
 from app.rbac.permissions import Action, Resource
 from app.routers.patients import get_own_patient
+from app.models.tenant import Clinic
 from app.schemas.salud import (
     DocumentoPacienteOut,
     EmergencyQrOut,
     ExamenOut,
+    FichaExportDoc,
+    FichaExportExamen,
+    FichaExportOut,
     HospitalizacionOut,
     OdontogramaOut,
     QrAccessLogOut,
@@ -31,6 +35,53 @@ router = APIRouter(prefix="/salud", tags=["salud"])
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+
+@router.get("/ficha", response_model=FichaExportOut)
+async def exportar_ficha(
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.OWN_MEDICAL_RECORD, Action.VER)),
+) -> FichaExportOut:
+    """El paciente descarga su ficha consolidada desde su propio login (72.2):
+    datos personales y de previsión, ficha de ingreso, exámenes y documentos."""
+    patient = await get_own_patient(db, ctx)
+    user = await db.get(User, patient.user_id)
+    clinic = await db.get(Clinic, patient.clinic_id)
+
+    ex_rows = (
+        await db.execute(
+            select(ExamOrder, ExamResult)
+            .join(ExamResult, ExamResult.order_id == ExamOrder.id, isouter=True)
+            .where(ExamOrder.patient_id == patient.id, ExamOrder.deleted_at.is_(None))
+            .order_by(ExamOrder.created_at.desc())
+        )
+    ).all()
+    examenes = [
+        FichaExportExamen(
+            nombre=(r.resultado or {}).get("nombre", o.tipo.capitalize()) if r else o.tipo.capitalize(),
+            fecha=o.created_at, estado=(r.estado if r else o.estado),
+        )
+        for o, r in ex_rows
+    ]
+
+    doc_rows = (
+        await db.execute(
+            select(ClinicalDocument).where(
+                ClinicalDocument.patient_id == patient.id, ClinicalDocument.estado == "emitido", ClinicalDocument.deleted_at.is_(None)
+            ).order_by(ClinicalDocument.created_at.desc())
+        )
+    ).scalars().all()
+    documentos = [FichaExportDoc(titulo=d.titulo, tipo=d.tipo, fecha=d.created_at) for d in doc_rows]
+
+    return FichaExportOut(
+        nombre=user.nombre if user else "",
+        rut=patient.rut,
+        clinica=clinic.razon_social if clinic else None,
+        prevision=patient.prevision, prevision_nombre=patient.prevision_nombre, tramo_fonasa=patient.tramo_fonasa,
+        nacionalidad=patient.nacionalidad, comuna=patient.comuna, ges=patient.ges, ges_detalle=patient.ges_detalle,
+        ficha=patient.ficha or {},
+        examenes=examenes, documentos=documentos, generado=datetime.now(timezone.utc),
+    )
 
 
 @router.get("/examenes", response_model=list[ExamenOut])

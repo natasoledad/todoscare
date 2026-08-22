@@ -94,6 +94,7 @@ import type {
   EmergencyQr,
   EmpresaKpis,
   Examen,
+  FichaExport,
   FichaAfiliado,
   FichaPaciente,
   DatosCl,
@@ -236,6 +237,7 @@ export const api = {
     cancelar: (id: string) => patch<Cita>(`/agenda/${id}/cancelar`),
   },
   salud: {
+    exportarFicha: () => get<FichaExport>('/salud/ficha'),
     examenes: () => get<Examen[]>('/salud/examenes'),
     subirExamen: (file: File) => {
       const form = new FormData();
