@@ -67,6 +67,33 @@ export function Ficha() {
 
   const complete = FIELDS.every((f) => !!(values[f.key] as string | undefined)?.trim());
 
+  const descargar = async () => {
+    const f = await api.salud.exportarFicha();
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const esc = (s: unknown) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+    const fila = (k: string, v: unknown) => (v ? `<tr><td class="k">${esc(k)}</td><td>${esc(v)}</td></tr>` : '');
+    const prev = f.prevision ? `${f.prevision}${f.prevision_nombre ? ' · ' + f.prevision_nombre : ''}${f.tramo_fonasa ? ' (' + f.tramo_fonasa + ')' : ''}` : '';
+    const fichaRows = Object.entries(f.ficha || {}).map(([k, v]) => fila(k.replace(/_/g, ' '), v)).join('');
+    const exFilas = f.examenes.map((e) => `<tr><td>${esc(e.nombre)}</td><td>${fechaCorta(e.fecha)}</td><td>${esc(e.estado)}</td></tr>`).join('');
+    const docFilas = f.documentos.map((d) => `<tr><td>${esc(d.titulo)}</td><td>${esc(d.tipo)}</td><td>${fechaCorta(d.fecha)}</td></tr>`).join('');
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Mi ficha</title>
+      <style>body{font-family:system-ui,Arial,sans-serif;color:#1a2b28;padding:28px;max-width:720px;margin:auto}
+      h1{font-size:20px;margin:0 0 2px} h3{font-size:14px;margin:18px 0 6px} .sub{color:#5b6b67;font-size:13px}
+      table{width:100%;border-collapse:collapse;margin-top:6px;font-size:13px} th,td{border-bottom:1px solid #e3e8e6;padding:6px;text-align:left}
+      th{color:#5b6b67;font-weight:600} td.k{color:#5b6b67;text-transform:capitalize;width:40%}</style></head><body>
+      <h1>Ficha clínica — ${esc(f.nombre)}</h1>
+      <div class="sub">RUT ${esc(f.rut)}${f.clinica ? ' · ' + esc(f.clinica) : ''} · Generada ${new Date(f.generado).toLocaleString('es-CL')}</div>
+      <h3>Previsión y datos</h3><table>
+        ${fila('Previsión', prev)}${fila('Comuna', f.comuna)}${fila('Nacionalidad', f.nacionalidad)}${f.ges ? fila('GES', f.ges_detalle || 'Sí') : ''}
+      </table>
+      ${fichaRows ? `<h3>Ficha de ingreso</h3><table>${fichaRows}</table>` : ''}
+      ${exFilas ? `<h3>Exámenes</h3><table><thead><tr><th>Examen</th><th>Fecha</th><th>Estado</th></tr></thead><tbody>${exFilas}</tbody></table>` : ''}
+      ${docFilas ? `<h3>Documentos</h3><table><thead><tr><th>Documento</th><th>Tipo</th><th>Fecha</th></tr></thead><tbody>${docFilas}</tbody></table>` : ''}
+      <script>window.onload=function(){window.print()}</script></body></html>`);
+    win.document.close();
+  };
+
   const save = async () => {
     setSaving(true);
     setError(null);
@@ -86,6 +113,7 @@ export function Ficha() {
     <div className="h-full flex flex-col">
       <BackHeader title="Ficha clínica" onBack={() => navigate('/app/salud')} />
       <div className="flex-1 overflow-y-auto scrollhide px-5 pt-4 pb-6 flex flex-col gap-3">
+        <Button onClick={descargar} variant="outline" className="w-full">⬇ Descargar mi ficha</Button>
         <SugerenciasIA onApplied={() => { refreshMe(); setValues((patient?.ficha as FichaUpdateInput) || {}); }} />
         {(values as Record<string, string>).proximo_control && (
           <div className="rounded-2xl border border-border bg-white p-3.5 text-[12.5px] text-ink">

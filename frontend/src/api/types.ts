@@ -748,6 +748,22 @@ export interface Cita {
   ubicacion: string;
 }
 
+export interface FichaExport {
+  nombre: string;
+  rut: string;
+  clinica: string | null;
+  prevision: string | null;
+  prevision_nombre: string | null;
+  tramo_fonasa: string | null;
+  nacionalidad: string | null;
+  comuna: string | null;
+  ges: boolean;
+  ges_detalle: string | null;
+  ficha: Record<string, unknown>;
+  examenes: { nombre: string; fecha: string; estado: string }[];
+  documentos: { titulo: string; tipo: string; fecha: string }[];
+  generado: string;
+}
 export interface Examen {
   id: string;
   nombre: string;
