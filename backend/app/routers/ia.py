@@ -30,11 +30,14 @@ from app.models.tenant import Branch
 from app.rbac.deps import require
 from app.rbac.permissions import Action, Resource
 from app.routers.patients import get_own_patient
+from app.integrations import asistente
 from app.schemas.ia import (
     AgendarIAIn,
     AgendarIAOut,
     ChatIn,
     ChatOut,
+    ConsultaIn,
+    ConsultaOut,
     FichaAplicadaOut,
     RecordatorioOut,
     SugerenciaIAOut,
@@ -191,6 +194,23 @@ async def chat(
               ref=f"user:{ctx.user_id}", payload={"texto": body.texto, "intent": intent}, resultado={"reply": reply})
     await db.commit()
     return ChatOut(intent=intent, reply=reply, accion=accion)
+
+
+@router.post("/consultar", response_model=ConsultaOut)
+async def consultar(
+    body: ConsultaIn,
+    db: AsyncSession = Depends(get_db),
+    ctx: TenantContext = Depends(require(Resource.OWN_MEDICAL_RECORD, Action.VER)),
+) -> ConsultaOut:
+    """El paciente le pregunta al asistente; responde con la base de conocimiento
+    de su clínica (RAG), citando fuentes y con guardrails (72)."""
+    patient = await get_own_patient(db, ctx)
+    await ensure_enabled(db, patient.clinic_id, ia_clinica.TIPO)
+    r = await asistente.responder(db, patient.clinic_id, body.pregunta)
+    log_event(db, clinic_id=patient.clinic_id, tipo=ia_clinica.TIPO, direccion="inbound",
+              ref=f"user:{ctx.user_id}", payload={"pregunta": body.pregunta}, resultado={"fuentes": r["fuentes"], "uso_ia": r["uso_ia"]})
+    await db.commit()
+    return ConsultaOut(**r)
 
 
 @router.post("/agendar", response_model=AgendarIAOut, status_code=status.HTTP_201_CREATED)

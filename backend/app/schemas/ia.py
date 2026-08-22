@@ -51,3 +51,14 @@ class AgendarIAOut(BaseModel):
     inicio: datetime | None
     fin: datetime | None
     mensaje: str
+
+
+# ---- consulta a la base de conocimiento (RAG, 72) ----
+class ConsultaIn(BaseModel):
+    pregunta: str = Field(min_length=1)
+
+
+class ConsultaOut(BaseModel):
+    respuesta: str
+    fuentes: list[str]
+    uso_ia: bool

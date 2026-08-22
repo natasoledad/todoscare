@@ -25,8 +25,22 @@ export function Asistente() {
     setTexto('');
     setEnviando(true);
     try {
-      const r = await api.ia.chat(q);
-      setMsgs((m) => [...m, { de: 'bot', texto: r.reply }]);
+      // Primero la base de conocimiento de la clínica (RAG); si hay material
+      // relevante, respondemos con eso citando la fuente. Si no, el asistente
+      // de acciones (próxima cita, agendar, ficha).
+      let respondido = false;
+      try {
+        const c = await api.ia.consultar(q);
+        if (c.fuentes.length > 0) {
+          const fuente = c.fuentes.length ? `\n\n📚 Fuente: ${c.fuentes.join(', ')}` : '';
+          setMsgs((m) => [...m, { de: 'bot', texto: c.respuesta + fuente }]);
+          respondido = true;
+        }
+      } catch { /* conector apagado o sin base: seguimos con el asistente de acciones */ }
+      if (!respondido) {
+        const r = await api.ia.chat(q);
+        setMsgs((m) => [...m, { de: 'bot', texto: r.reply }]);
+      }
     } catch (e) {
       setMsgs((m) => [...m, { de: 'bot', texto: e instanceof ApiError ? String(e.detail) : 'No pude responder ahora.' }]);
     } finally {

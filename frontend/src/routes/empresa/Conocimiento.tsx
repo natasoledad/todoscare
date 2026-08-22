@@ -18,6 +18,7 @@ export function Conocimiento() {
   const [error, setError] = useState<string | null>(null);
   const [consulta, setConsulta] = useState('');
   const [hits, setHits] = useState<FragmentoConocimiento[]>([]);
+  const [respuesta, setRespuesta] = useState<string | null>(null);
 
   const load = () => api.empresa.conocimiento().then(setFuentes).catch(() => setFuentes([]));
   useEffect(() => { load(); }, []);
@@ -38,9 +39,15 @@ export function Conocimiento() {
   const borrar = async (id: string) => { await api.empresa.eliminarFuenteConocimiento(id); await load(); };
   const buscar = async () => {
     if (!consulta.trim()) return;
-    setBusy(true);
-    try { const r = await api.empresa.buscarConocimiento(consulta.trim()); setHits(r.resultados); }
-    finally { setBusy(false); }
+    setBusy(true); setRespuesta(null);
+    try {
+      const [r, a] = await Promise.all([
+        api.empresa.buscarConocimiento(consulta.trim()),
+        api.empresa.consultarConocimiento(consulta.trim()).catch(() => null),
+      ]);
+      setHits(r.resultados);
+      setRespuesta(a?.respuesta ?? null);
+    } finally { setBusy(false); }
   };
 
   return (
@@ -99,7 +106,14 @@ export function Conocimiento() {
               className="flex-1 rounded-xl border-[1.5px] border-border-strong bg-white px-3.5 py-3 text-sm text-ink outline-none focus:border-teal" />
             <Button onClick={buscar} disabled={busy || !consulta.trim()} className="shrink-0">Buscar</Button>
           </div>
-          <div className="flex flex-col gap-2 max-h-[45vh] overflow-y-auto scrollhide">
+          {respuesta && (
+            <div className="rounded-xl border border-teal/40 bg-[#F0FBF7] px-3 py-2.5">
+              <div className="text-[10.5px] font-semibold text-teal-dark mb-1">Respuesta del asistente (así la vería el paciente)</div>
+              <div className="text-[12.5px] text-ink whitespace-pre-line">{respuesta}</div>
+            </div>
+          )}
+          <div className="text-[11px] font-semibold text-sub mt-1">Fragmentos recuperados</div>
+          <div className="flex flex-col gap-2 max-h-[35vh] overflow-y-auto scrollhide">
             {hits.length === 0 && <div className="text-[12px] text-sub">Sin resultados todavía.</div>}
             {hits.map((h, i) => (
               <div key={i} className="rounded-xl bg-[#F6FBF9] px-3 py-2.5">

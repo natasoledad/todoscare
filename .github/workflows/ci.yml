@@ -36,7 +36,7 @@ jobs:
       - name: Pruebas de humo (40 suites, BD limpia por suite)
         run: |
           set -e
-          for suite in rbac paciente medico empresa admin crm aseguradora integraciones agenda_gerencia cajas clinico desempeno docs_perio crm_gestion tributario recintos especialidades estado_profesional horario_recurrente bloqueos_agenda comision liquidacion medios_pago anulacion entidades gastos aranceles ficha_financiera agenda_online timeline ia_clinica inventario_base inventario_movimientos labs_catalogo labs_ordenes agenda_dashboard prepago documentos reportes permisos perfiles editar_usuario firma cie10 odontograma periodontograma presupuesto evoluciones fichas_esp vademecum logo aranceles_import datos_cl ia_lectura descargar_ficha conocimiento; do
+          for suite in rbac paciente medico empresa admin crm aseguradora integraciones agenda_gerencia cajas clinico desempeno docs_perio crm_gestion tributario recintos especialidades estado_profesional horario_recurrente bloqueos_agenda comision liquidacion medios_pago anulacion entidades gastos aranceles ficha_financiera agenda_online timeline ia_clinica inventario_base inventario_movimientos labs_catalogo labs_ordenes agenda_dashboard prepago documentos reportes permisos perfiles editar_usuario firma cie10 odontograma periodontograma presupuesto evoluciones fichas_esp vademecum logo aranceles_import datos_cl ia_lectura descargar_ficha conocimiento chat_conocimiento; do
             echo "── $suite ──"
             # Cada suite asume el estado del seed; reseteamos el esquema entre suites.
             alembic downgrade base
