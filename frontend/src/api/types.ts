@@ -1051,6 +1051,40 @@ export interface IntegracionesEstado {
   eventos_recientes: IntegracionEvento[];
 }
 
+// Conectores externos del Bloque D (SII, I-Med, Klap, Pix, WhatsApp, Meta,
+// TikTok, Google Empresas, agenda de terceros, teléfono IP, correo).
+export interface ConectorCampo {
+  clave: string;
+  label: string;
+  secreto: boolean;
+}
+
+export interface Conector {
+  tipo: string;
+  nombre: string;
+  categoria: string;
+  descripcion: string;
+  direccion: string;
+  campos: ConectorCampo[];
+  activo: boolean;
+  configurado: boolean;
+  campos_configurados: string[];
+}
+
+export interface ProbarConector {
+  ok: boolean;
+  simulado: boolean;
+  mensaje: string;
+}
+
+export interface TrazaConector {
+  direccion: string;
+  estado: string;
+  ref: string | null;
+  resultado: Record<string, unknown> | null;
+  fecha: string;
+}
+
 export interface SucursalCercana {
   branch_id: string;
   clinic_id: string;

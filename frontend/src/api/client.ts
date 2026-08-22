@@ -153,6 +153,9 @@ import type {
   PerfilAcceso,
   PerfilAsignado,
   Wallet,
+  Conector,
+  ProbarConector,
+  TrazaConector,
 } from './types';
 
 const TOKEN_KEY = 'todoscare_token';
@@ -537,6 +540,12 @@ export const api = {
     ledger: () => get<LedgerEntryAdmin[]>('/admin/finanzas/ledger'),
     auditoria: () => get<AuditEntry[]>('/admin/auditoria'),
     toggleIntegracion: (id: string, activo: boolean) => patch<{ id: string; tipo: string; activo: boolean }>(`/admin/integraciones/${id}`, { activo }),
+    // Conectores externos (Bloque D)
+    conectores: (clinicId: string) => get<Conector[]>(`/admin/conectores?clinic_id=${clinicId}`),
+    configurarConector: (tipo: string, body: { clinic_id: string; activo?: boolean; credenciales?: Record<string, string> }) =>
+      put<Conector>(`/admin/conectores/${tipo}`, body),
+    probarConector: (tipo: string, clinicId: string) => post<ProbarConector>(`/admin/conectores/${tipo}/probar`, { clinic_id: clinicId }),
+    trazaConector: (tipo: string, clinicId: string) => get<TrazaConector[]>(`/admin/conectores/${tipo}/traza?clinic_id=${clinicId}`),
   },
   crm: {
     consolidado: (period?: string) => get<CrmConsolidado>(`/crm/consolidado${period ? `?period=${period}` : ''}`),

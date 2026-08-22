@@ -85,6 +85,7 @@ const AdminConfig = lazyNamed(() => import('./routes/admin/Config'), 'Config');
 const AdminFinanzas = lazyNamed(() => import('./routes/admin/Finanzas'), 'Finanzas');
 const AdminAuditoria = lazyNamed(() => import('./routes/admin/Auditoria'), 'Auditoria');
 const AdminIntegraciones = lazyNamed(() => import('./routes/admin/Integraciones'), 'Integraciones');
+const AdminConectores = lazyNamed(() => import('./routes/admin/Conectores'), 'Conectores');
 const AdminCrmConsolidado = lazyNamed(() => import('./routes/admin/crm/Consolidado'), 'Consolidado');
 const AdminCrmDetalle = lazyNamed(() => import('./routes/admin/crm/DetalleClinica'), 'DetalleClinica');
 const AdminCrmLiquidaciones = lazyNamed(() => import('./routes/admin/crm/Liquidaciones'), 'Liquidaciones');
@@ -196,6 +197,7 @@ function App() {
                 <Route path="/admin/finanzas" element={<AdminFinanzas />} />
                 <Route path="/admin/auditoria" element={<AdminAuditoria />} />
                 <Route path="/admin/integraciones" element={<AdminIntegraciones />} />
+                <Route path="/admin/conectores" element={<AdminConectores />} />
                 <Route path="/admin/crm" element={<AdminCrmConsolidado />} />
                 <Route path="/admin/crm/liquidaciones" element={<AdminCrmLiquidaciones />} />
                 <Route path="/admin/crm/:clinicId/campanas" element={<AdminCrmCampanas />} />

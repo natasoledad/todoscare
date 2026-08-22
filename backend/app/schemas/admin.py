@@ -229,3 +229,46 @@ class PerfilAsignadoOut(BaseModel):
     profile_id: uuid.UUID
     profile_nombre: str
     base_role: str
+
+
+# ---- conectores externos / Bloque D ----
+class ConectorCampo(BaseModel):
+    clave: str
+    label: str
+    secreto: bool = False
+
+
+class ConectorOut(BaseModel):
+    tipo: str
+    nombre: str
+    categoria: str
+    descripcion: str
+    direccion: str
+    campos: list[ConectorCampo]
+    activo: bool
+    configurado: bool
+    campos_configurados: list[str]  # claves con valor guardado (nunca el valor)
+
+
+class ConectorConfigIn(BaseModel):
+    clinic_id: uuid.UUID
+    activo: bool | None = None
+    credenciales: dict | None = None
+
+
+class ProbarConectorIn(BaseModel):
+    clinic_id: uuid.UUID
+
+
+class ProbarConectorOut(BaseModel):
+    ok: bool
+    simulado: bool
+    mensaje: str
+
+
+class TrazaConectorOut(BaseModel):
+    direccion: str
+    estado: str
+    ref: str | None
+    resultado: dict | None
+    fecha: datetime
